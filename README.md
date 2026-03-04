@@ -1,6 +1,5 @@
 # Simply Platform
 
-
 Online leer- en communityplatform voor Simply in Balance klanten.
 
 ## Features
@@ -189,5 +188,3 @@ See the `/docs` folder for detailed documentation:
 ## License
 
 Private - Simply in Balance
-
-test
