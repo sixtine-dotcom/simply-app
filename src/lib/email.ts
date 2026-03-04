@@ -1,11 +1,22 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let resendClient: Resend | null = null;
+
+function getResendClient() {
+  if (resendClient) return resendClient;
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return null;
+  resendClient = new Resend(apiKey);
+  return resendClient;
+}
 
 const FROM_EMAIL = process.env.EMAIL_FROM || "Simply <noreply@simplyinbalance.com>";
 const APP_URL = process.env.APP_URL || "http://localhost:3000";
 
 export async function sendMagicLinkEmail(email: string, token: string, next?: string) {
+  const resend = getResendClient();
+  if (!resend) return { success: false, error: "Missing RESEND_API_KEY" };
+
   const nextParam = next ? `&next=${encodeURIComponent(next)}` : "";
   const magicLink = `${APP_URL}/verify?token=${token}${nextParam}`;
 
@@ -70,6 +81,9 @@ export async function sendMagicLinkEmail(email: string, token: string, next?: st
 
 /** Send email with link to complete registration (account aanmaken via link in inbox) */
 export async function sendRegistrationEmail(email: string, token: string) {
+  const resend = getResendClient();
+  if (!resend) return { success: false, error: "Missing RESEND_API_KEY" };
+
   const completeLink = `${APP_URL}/register/complete?token=${token}`;
 
   try {
@@ -154,6 +168,9 @@ export async function sendWeeklySummaryEmail(
   weekEnd: Date,
   highlights: WeeklySummaryHighlights
 ) {
+  const resend = getResendClient();
+  if (!resend) return { success: false, error: "Missing RESEND_API_KEY" };
+
   const weekRange = `${weekStart.toLocaleDateString("nl-NL", { day: "numeric", month: "short" })} – ${weekEnd.toLocaleDateString("nl-NL", { day: "numeric", month: "short", year: "numeric" })}`;
   const summaryUrl = `${APP_URL}/trackers/weekly-overview`;
 
@@ -217,6 +234,9 @@ export async function sendWelcomeEmail(
   token: string,
   options?: { courseTitles?: string[]; next?: string }
 ) {
+  const resend = getResendClient();
+  if (!resend) return { success: false, error: "Missing RESEND_API_KEY" };
+
   const nextParam = options?.next ? `&next=${encodeURIComponent(options.next)}` : "";
   const magicLink = `${APP_URL}/verify?token=${token}${nextParam}`;
   const courseTitles = options?.courseTitles?.filter(Boolean) ?? [];
@@ -302,6 +322,9 @@ export async function sendCourseAccessEmail(
   token: string,
   courseTitles: string[]
 ) {
+  const resend = getResendClient();
+  if (!resend) return { success: false, error: "Missing RESEND_API_KEY" };
+
   const magicLink = `${APP_URL}/verify?token=${token}`;
   const titles = courseTitles.filter(Boolean);
   if (titles.length === 0) return { success: true };

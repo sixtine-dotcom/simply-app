@@ -16,6 +16,7 @@
     "db:start": "docker compose up -d"
   },
   "dependencies": {
+    "@clerk/nextjs": "^6.12.0",
     "@daily-co/daily-js": "^0.50.0",
     "@prisma/client": "^5.10.0",
     "@radix-ui/react-avatar": "^1.0.4",

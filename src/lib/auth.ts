@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { cookies } from "next/headers";
 import crypto from "crypto";
+import { auth, currentUser as clerkCurrentUser } from "@clerk/nextjs/server";
 
 const SESSION_COOKIE_NAME = "simply_session";
 const SESSION_MAX_AGE = 30 * 24 * 60 * 60; // 30 days in seconds
@@ -220,6 +221,41 @@ export async function clearSessionCookie() {
 
 // Get current user from session
 export async function getCurrentUser() {
+  const clerkAuth = await auth();
+  if (clerkAuth.userId) {
+    const clerkUser = await clerkCurrentUser();
+    const primaryEmail =
+      clerkUser?.emailAddresses.find(
+        (email) => email.id === clerkUser.primaryEmailAddressId
+      )?.emailAddress ?? clerkUser?.emailAddresses[0]?.emailAddress;
+
+    if (primaryEmail) {
+      const normalizedEmail = primaryEmail.toLowerCase();
+      const existingUser = await db.user.findUnique({
+        where: { email: normalizedEmail },
+      });
+
+      if (existingUser) {
+        await db.user.update({
+          where: { id: existingUser.id },
+          data: { lastLoginAt: new Date() },
+        });
+        return existingUser;
+      }
+
+      return db.user.create({
+        data: {
+          email: normalizedEmail,
+          firstName: clerkUser?.firstName?.trim() || "Gebruiker",
+          lastName: clerkUser?.lastName?.trim() || "",
+          role: "CLIENT",
+          lastLoginAt: new Date(),
+          emailVerified: new Date(),
+        },
+      });
+    }
+  }
+
   const token = await getSessionCookie();
   if (!token) return null;
 
