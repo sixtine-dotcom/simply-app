@@ -4,18 +4,27 @@ import { getCurrentUser, createAuditLog } from "@/lib/auth";
 import { createPost, canUserPostInSpace } from "@/lib/community";
 
 const createPostSchema = z.object({
+  title: z.string().max(160).optional().or(z.literal("")),
   content: z.string().min(1, "Bericht is verplicht").max(10000),
   spaceId: z.string().min(1, "Space is verplicht"),
   attachments: z
     .array(
       z.object({
         url: z.string(),
-        type: z.enum(["image", "voice_memo", "file"]),
+        type: z.enum(["image", "video", "voice_memo", "file"]),
         duration: z.number().optional(),
       })
     )
     .optional(),
+  poll: z
+    .object({
+      question: z.string().min(1).max(240),
+      options: z.array(z.string().min(1).max(120)).min(2).max(6),
+    })
+      .optional(),
 });
+
+const voiceRoles = new Set(["ADMIN", "SUPERADMIN", "COACH"]);
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,11 +46,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (
+      data.attachments?.some((attachment) => attachment.type === "voice_memo") &&
+      !voiceRoles.has(user.role)
+    ) {
+      return NextResponse.json(
+        { error: "Voice messages are only available for coaches and admins." },
+        { status: 403 }
+      );
+    }
+
     const post = await createPost(
       user.id,
       data.spaceId,
+      data.title?.trim() ? data.title.trim() : null,
       data.content,
-      data.attachments
+      data.attachments,
+      data.poll
     );
 
     await createAuditLog("post.created", user.id, {

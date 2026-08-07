@@ -78,18 +78,21 @@ export function ModuleList({ courseId, modules: initialModules }: ModuleListProp
         }),
       });
 
-      if (!response.ok) throw new Error("Failed to add module");
-      
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${response.status}`);
+      }
+
       const newModule = await response.json();
       setModules([...modules, { ...newModule, lessons: [] }]);
       setExpandedModules(new Set([...Array.from(expandedModules), newModule.id]));
       setNewModuleTitle("");
       setIsAddingModule(false);
-      
+
       toast({ title: "Module toegevoegd" });
       router.refresh();
     } catch (error) {
-      toast({ title: "Fout", description: "Kon module niet toevoegen", variant: "destructive" });
+      toast({ title: "Fout", description: error instanceof Error ? error.message : "Kon module niet toevoegen", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -98,8 +101,8 @@ export function ModuleList({ courseId, modules: initialModules }: ModuleListProp
   const handleAddLesson = async (moduleId: string) => {
     if (!newLessonTitle.trim()) return;
     
-    const module = modules.find((m) => m.id === moduleId);
-    if (!module) return;
+    const courseModule = modules.find((m) => m.id === moduleId);
+    if (!courseModule) return;
 
     setIsLoading(true);
     try {
@@ -108,7 +111,7 @@ export function ModuleList({ courseId, modules: initialModules }: ModuleListProp
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           title: newLessonTitle,
-          position: module.lessons.length
+          position: courseModule.lessons.length
         }),
       });
 
@@ -183,15 +186,33 @@ export function ModuleList({ courseId, modules: initialModules }: ModuleListProp
           {/* Module Header */}
           <div 
             className="flex items-center gap-3 p-4 cursor-pointer hover:bg-muted/50"
-            onClick={() => toggleModule(module.id)}
+            role="button"
+            tabIndex={0}
+            onClick={() => router.push(`/admin/courses/${courseId}/modules/${module.id}`)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                router.push(`/admin/courses/${courseId}/modules/${module.id}`);
+              }
+            }}
           >
             <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
             
-            {expandedModules.has(module.id) ? (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            )}
+            <button
+              type="button"
+              className="rounded-md p-1 text-muted-foreground transition hover:bg-background hover:text-foreground"
+              aria-label={expandedModules.has(module.id) ? "Module inklappen" : "Module uitklappen"}
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleModule(module.id);
+              }}
+            >
+              {expandedModules.has(module.id) ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+            </button>
             
             <div className="flex-1">
               <div className="flex items-center gap-2">
@@ -229,7 +250,16 @@ export function ModuleList({ courseId, modules: initialModules }: ModuleListProp
               {module.lessons.map((lesson, lessonIndex) => (
                 <div 
                   key={lesson.id}
-                  className="flex items-center gap-3 px-4 py-3 pl-12 hover:bg-muted/30 border-b last:border-0"
+                  className="flex cursor-pointer items-center gap-3 px-4 py-3 pl-12 hover:bg-muted/30 border-b last:border-0"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => router.push(`/admin/courses/${courseId}/modules/${module.id}/lessons/${lesson.id}`)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      router.push(`/admin/courses/${courseId}/modules/${module.id}/lessons/${lesson.id}`);
+                    }
+                  }}
                 >
                   <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
                   
@@ -248,7 +278,7 @@ export function ModuleList({ courseId, modules: initialModules }: ModuleListProp
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                     <Button variant="ghost" size="sm" asChild>
                       <a href={`/admin/courses/${courseId}/modules/${module.id}/lessons/${lesson.id}`}>
                         <Pencil className="h-4 w-4" />

@@ -7,6 +7,7 @@ import {
   setSessionCookie,
   createAuditLog,
 } from "@/lib/auth";
+import { isLaunchLockEnabled, launchLockMessage } from "@/lib/launch-lock";
 
 const completeSchema = z.object({
   token: z.string().min(1, "Token is verplicht"),
@@ -18,6 +19,10 @@ const completeSchema = z.object({
 
 /** GET: verify registration token and return email (for showing on complete form) */
 export async function GET(request: NextRequest) {
+  if (isLaunchLockEnabled()) {
+    return NextResponse.json({ error: launchLockMessage() }, { status: 403 });
+  }
+
   const token = request.nextUrl.searchParams.get("token");
   if (!token) {
     return NextResponse.json({ error: "Geen token" }, { status: 400 });
@@ -28,12 +33,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
-  return NextResponse.json({ email: result.email });
+  return NextResponse.json({
+    email: result.email,
+    metadata: result.metadata ?? null,
+  });
 }
 
 /** POST: complete registration with name, create user + session, set cookie */
 export async function POST(request: NextRequest) {
   try {
+    if (isLaunchLockEnabled()) {
+      return NextResponse.json({ error: launchLockMessage() }, { status: 403 });
+    }
+
     const body = await request.json();
     const data = completeSchema.parse(body);
 
@@ -63,7 +75,12 @@ export async function POST(request: NextRequest) {
     await createAuditLog(
       "user.created",
       result.user.id,
-      { email: result.user.email, source: "register_complete" },
+      {
+        email: result.user.email,
+        source: "register_complete",
+        role: result.user.role,
+        tenantId: result.user.tenantId ?? null,
+      },
       request.headers.get("x-forwarded-for") || undefined
     );
 

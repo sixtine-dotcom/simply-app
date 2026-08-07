@@ -21,21 +21,40 @@ export async function GET(
       Math.max(parseInt(request.nextUrl.searchParams.get("valid_for_secs") || "3600", 10), 900),
       43200
     );
+    const wantsDownload = request.nextUrl.searchParams.get("download") === "1";
 
     const recording = await db.coachingRecording.findUnique({
       where: { id },
-      include: { course: true },
+      include: { course: true, session: true },
     });
     if (!recording) {
       return NextResponse.json({ error: "Opname niet gevonden" }, { status: 404 });
     }
 
-    const enrollment = await db.enrollment.findUnique({
-      where: {
-        userId_courseId: { userId: user.id, courseId: recording.courseId },
-      },
-    });
-    if (!enrollment) {
+    const isCoach =
+      user.role === "ADMIN" ||
+      user.role === "SUPERADMIN" ||
+      recording.coachId === user.id ||
+      recording.course?.coachId === user.id ||
+      recording.session?.coachId === user.id;
+
+    if (wantsDownload && !isCoach) {
+      return NextResponse.json(
+        { error: "Alleen coaches kunnen opnames downloaden" },
+        { status: 403 }
+      );
+    }
+
+    const enrollment = isCoach
+      ? null
+      : recording.courseId
+        ? await db.enrollment.findUnique({
+          where: {
+            userId_courseId: { userId: user.id, courseId: recording.courseId },
+          },
+        })
+        : null;
+    if (!isCoach && !enrollment) {
       return NextResponse.json(
         { error: "Geen toegang tot deze opname" },
         { status: 403 }
@@ -50,6 +69,7 @@ export async function GET(
     return NextResponse.json({
       url: download_link,
       expires,
+      canDownload: isCoach,
     });
   } catch (error) {
     console.error("Recording playback error:", error);

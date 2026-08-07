@@ -28,7 +28,8 @@ const config: Config = {
         foreground: "#1A1A1A",
         muted: {
           DEFAULT: "#F9F9F9",
-          foreground: "#6B7280",
+          // Darker than gray-500 for WCAG on glass/white panels (#6B7280 was marginal)
+          foreground: "#4B5563",
         },
         border: "#E5E7EB",
         card: {

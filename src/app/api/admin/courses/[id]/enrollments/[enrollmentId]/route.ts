@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser, createAuditLog } from "@/lib/auth";
+import { revokeCourseCommunityMembershipIfUnused } from "@/lib/course-community";
 
 const updateSchema = z.object({
   startDate: z.string().optional(),
@@ -15,7 +16,7 @@ export async function PATCH(
   try {
     const { id: courseId, enrollmentId } = await params;
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
     const body = await request.json();
@@ -57,15 +58,26 @@ export async function DELETE(
   try {
     const { id: courseId, enrollmentId } = await params;
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
-    await db.enrollment.delete({
+    const enrollment = await db.enrollment.findFirst({
       where: { id: enrollmentId, courseId },
+      select: { id: true, userId: true },
+    });
+    if (!enrollment) {
+      return NextResponse.json({ error: "Inschrijving niet gevonden" }, { status: 404 });
+    }
+    await db.enrollment.delete({
+      where: { id: enrollment.id, courseId },
+    });
+    await revokeCourseCommunityMembershipIfUnused({
+      userId: enrollment.userId,
+      courseId,
     });
     await createAuditLog("enrollment.removed", user.id, {
       courseId,
-      enrollmentId,
+      enrollmentId: enrollment.id,
     });
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -14,12 +14,12 @@ export default async function NutritionPlanPage() {
   }
 
   const nutritionPlan = await db.nutritionPlan.findFirst({
-    where: { userId: user.id },
+    where: { userId: user.id, availableAt: { lte: new Date() } },
     orderBy: { createdAt: "desc" },
   });
 
   return (
-    <div className="p-6 md:p-8 lg:p-12 max-w-2xl mx-auto">
+    <div className="mx-auto max-w-3xl p-4 md:p-6 lg:p-8">
       <Link 
         href="/recipes"
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
@@ -28,32 +28,53 @@ export default async function NutritionPlanPage() {
         Terug naar recepten
       </Link>
 
-      <Card>
+      <div className="app-panel app-halo mb-6 overflow-hidden">
+        <p className="app-kicker">Nutrition plan</p>
+        <h1 className="mt-3 flex items-center gap-3 font-display text-3xl tracking-tight text-slate-950 md:text-5xl">
+          <FileText className="h-7 w-7 text-primary" />
+          Voedingsschema
+        </h1>
+        <p className="mt-3 text-muted-foreground">
+          Download je persoonlijke schema of bekijk wanneer het beschikbaar komt.
+        </p>
+      </div>
+
+      <Card className="app-halo">
         <CardHeader>
-          <CardTitle className="font-display text-2xl tracking-wider flex items-center gap-2">
-            <FileText className="h-6 w-6" />
-            VOEDINGSSCHEMA
-          </CardTitle>
+          <CardTitle className="font-display text-2xl tracking-tight">Jouw plan</CardTitle>
         </CardHeader>
         <CardContent>
           {nutritionPlan ? (
             <div className="space-y-4">
               <div>
-                <h3 className="font-display text-lg tracking-wider mb-2">
+                <h3 className="mb-2 font-display text-lg tracking-tight">
                   {nutritionPlan.title}
                 </h3>
+                {nutritionPlan.displayFileName ? (
+                  <p className="text-sm text-muted-foreground">{nutritionPlan.displayFileName}</p>
+                ) : null}
               </div>
 
               {nutritionPlan.fileUrl && (
                 <div className="flex gap-4 pt-4 border-t">
                   <Button asChild>
-                    <a href={nutritionPlan.fileUrl} target="_blank" rel="noopener noreferrer">
+                    <a href={`/api/nutrition-plan/${nutritionPlan.id}/download`}>
                       <Download className="h-4 w-4 mr-2" />
                       Download Schema
                     </a>
                   </Button>
                 </div>
               )}
+
+              {nutritionPlan.fileUrl ? (
+                <div className="overflow-hidden rounded-2xl border bg-stone-50">
+                  <iframe
+                    src={nutritionPlan.fileUrl}
+                    title={nutritionPlan.title}
+                    className="h-[70vh] w-full"
+                  />
+                </div>
+              ) : null}
 
               {!nutritionPlan.fileUrl && (
                 <div className="text-center py-8 text-muted-foreground">
@@ -68,8 +89,8 @@ export default async function NutritionPlanPage() {
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <h2 className="font-display text-xl tracking-wider mb-2">
-                GEEN SCHEMA BESCHIKBAAR
+              <h2 className="mb-2 font-display text-xl tracking-tight">
+                Geen schema beschikbaar
               </h2>
               <p>
                 Je persoonlijke voedingsschema wordt door je coach aangemaakt.

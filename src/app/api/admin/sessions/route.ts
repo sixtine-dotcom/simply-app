@@ -1,20 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser, createAuditLog } from "@/lib/auth";
-import { createSession } from "@/lib/coaching";
+import { createSharedSessions } from "@/lib/coaching";
+import { syncCoachingSessionsToConnectedCalendars } from "@/lib/calendar-sync";
 
 const createSessionSchema = z.object({
-  clientId: z.string().min(1, "Klant is verplicht"),
+  clientId: z.string().optional(),
+  clientIds: z.array(z.string()).optional(),
+  coachId: z.string().optional(),
   title: z.string().optional(),
+  description: z.string().optional(),
+  externalAttendeeEmails: z.array(z.string().email()).optional(),
   scheduledAt: z.string().datetime(),
-  duration: z.number().min(15).max(180).default(45),
+  duration: z.number().int().min(5).max(1440).default(45),
+  autoRecord: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
 
-    if (!user || (user.role !== "ADMIN" && user.role !== "COACH")) {
+    if (!user || (user.role !== "ADMIN" && user.role !== "SUPERADMIN" && user.role !== "COACH")) {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 
@@ -25,22 +31,31 @@ export async function POST(request: NextRequest) {
       duration: parseInt(body.duration) || 45,
     });
 
-    const session = await createSession(
-      user.id, // Coach is the current user
-      data.clientId,
-      {
-        title: data.title,
-        scheduledAt: new Date(data.scheduledAt),
-        duration: data.duration,
-      }
-    );
+    const coachId = user.role === "ADMIN" ? data.coachId || user.id : user.id;
+    const clientIds = data.clientIds?.length ? data.clientIds : data.clientId ? [data.clientId] : [];
 
-    await createAuditLog("session.created", user.id, {
-      sessionId: session.id,
-      clientId: data.clientId,
+    const sessions = await createSharedSessions(coachId, clientIds, {
+      title: data.title,
+      description: data.description?.trim() || null,
+      scheduledAt: new Date(data.scheduledAt),
+      duration: data.duration,
+      autoRecord: data.autoRecord ?? true,
+      externalAttendeeEmails: Array.from(new Set(data.externalAttendeeEmails ?? [])),
     });
 
-    return NextResponse.json(session);
+    await createAuditLog("session.created", user.id, {
+      sessionIds: sessions.map((session) => session.id),
+      clientIds,
+      externalAttendeeEmails: data.externalAttendeeEmails ?? [],
+      coachId,
+    });
+
+    await syncCoachingSessionsToConnectedCalendars(sessions.map((session) => session.id));
+
+    return NextResponse.json({
+      created: sessions.length,
+      sessions,
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

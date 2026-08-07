@@ -9,6 +9,7 @@ const updateSchema = z.object({
   phone: z.string().max(30).nullable().optional(),
   avatarUrl: z.string().min(1).nullable().optional(),
   bio: z.string().max(500).nullable().optional(),
+  preferredLanguage: z.enum(["nl", "en"]).optional(),
 });
 
 export async function PATCH(request: NextRequest) {
@@ -33,6 +34,7 @@ export async function PATCH(request: NextRequest) {
         ...(data.phone !== undefined && { phone: data.phone === "" ? null : data.phone }),
         ...(data.avatarUrl !== undefined && { avatarUrl: data.avatarUrl || null }),
         ...(data.bio !== undefined && { bio: data.bio === "" ? null : data.bio }),
+        ...(data.preferredLanguage !== undefined && { preferredLanguage: data.preferredLanguage }),
       },
     });
 
@@ -50,6 +52,8 @@ export async function PATCH(request: NextRequest) {
         bio: updatedUser.bio,
         phone: updatedUser.phone,
         role: updatedUser.role,
+        preferredLanguage:
+          (updatedUser as { preferredLanguage?: string }).preferredLanguage === "en" ? "en" : "nl",
       },
     });
   } catch (error) {

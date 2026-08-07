@@ -6,7 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Copy, Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
-export function DuplicateCourseButton({ courseId }: { courseId: string }) {
+interface DuplicateCourseButtonProps {
+  courseId: string;
+  label?: string;
+  variant?: "default" | "outline" | "ghost";
+  className?: string;
+}
+
+export function DuplicateCourseButton({
+  courseId,
+  label,
+  variant = "outline",
+  className,
+}: DuplicateCourseButtonProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -43,17 +55,19 @@ export function DuplicateCourseButton({ courseId }: { courseId: string }) {
 
   return (
     <Button
-      variant="ghost"
+      variant={variant}
       size="sm"
       onClick={handleDuplicate}
       disabled={isLoading}
       title="Dupliceren (bijv. Challenge 2)"
+      className={className}
     >
       {isLoading ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
+        <Loader2 className={label ? "mr-2 h-4 w-4 animate-spin" : "h-4 w-4 animate-spin"} />
       ) : (
-        <Copy className="h-4 w-4" />
+        <Copy className={label ? "mr-2 h-4 w-4" : "h-4 w-4"} />
       )}
+      {label}
     </Button>
   );
 }

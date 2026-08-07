@@ -20,7 +20,7 @@ export async function POST(
       return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
     }
 
-    const session = await getSession(id, user.id);
+    const session = await getSession(id, user.id, user.tenantId);
 
     if (!session) {
       return NextResponse.json(

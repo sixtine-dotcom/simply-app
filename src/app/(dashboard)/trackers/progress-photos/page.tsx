@@ -130,7 +130,7 @@ export default function ProgressPhotosPage() {
   };
 
   return (
-    <div className="p-6 md:p-8 lg:p-12">
+    <div className="p-4 md:p-6 lg:p-8">
       <Link
         href="/trackers"
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
@@ -139,12 +139,13 @@ export default function ProgressPhotosPage() {
         Terug naar trackers
       </Link>
 
-      <div className="mb-8">
-        <h1 className="font-display text-2xl md:text-3xl tracking-wider flex items-center gap-2">
-          <Camera className="h-6 w-6" />
-          PROGRESSIEFOTO&apos;S
+      <div className="app-panel app-halo mb-8 overflow-hidden">
+        <p className="app-kicker">Photo timeline</p>
+        <h1 className="mt-3 flex items-center gap-3 font-display text-3xl tracking-tight text-slate-950 md:text-5xl">
+          <Camera className="h-7 w-7 text-primary" />
+          Progressiefoto&apos;s
         </h1>
-        <p className="mt-2 text-muted-foreground">
+        <p className="mt-3 max-w-2xl text-muted-foreground">
           Upload voor- en nafoto&apos;s op vaste momenten om je voortgang te volgen
         </p>
       </div>
@@ -154,11 +155,11 @@ export default function ProgressPhotosPage() {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : courses.length === 0 ? (
-        <Card>
+        <Card className="app-halo">
           <CardContent className="py-12 text-center">
             <Camera className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-            <h2 className="font-display text-xl tracking-wider mb-2">
-              GEEN CURSUSSEN MET FOTOMOMENTEN
+            <h2 className="mb-2 font-display text-xl tracking-tight">
+              Geen cursussen met fotomomenten
             </h2>
             <p className="text-muted-foreground max-w-md mx-auto">
               Voor de cursussen waar je op staat, zijn nog geen progressiefoto-momenten ingesteld.
@@ -169,9 +170,9 @@ export default function ProgressPhotosPage() {
       ) : (
         <div className="space-y-8">
           {courses.map((c) => (
-            <Card key={c.courseId}>
+            <Card key={c.courseId} className="app-halo">
               <CardHeader>
-                <CardTitle className="font-display text-lg tracking-wider">
+                <CardTitle className="font-display text-lg tracking-tight">
                   {c.courseTitle}
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">
@@ -182,7 +183,7 @@ export default function ProgressPhotosPage() {
                 {c.moments.map((m) => (
                   <div
                     key={m.periodIndex}
-                    className="border rounded-lg p-4 space-y-4"
+                    className="space-y-4 rounded-[24px] border p-4"
                   >
                     <h3 className="font-medium text-muted-foreground">
                       {m.weekLabel}

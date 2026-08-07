@@ -8,11 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Mail, CheckCircle } from "lucide-react";
-import { Logo } from "@/components/layout/logo";
 
 export default function RegisterPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [accountType, setAccountType] = useState<"client" | "tenant_admin">("client");
+  const [tenantName, setTenantName] = useState("");
+  const [tenantSlug, setTenantSlug] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -28,7 +30,12 @@ export default function RegisterPage() {
       const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
+        body: JSON.stringify({
+          email: email.trim(),
+          accountType,
+          tenantName: accountType === "tenant_admin" ? tenantName.trim() : undefined,
+          tenantSlug: accountType === "tenant_admin" ? tenantSlug.trim() : undefined,
+        }),
       });
 
       let data: { success?: boolean; error?: string; existingAccount?: boolean; devMagicLink?: string };
@@ -61,8 +68,16 @@ export default function RegisterPage() {
 
   if (isSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
-        <Card className="w-full max-w-md">
+      <div
+        className="relative flex min-h-screen items-center justify-center overflow-hidden px-4"
+        style={{
+          backgroundImage:
+            "linear-gradient(135deg, rgba(255,255,255,0.55), rgba(255,255,255,0.28)), url('/auth-login-bg.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
+        <Card className="w-full max-w-md border-border bg-white shadow-2xl">
           <CardHeader className="text-center">
             <div className="mx-auto w-12 h-12 bg-success/10 rounded-full flex items-center justify-center mb-4">
               <CheckCircle className="h-6 w-6 text-success" />
@@ -101,12 +116,18 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
-      <Card className="w-full max-w-md">
+    <div
+      className="relative flex min-h-screen items-center justify-center overflow-hidden px-4"
+      style={{
+        backgroundImage:
+          "linear-gradient(135deg, rgba(255,255,255,0.52), rgba(255,255,255,0.24)), url('/auth-login-bg.jpg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
+      <Card className="w-full max-w-md border-border bg-white shadow-2xl">
         <CardHeader className="text-center">
-          <div className="mb-6 flex justify-center">
-            <Logo variant="auth" standalone />
-          </div>
+          <p className="mb-2 font-display text-2xl text-primary">Simply leeromgeving</p>
           <CardTitle className="font-display text-xl tracking-wider">ACCOUNT AANMAKEN</CardTitle>
           <CardDescription>
             Vul je email in. Je ontvangt een link in je inbox om je account te voltooien.
@@ -114,6 +135,69 @@ export default function RegisterPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Accounttype</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  className={`rounded-lg border px-3 py-2 text-sm ${accountType === "client" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
+                  onClick={() => setAccountType("client")}
+                >
+                  Klantaccount
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-lg border px-3 py-2 text-sm ${accountType === "tenant_admin" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
+                  onClick={() => setAccountType("tenant_admin")}
+                >
+                  Coach platform
+                </button>
+              </div>
+            </div>
+
+            {accountType === "tenant_admin" ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="tenantName">Platformnaam</Label>
+                  <Input
+                    id="tenantName"
+                    placeholder="Bijv. Fit Academy"
+                    value={tenantName}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setTenantName(value);
+                      if (!tenantSlug) {
+                        setTenantSlug(
+                          value
+                            .toLowerCase()
+                            .replace(/[^\w\s-]/g, "")
+                            .replace(/\s+/g, "-")
+                            .replace(/-+/g, "-")
+                            .trim()
+                        );
+                      }
+                    }}
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tenantSlug">Platform slug</Label>
+                  <Input
+                    id="tenantSlug"
+                    placeholder="fit-academy"
+                    value={tenantSlug}
+                    onChange={(e) => setTenantSlug(e.target.value)}
+                    required
+                    disabled={isLoading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Dit wordt je subdomein voor de onboarding van je platform.
+                  </p>
+                </div>
+              </>
+            ) : null}
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <div className="relative">
@@ -142,7 +226,7 @@ export default function RegisterPage() {
                   Bezig...
                 </>
               ) : (
-                "Link ontvangen"
+                accountType === "tenant_admin" ? "Platform starten" : "Link ontvangen"
               )}
             </Button>
           </form>

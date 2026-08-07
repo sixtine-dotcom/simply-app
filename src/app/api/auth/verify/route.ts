@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { verifyMagicLink, createSession, setSessionCookie, createAuditLog } from "@/lib/auth";
+import { isEmailAllowedDuringLaunch, launchLockMessage } from "@/lib/launch-lock";
 
 const requestSchema = z.object({
   token: z.string().min(1, "Token is verplicht"),
@@ -25,6 +26,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Gebruiker niet gevonden" },
         { status: 404 }
+      );
+    }
+
+    if (!isEmailAllowedDuringLaunch(result.user.email)) {
+      return NextResponse.json(
+        { error: launchLockMessage() },
+        { status: 403 }
       );
     }
 

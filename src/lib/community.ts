@@ -1,13 +1,16 @@
 import { db } from "./db";
+import { getBlockingCourseFormsForUser } from "./forms";
 
 export interface SpaceWithMeta {
   id: string;
   name: string;
   slug: string;
+  groupLabel: string | null;
   description: string | null;
   iconEmoji: string | null;
   isPublic: boolean;
   isHostOnly: boolean;
+  isActive: boolean;
   position: number;
   postCount: number;
   latestPost: {
@@ -23,7 +26,10 @@ export interface SpaceWithMeta {
 
 export interface PostWithDetails {
   id: string;
+  title: string | null;
   content: string;
+  pollQuestion: string | null;
+  pollOptions: string[] | null;
   isPinned: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -39,6 +45,7 @@ export interface PostWithDetails {
     name: string;
     slug: string;
     isHostOnly: boolean;
+    isActive: boolean;
   };
   attachments: {
     id: string;
@@ -46,11 +53,73 @@ export interface PostWithDetails {
     type: string;
     duration: number | null;
   }[];
+  comments: Array<{
+    id: string;
+    content: string;
+    createdAt: Date;
+    updatedAt: Date;
+    author: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      avatarUrl: string | null;
+      role: string;
+    };
+    attachments: {
+      id: string;
+      url: string;
+      type: string;
+      duration: number | null;
+    }[];
+  }>;
+  poll: {
+    totalVotes: number;
+    userVote: number | null;
+    options: Array<{
+      index: number;
+      label: string;
+      votes: number;
+    }>;
+  } | null;
   _count: {
     comments: number;
     likes: number;
   };
   isLiked: boolean;
+}
+
+function parsePollOptions(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const options = value
+    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+    .filter(Boolean);
+  return options.length > 0 ? options : null;
+}
+
+function buildPoll(post: {
+  pollQuestion: string | null;
+  pollOptions: unknown;
+  pollVotes: Array<{ userId: string; optionIndex: number }>;
+}, userId: string) {
+  const options = parsePollOptions(post.pollOptions);
+  if (!post.pollQuestion || !options) return null;
+
+  const votesByOption = new Map<number, number>();
+  for (const vote of post.pollVotes) {
+    votesByOption.set(vote.optionIndex, (votesByOption.get(vote.optionIndex) || 0) + 1);
+  }
+
+  const userVote = post.pollVotes.find((vote) => vote.userId === userId)?.optionIndex ?? null;
+
+  return {
+    totalVotes: post.pollVotes.length,
+    userVote,
+    options: options.map((label, index) => ({
+      index,
+      label,
+      votes: votesByOption.get(index) || 0,
+    })),
+  };
 }
 
 /**
@@ -63,10 +132,43 @@ export async function getUserSpaces(userId: string): Promise<SpaceWithMeta[]> {
     select: { spaceId: true },
   });
   const memberSpaceIds = memberships.map((m) => m.spaceId);
+  const linkedCourses = await db.course.findMany({
+    where: {
+      communitySpaceId: { in: memberSpaceIds.length > 0 ? memberSpaceIds : ["__none__"] },
+      enrollments: { some: { userId } },
+    },
+    select: {
+      id: true,
+      communitySpaceId: true,
+      enrollments: {
+        where: { userId },
+        take: 1,
+        select: { startDate: true, endDate: true },
+      },
+    },
+  });
+  const blockedCourses = await getBlockingCourseFormsForUser({
+    userId,
+    courseIds: linkedCourses.map((course) => course.id),
+  });
+  const blockedSpaceIds = new Set(
+    linkedCourses
+      .filter((course) => {
+        const enrollment = course.enrollments[0];
+        const now = new Date();
+        return blockedCourses.has(course.id)
+          || !enrollment
+          || enrollment.startDate > now
+          || Boolean(enrollment.endDate && enrollment.endDate < now);
+      })
+      .map((course) => course.communitySpaceId)
+      .filter((spaceId): spaceId is string => Boolean(spaceId))
+  );
 
   // Get public spaces + member spaces
   const spaces = await db.space.findMany({
     where: {
+      isActive: true,
       OR: [
         { isPublic: true },
         { id: { in: memberSpaceIds } },
@@ -89,14 +191,16 @@ export async function getUserSpaces(userId: string): Promise<SpaceWithMeta[]> {
     },
   });
 
-  return spaces.map((space) => ({
+  return spaces.filter((space) => !blockedSpaceIds.has(space.id)).map((space) => ({
     id: space.id,
     name: space.name,
     slug: space.slug,
+    groupLabel: space.groupLabel,
     description: space.description,
     iconEmoji: space.iconEmoji,
     isPublic: space.isPublic,
     isHostOnly: space.isHostOnly,
+    isActive: space.isActive,
     position: space.position,
     postCount: space._count.posts,
     latestPost: space.posts[0]
@@ -161,9 +265,16 @@ export async function getPosts(
           name: true,
           slug: true,
           isHostOnly: true,
+          isActive: true,
         },
       },
       attachments: true,
+      pollVotes: {
+        select: {
+          userId: true,
+          optionIndex: true,
+        },
+      },
       _count: {
         select: {
           comments: true,
@@ -190,6 +301,9 @@ export async function getPosts(
   return {
     posts: postsToReturn.map((post) => ({
       ...post,
+      comments: [],
+      poll: buildPoll(post, userId),
+      pollOptions: parsePollOptions(post.pollOptions),
       isLiked: likedPostIds.has(post.id),
     })),
     nextCursor: hasMore
@@ -220,9 +334,16 @@ export async function getPost(postId: string, userId: string) {
           name: true,
           slug: true,
           isHostOnly: true,
+          isActive: true,
         },
       },
       attachments: true,
+      pollVotes: {
+        select: {
+          userId: true,
+          optionIndex: true,
+        },
+      },
       comments: {
         orderBy: { createdAt: "asc" },
         include: {
@@ -235,6 +356,7 @@ export async function getPost(postId: string, userId: string) {
               role: true,
             },
           },
+          attachments: true,
         },
       },
       _count: {
@@ -247,6 +369,8 @@ export async function getPost(postId: string, userId: string) {
   });
 
   if (!post) return null;
+  const hasAccess = await canUserAccessSpace(userId, post.space.id);
+  if (!hasAccess) return null;
 
   // Check if user liked this post
   const userLike = await db.postLike.findUnique({
@@ -260,6 +384,8 @@ export async function getPost(postId: string, userId: string) {
 
   return {
     ...post,
+    poll: buildPoll(post, userId),
+    pollOptions: parsePollOptions(post.pollOptions),
     isLiked: !!userLike,
   };
 }
@@ -270,14 +396,19 @@ export async function getPost(postId: string, userId: string) {
 export async function createPost(
   userId: string,
   spaceId: string,
+  title: string | null,
   content: string,
-  attachments?: { url: string; type: string; duration?: number }[]
+  attachments?: { url: string; type: string; duration?: number }[],
+  poll?: { question: string; options: string[] } | null
 ) {
   return db.post.create({
     data: {
       authorId: userId,
       spaceId,
+      title,
       content,
+      pollQuestion: poll?.question || null,
+      pollOptions: poll?.options ? poll.options : undefined,
       attachments: attachments
         ? {
             create: attachments.map((a) => ({
@@ -307,6 +438,12 @@ export async function createPost(
         },
       },
       attachments: true,
+      pollVotes: {
+        select: {
+          userId: true,
+          optionIndex: true,
+        },
+      },
       _count: {
         select: {
           comments: true,
@@ -315,6 +452,51 @@ export async function createPost(
       },
     },
   });
+}
+
+export async function voteOnPoll(postId: string, userId: string, optionIndex: number) {
+  const post = await db.post.findUnique({
+    where: { id: postId },
+    select: {
+      id: true,
+      pollQuestion: true,
+      pollOptions: true,
+      spaceId: true,
+    },
+  });
+
+  const options = parsePollOptions(post?.pollOptions);
+  if (!post || !post.pollQuestion || !options) {
+    throw new Error("Deze post heeft geen poll.");
+  }
+
+  const hasAccess = await canUserAccessSpace(userId, post.spaceId);
+  if (!hasAccess) {
+    throw new Error("Je hebt geen toegang tot deze poll.");
+  }
+
+  if (optionIndex < 0 || optionIndex >= options.length) {
+    throw new Error("Ongeldige poll-optie.");
+  }
+
+  await db.postPollVote.upsert({
+    where: {
+      postId_userId: {
+        postId,
+        userId,
+      },
+    },
+    update: {
+      optionIndex,
+    },
+    create: {
+      postId,
+      userId,
+      optionIndex,
+    },
+  });
+
+  return getPost(postId, userId);
 }
 
 /**
@@ -353,7 +535,8 @@ export async function addComment(
   postId: string,
   userId: string,
   content: string,
-  parentId?: string
+  parentId?: string,
+  attachments?: { url: string; type: string; duration?: number }[]
 ) {
   return db.comment.create({
     data: {
@@ -361,6 +544,15 @@ export async function addComment(
       authorId: userId,
       content,
       parentId,
+      attachments: attachments
+        ? {
+            create: attachments.map((attachment) => ({
+              url: attachment.url,
+              type: attachment.type,
+              duration: attachment.duration,
+            })),
+          }
+        : undefined,
     },
     include: {
       author: {
@@ -372,7 +564,55 @@ export async function addComment(
           role: true,
         },
       },
+      attachments: true,
     },
+  });
+}
+
+export async function updatePost(
+  postId: string,
+  userId: string,
+  title: string | null,
+  content: string
+) {
+  const post = await db.post.findUnique({
+    where: { id: postId },
+    select: { id: true, authorId: true },
+  });
+
+  if (!post) {
+    throw new Error("Post not found.");
+  }
+
+  if (post.authorId !== userId) {
+    throw new Error("You can only edit your own posts.");
+  }
+
+  return db.post.update({
+    where: { id: postId },
+    data: {
+      title,
+      content,
+    },
+  });
+}
+
+export async function deletePost(postId: string, userId: string) {
+  const post = await db.post.findUnique({
+    where: { id: postId },
+    select: { id: true, authorId: true },
+  });
+
+  if (!post) {
+    throw new Error("Post not found.");
+  }
+
+  if (post.authorId !== userId) {
+    throw new Error("You can only delete your own posts.");
+  }
+
+  await db.post.delete({
+    where: { id: postId },
   });
 }
 
@@ -388,6 +628,8 @@ export async function canUserPostInSpace(
   });
 
   if (!space) return false;
+  if (!space.isActive) return false;
+  if (await isSpaceBlockedByRequiredForm(userId, spaceId)) return false;
 
   // Host-only spaces: only admins can post
   if (space.isHostOnly) {
@@ -411,4 +653,58 @@ export async function canUserPostInSpace(
   });
 
   return !!membership;
+}
+
+export async function canUserAccessSpace(userId: string, spaceId: string): Promise<boolean> {
+  const space = await db.space.findUnique({
+    where: { id: spaceId },
+    select: {
+      isPublic: true,
+      isActive: true,
+    },
+  });
+
+  if (!space || !space.isActive) return false;
+  if (await isSpaceBlockedByRequiredForm(userId, spaceId)) return false;
+  if (space.isPublic) return true;
+
+  const membership = await db.spaceMember.findUnique({
+    where: {
+      userId_spaceId: {
+        userId,
+        spaceId,
+      },
+    },
+  });
+
+  return !!membership;
+}
+
+async function isSpaceBlockedByRequiredForm(userId: string, spaceId: string) {
+  const courses = await db.course.findMany({
+    where: {
+      communitySpaceId: spaceId,
+      enrollments: { some: { userId } },
+    },
+    select: {
+      id: true,
+      enrollments: {
+        where: { userId },
+        take: 1,
+        select: { startDate: true, endDate: true },
+      },
+    },
+  });
+  const gates = await getBlockingCourseFormsForUser({
+    userId,
+    courseIds: courses.map((course) => course.id),
+  });
+  if (gates.size > 0) return true;
+  const now = new Date();
+  return courses.some((course) => {
+    const enrollment = course.enrollments[0];
+    return !enrollment
+      || enrollment.startDate > now
+      || Boolean(enrollment.endDate && enrollment.endDate < now);
+  });
 }

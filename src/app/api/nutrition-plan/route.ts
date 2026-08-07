@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
     // Get user's nutrition plan (if exists)
     const nutritionPlan = await db.nutritionPlan.findFirst({
-      where: { userId: user.id },
+      where: { userId: user.id, availableAt: { lte: new Date() } },
       orderBy: { createdAt: "desc" },
     });
 
@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
       id: nutritionPlan.id,
       title: nutritionPlan.title,
       fileUrl: nutritionPlan.fileUrl,
+      displayFileName: nutritionPlan.displayFileName,
+      downloadUrl: `/api/nutrition-plan/${nutritionPlan.id}/download`,
       createdAt: nutritionPlan.createdAt,
     });
   } catch (error) {

@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser, createAuditLog } from "@/lib/auth";
-import { addComment } from "@/lib/community";
+import { addComment, canUserAccessSpace } from "@/lib/community";
 import { db } from "@/lib/db";
 
 const createCommentSchema = z.object({
   content: z.string().min(1, "Reactie is verplicht").max(5000),
   parentId: z.string().optional(),
+  attachments: z
+    .array(
+      z.object({
+        url: z.string(),
+        type: z.enum(["image", "voice_memo", "file"]),
+        duration: z.number().optional(),
+      })
+    )
+    .optional(),
 });
+
+const voiceRoles = new Set(["ADMIN", "SUPERADMIN", "COACH"]);
 
 export async function POST(
   request: NextRequest,
@@ -38,6 +49,11 @@ export async function POST(
       return NextResponse.json({ error: "Post niet gevonden" }, { status: 404 });
     }
 
+    const hasAccess = await canUserAccessSpace(user.id, post.spaceId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "Geen toegang tot deze space" }, { status: 403 });
+    }
+
     // Host-only spaces don't allow comments from non-admins
     if (post.space.isHostOnly && user.role !== "ADMIN") {
       return NextResponse.json(
@@ -46,7 +62,17 @@ export async function POST(
       );
     }
 
-    const comment = await addComment(postId, user.id, data.content, data.parentId);
+    if (
+      data.attachments?.some((attachment) => attachment.type === "voice_memo") &&
+      !voiceRoles.has(user.role)
+    ) {
+      return NextResponse.json(
+        { error: "Voice messages are only available for coaches and admins." },
+        { status: 403 }
+      );
+    }
+
+    const comment = await addComment(postId, user.id, data.content, data.parentId, data.attachments);
 
     await createAuditLog("comment.created", user.id, {
       postId,
@@ -82,6 +108,22 @@ export async function GET(
       return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
     }
 
+    const post = await db.post.findUnique({
+      where: { id: postId },
+      select: {
+        spaceId: true,
+      },
+    });
+
+    if (!post) {
+      return NextResponse.json({ error: "Post niet gevonden" }, { status: 404 });
+    }
+
+    const hasAccess = await canUserAccessSpace(user.id, post.spaceId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "Geen toegang tot deze space" }, { status: 403 });
+    }
+
     const comments = await db.comment.findMany({
       where: { postId },
       orderBy: { createdAt: "asc" },
@@ -95,6 +137,7 @@ export async function GET(
             role: true,
           },
         },
+        attachments: true,
       },
     });
 

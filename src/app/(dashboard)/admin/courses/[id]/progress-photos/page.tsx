@@ -1,7 +1,7 @@
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAdminUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChevronLeft, Camera } from "lucide-react";
@@ -14,11 +14,7 @@ export default async function AdminProgressPhotosPage({
   params,
 }: ProgressPhotosPageProps) {
   const { id: courseId } = await params;
-  const user = await getCurrentUser();
-
-  if (!user || user.role !== "ADMIN") {
-    redirect("/");
-  }
+  await requireAdminUser("/admin/courses");
 
   const course = await db.course.findUnique({
     where: { id: courseId },

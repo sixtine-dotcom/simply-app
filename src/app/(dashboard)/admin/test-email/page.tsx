@@ -1,10 +1,8 @@
-import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAdminUser } from "@/lib/auth";
 import { TestEmailForm } from "./test-email-form";
 
 export default async function AdminTestEmailPage() {
-  const user = await getCurrentUser();
-  if (!user || user.role !== "ADMIN") redirect("/");
+  const user = await requireAdminUser("/admin/test-email");
 
   return (
     <div className="p-6 md:p-8 lg:p-12 max-w-xl">

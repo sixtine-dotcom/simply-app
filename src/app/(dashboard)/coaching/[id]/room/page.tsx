@@ -15,7 +15,7 @@ export default async function VideoRoomPage({ params }: VideoRoomPageProps) {
     redirect("/login");
   }
 
-  const session = await getSession(id, user.id);
+  const session = await getSession(id, user.id, user.tenantId);
 
   if (!session) {
     notFound();

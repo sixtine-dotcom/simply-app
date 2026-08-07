@@ -1,4 +1,12 @@
-# Simply app – deployen naar productie
+# Simply Platform - Deployment Guide
+
+Status note: practical deployment guide.
+
+This file explains a simple Vercel deployment path.
+For product scope and implementation status, use:
+- `docs/FEATURE-INVENTORY.md`
+- `docs/DESKTOP-IMPLEMENTATION-STATUS.md`
+- `docs/README.md`
 
 De eenvoudigste manier om de app live te zetten is met **Vercel**. Dat werkt goed met Next.js en heeft een gratis tier.
 

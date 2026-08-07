@@ -20,7 +20,7 @@ export async function GET(
       return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
     }
 
-    const session = await getSession(id, user.id);
+    const session = await getSession(id, user.id, user.tenantId);
 
     if (!session) {
       return NextResponse.json(
@@ -76,10 +76,12 @@ export async function GET(
               roomId,
               roomUrl
             );
-            try {
-              await startRecording(roomName);
-            } catch (e) {
-              console.error("Start recording failed:", e);
+            if (session.autoRecord) {
+              try {
+                await startRecording(roomName);
+              } catch (e) {
+                console.error("Start recording failed:", e);
+              }
             }
           }
         } else {
@@ -91,10 +93,12 @@ export async function GET(
           roomId = room.roomId;
           roomUrl = room.roomUrl;
           await updateSessionRoom(session.id, roomId, roomUrl);
-          try {
-            await startRecording(roomName);
-          } catch (e) {
-            console.error("Start recording failed:", e);
+          if (session.autoRecord) {
+            try {
+              await startRecording(roomName);
+            } catch (e) {
+              console.error("Start recording failed:", e);
+            }
           }
         }
       } catch (error) {
@@ -129,6 +133,8 @@ export async function GET(
         roomUrl,
         token,
         roomName,
+        autoRecord: session.autoRecord,
+        canManageRecording: isOwner,
       });
     } catch (error) {
       console.error("Failed to create Daily token:", error);

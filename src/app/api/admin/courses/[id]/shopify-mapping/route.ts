@@ -12,7 +12,7 @@ export async function GET(
     const { id: courseId } = await params;
     const user = await getCurrentUser();
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 
@@ -45,7 +45,7 @@ export async function PUT(
     const { id: courseId } = await params;
     const user = await getCurrentUser();
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 
@@ -117,7 +117,7 @@ export async function DELETE(
     const { id: courseId } = await params;
     const user = await getCurrentUser();
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 

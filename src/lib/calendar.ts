@@ -1,4 +1,4 @@
-import ical, { ICalCalendarMethod } from "ical-generator";
+import ical, { ICalAlarmType, ICalCalendarMethod } from "ical-generator";
 
 /**
  * Generate ICS calendar file for a coaching session
@@ -6,6 +6,7 @@ import ical, { ICalCalendarMethod } from "ical-generator";
 export function generateSessionICS(session: {
   id: string;
   title: string | null;
+  description?: string | null;
   scheduledAt: Date;
   duration: number;
   coach: {
@@ -29,12 +30,21 @@ export function generateSessionICS(session: {
     method: ICalCalendarMethod.REQUEST,
   });
 
-  calendar.createEvent({
+  const joinUrl = `${appUrl}/coaching/${session.id}/room`;
+  const description = [
+    session.description?.trim(),
+    "Je coaching sessie via Simply.",
+    `Klik hier om deel te nemen: ${joinUrl}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const event = calendar.createEvent({
     start: session.scheduledAt,
     end: endTime,
     summary: session.title || `Coaching sessie met ${session.coach.firstName}`,
-    description: `Je coaching sessie via Simply.\n\nKlik hier om deel te nemen: ${appUrl}/coaching/${session.id}/room`,
-    location: `${appUrl}/coaching/${session.id}/room`,
+    description,
+    location: joinUrl,
     organizer: {
       name: `${session.coach.firstName} ${session.coach.lastName}`,
       email: session.coach.email,
@@ -47,6 +57,11 @@ export function generateSessionICS(session: {
       },
     ],
     url: `${appUrl}/coaching/${session.id}`,
+  });
+  event.createAlarm({
+    type: ICalAlarmType.display,
+    trigger: 15 * 60,
+    description: "Coaching start over 15 minuten",
   });
 
   return calendar.toString();

@@ -1,265 +1,198 @@
 /**
- * Import recipes from website (Shopify blog)
- * Blog URL: RECIPES_SOURCE_URL of default simplyinbalance.com/blogs/recepten
+ * Sync recipes from simplyinbalance.com via the public Atom feed.
+ * Feed URL: https://simplyinbalance.com/blogs/recepten.atom
  */
+import { normalizeRecipeTags } from "@/lib/recipe-tags";
 
-const RECIPES_BASE_URL =
-  process.env.RECIPES_SOURCE_URL || "https://simplyinbalance.com/blogs/recepten";
+const FEED_URL =
+  process.env.RECIPES_SOURCE_URL
+    ? `${process.env.RECIPES_SOURCE_URL.replace(/\/$/, "")}.atom`
+    : "https://simplyinbalance.com/blogs/recepten.atom";
 
-interface ShopifyRecipe {
-  title: string;
-  url: string;
-  description: string;
-  tags: string[];
-  content: string;
-  imageUrl?: string;
+// ── XML helpers ───────────────────────────────────────────────────────────────
+
+function extractCdata(xml: string, tag: string): string {
+  const re = new RegExp(`<${tag}[^>]*>\\s*<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>`, "i");
+  return xml.match(re)?.[1]?.trim() ?? "";
 }
 
-/**
- * Fetch recipes from the configured blog URL
- */
-export async function fetchShopifyRecipes(): Promise<ShopifyRecipe[]> {
-  try {
-    const baseUrl = RECIPES_BASE_URL.replace(/\/$/, "");
-    const blogPath = baseUrl.includes("/blogs/") ? baseUrl : `${baseUrl}/blogs/recepten`;
-    const response = await fetch(blogPath, {
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-      },
+function extractTag(xml: string, tag: string): string {
+  const re = new RegExp(`<${tag}[^>]*>([^<]*)<\\/${tag}>`, "i");
+  return xml.match(re)?.[1]?.trim() ?? "";
+}
+
+function parseEntries(feedXml: string) {
+  const entries: Array<{
+    title: string;
+    slug: string;
+    link: string;
+    summary: string;
+    content: string;
+  }> = [];
+
+  const re = /<entry>([\s\S]*?)<\/entry>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(feedXml)) !== null) {
+    const e = m[1];
+    const link =
+      e.match(/rel="alternate"[^>]*href="([^"]+)"/)?.[1] ??
+      e.match(/href="([^"]+)"[^>]*rel="alternate"/)?.[1] ??
+      "";
+    const slug = link.split("/").pop() ?? "";
+    if (!slug) continue;
+    entries.push({
+      title: extractCdata(e, "title") || extractTag(e, "title"),
+      slug,
+      link,
+      summary: extractCdata(e, "summary"),
+      content: extractCdata(e, "content"),
     });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch recipes: ${response.statusText}`);
-    }
-
-    const html = await response.text();
-    
-    // Parse HTML to extract recipe links
-    const recipeLinks: string[] = [];
-    const origin = new URL(blogPath).origin;
-    const linkRegex = /href="(\/blogs\/recepten\/[^"]+)"|href="(https?:\/\/[^"]*\/blogs\/recepten\/[^"]+)"/g;
-    let match;
-
-    while ((match = linkRegex.exec(html)) !== null) {
-      const pathOrFull = match[1] || match[2];
-      const url = pathOrFull.startsWith("http") ? pathOrFull : `${origin}${pathOrFull}`;
-      if (!recipeLinks.includes(url)) {
-        recipeLinks.push(url);
-      }
-    }
-
-    const recipes: ShopifyRecipe[] = [];
-
-    for (const recipeUrl of recipeLinks) {
-      try {
-        const recipeResponse = await fetch(recipeUrl, {
-          headers: {
-            "User-Agent": "Mozilla/5.0",
-          },
-        });
-
-        if (recipeResponse.ok) {
-          const recipeHtml = await recipeResponse.text();
-          const recipe = parseRecipeFromHTML(recipeHtml, recipeUrl);
-          if (recipe) {
-            recipes.push(recipe);
-          }
-        }
-      } catch (error) {
-        console.error(`Failed to fetch recipe ${recipeUrl}:`, error);
-      }
-    }
-
-    return recipes;
-  } catch (error) {
-    console.error("Failed to fetch Shopify recipes:", error);
-    throw error;
   }
+  return entries;
 }
 
-/**
- * Parse recipe data from HTML
- */
-function parseRecipeFromHTML(html: string, url: string): ShopifyRecipe | null {
-  try {
-    // Extract title (usually in h1 or article title)
-    const titleMatch = html.match(/<h1[^>]*>([^<]+)<\/h1>/i) || 
-                      html.match(/<title>([^<]+)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].replace(/\s*-\s*Simply in Balance.*/i, "").trim() : "";
+// ── HTML → structured data ────────────────────────────────────────────────────
 
-    if (!title) return null;
+function stripHtml(s: string): string {
+  return s
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-    // Extract description (meta description or first paragraph)
-    const descMatch = html.match(/<meta\s+name="description"\s+content="([^"]+)"/i) ||
-                      html.match(/<p[^>]*class="[^"]*excerpt[^"]*"[^>]*>([^<]+)<\/p>/i);
-    const description = descMatch ? descMatch[1].trim() : "";
+function extractListItems(html: string): string[] {
+  const items: string[] = [];
+  const re = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const text = stripHtml(m[1]);
+    if (text) items.push(text);
+  }
+  return items;
+}
 
-    // Extract tags (if present in meta tags or article tags)
-    const tags: string[] = [];
-    const tagMatches = Array.from(html.matchAll(/<a[^>]*href="[^"]*\/tagged\/([^"]+)"[^>]*>([^<]+)<\/a>/gi));
-    for (const match of tagMatches) {
-      tags.push(match[2].trim());
+function extractParagraphSteps(html: string): string[] {
+  const steps: string[] = [];
+  const re = /<p[^>]*>([\s\S]*?)<\/p>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const text = stripHtml(m[1]).trim();
+    if (!text || text.length < 5) continue;
+    if (/^Bereiding\s*:?\s*$/i.test(text)) continue;
+    if (shouldStopInstructionParsing(text)) break;
+    // Inline bereiding: "<p>Bereiding<br>First instruction</p>"
+    if (/^Bereiding/i.test(text)) {
+      const cleaned = text.replace(/^Bereiding\s*:?\s*/i, "").trim();
+      if (cleaned && cleaned.length > 5) steps.push(cleaned);
+      continue;
     }
+    steps.push(text);
+  }
+  return steps;
+}
 
-    // Extract image (og:image or first img in article)
-    const imageMatch = html.match(/<meta\s+property="og:image"\s+content="([^"]+)"/i) ||
-                       html.match(/<img[^>]*class="[^"]*article[^"]*"[^>]*src="([^"]+)"/i);
-    const imageUrl = imageMatch ? imageMatch[1] : undefined;
+function shouldStopInstructionParsing(text: string): boolean {
+  return [
+    /heb je dit recept/i,
+    /heb je (het|deze) recept/i,
+    /heb je dit gemaakt/i,
+    /heb je het receptje gemaakt/i,
+    /vergeet.*simply/i,
+    /ik gebruik de producten/i,
+    /deel .* op je story/i,
+    /\bsimply in balance taggen\b/i,
+  ].some((pattern) => pattern.test(text));
+}
 
-    // Extract content (article body)
-    const contentMatch = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
-                        html.match(/<div[^>]*class="[^"]*article[^"]*content[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
-    const content = contentMatch ? contentMatch[1] : "";
+function parseRecipeHtml(html: string) {
+  const calories = html.match(/Calorie[^:]*:\s*(\d+)/i)?.[1];
+  const protein  = html.match(/Eiwitten:\s*(\d+)/i)?.[1];
+  const carbs    = html.match(/Koolhydraten:\s*(\d+)/i)?.[1];
+  const fat      = html.match(/Vetten:\s*(\d+)/i)?.[1];
 
-    return {
-      title,
-      url,
-      description,
-      tags,
-      content,
-      imageUrl,
-    };
-  } catch (error) {
-    console.error("Failed to parse recipe:", error);
+  // Flexible bereiding detection: works with <h3>, <p>, <div>, inline <br>, etc.
+  const lower = html.toLowerCase();
+  const bereidingTextPos = lower.indexOf("bereiding");
+
+  let ingredientsHtml = html;
+  let instructionsHtml = "";
+
+  if (bereidingTextPos > -1) {
+    const tagStart = html.lastIndexOf("<", bereidingTextPos);
+    const splitPos = tagStart > -1 ? tagStart : bereidingTextPos;
+
+    ingredientsHtml = html.slice(0, splitPos);
+
+    // Find "Tips van Six" to limit instructions section
+    const tipsPos = lower.indexOf("tips van six");
+    const ctaMatch = lower.match(/heb je (dit|het|deze) (recept|gemaakt|receptje)/);
+    const ctaPos = ctaMatch?.index ?? -1;
+    const sectionEndPos = [tipsPos, ctaPos]
+      .filter((pos) => pos > splitPos)
+      .sort((a, b) => a - b)[0] ?? -1;
+    const tipsSplitPos = sectionEndPos > splitPos ? html.lastIndexOf("<", sectionEndPos) : -1;
+
+    instructionsHtml = tipsSplitPos > splitPos
+      ? html.slice(splitPos, tipsSplitPos)
+      : html.slice(splitPos);
+  }
+
+  const ingredientStrings  = extractListItems(ingredientsHtml);
+  // Try <li> items first, fall back to <p> paragraphs
+  let instructionStrings = extractListItems(instructionsHtml);
+  if (instructionStrings.length === 0 && instructionsHtml) {
+    instructionStrings = extractParagraphSteps(instructionsHtml);
+  }
+
+  return {
+    ingredients:  ingredientStrings.map((text) => ({ amount: "", unit: "", ingredient: text })),
+    instructions: instructionStrings.map((text, i) => ({ step: i + 1, text })),
+    calories: calories ? parseInt(calories) : null,
+    protein:  protein  ? parseInt(protein)  : null,
+    carbs:    carbs    ? parseInt(carbs)    : null,
+    fat:      fat      ? parseInt(fat)      : null,
+  };
+}
+
+function parseDescription(summaryHtml: string): string {
+  return stripHtml(summaryHtml).replace(/\s*Meer\s*$/, "").trim();
+}
+
+function extractImageFromHtml(html: string): string | null {
+  return (
+    html.match(/<img[^>]+src="([^"]+)"/i)?.[1] ??
+    html.match(/<img[^>]+src='([^']+)'/i)?.[1] ??
+    null
+  );
+}
+
+async function fetchArticleImage(articleUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch(articleUrl, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    return (
+      html.match(/og:image"\s+content="([^"]+)"/)?.[1] ??
+      html.match(/content="([^"]+)"\s+property="og:image"/)?.[1] ??
+      null
+    );
+  } catch {
     return null;
   }
 }
 
-/**
- * Convert Shopify recipe to our Recipe format
- */
-export function convertShopifyRecipeToRecipe(shopifyRecipe: ShopifyRecipe): {
-  title: string;
-  slug: string;
-  description: string | null;
-  imageUrl: string | null;
-  ingredients: any[];
-  instructions: any[];
-  category: string | null;
-  tags: string[];
-} {
-  // Generate slug from title
-  const slug = shopifyRecipe.title
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .trim();
+// ── Public sync function ──────────────────────────────────────────────────────
 
-  // Parse ingredients and instructions from content
-  const { ingredients, instructions } = parseRecipeContent(shopifyRecipe.content);
-
-  // Determine category from tags
-  const categoryMap: Record<string, string> = {
-    ontbijt: "ontbijt",
-    lunch: "lunch",
-    avondmaal: "diner",
-    snack: "snack",
-    shake: "snack",
-  };
-
-  let category: string | null = null;
-  for (const tag of shopifyRecipe.tags) {
-    const lowerTag = tag.toLowerCase();
-    if (categoryMap[lowerTag]) {
-      category = categoryMap[lowerTag];
-      break;
-    }
-  }
-
-  return {
-    title: shopifyRecipe.title,
-    slug,
-    description: shopifyRecipe.description || null,
-    imageUrl: shopifyRecipe.imageUrl || null,
-    ingredients,
-    instructions,
-    category,
-    tags: shopifyRecipe.tags,
-  };
-}
-
-/**
- * Parse ingredients and instructions from HTML content
- */
-function parseRecipeContent(html: string): {
-  ingredients: any[];
-  instructions: any[];
-} {
-  const ingredients: any[] = [];
-  const instructions: any[] = [];
-
-  // Remove HTML tags for parsing
-  const textContent = html
-    .replace(/<[^>]+>/g, "\n")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .trim();
-
-  const lines = textContent.split("\n").map((line) => line.trim()).filter((line) => line.length > 0);
-
-  let inIngredients = false;
-  let inInstructions = false;
-  let stepNumber = 1;
-
-  for (const line of lines) {
-    const lowerLine = line.toLowerCase();
-
-    // Detect ingredients section
-    if (lowerLine.includes("ingrediënten") || lowerLine.includes("benodigdheden") || lowerLine.includes("wat heb je nodig")) {
-      inIngredients = true;
-      inInstructions = false;
-      continue;
-    }
-
-    // Detect instructions section
-    if (lowerLine.includes("bereiding") || lowerLine.includes("hoe maak je") || lowerLine.includes("instructies")) {
-      inInstructions = true;
-      inIngredients = false;
-      continue;
-    }
-
-    // Parse ingredients
-    if (inIngredients && !inInstructions) {
-      // Try to parse "amount unit ingredient" or "ingredient"
-      const ingredientMatch = line.match(/^(\d+[.,]?\d*)?\s*([a-z]+)?\s*(.+)$/i);
-      if (ingredientMatch) {
-        ingredients.push({
-          amount: ingredientMatch[1] || "",
-          unit: ingredientMatch[2] || "",
-          ingredient: ingredientMatch[3] || line,
-        });
-      } else {
-        ingredients.push({
-          amount: "",
-          unit: "",
-          ingredient: line,
-        });
-      }
-    }
-
-    // Parse instructions
-    if (inInstructions) {
-      // Remove step numbers if present
-      const cleanLine = line.replace(/^\d+[.)]\s*/, "");
-      if (cleanLine.length > 0) {
-        instructions.push({
-          step: stepNumber++,
-          text: cleanLine,
-        });
-      }
-    }
-  }
-
-  return { ingredients, instructions };
-}
-
-/**
- * Sync recipes from the configured website: fetch all and upsert in DB.
- * Returns counts for imported, updated, and errors.
- */
 export async function syncRecipesFromWebsite(): Promise<{
   imported: number;
   updated: number;
@@ -269,46 +202,71 @@ export async function syncRecipesFromWebsite(): Promise<{
   errorTitles: string[];
 }> {
   const { db } = await import("@/lib/db");
-  const shopifyRecipes = await fetchShopifyRecipes();
+
+  const feedRes = await fetch(FEED_URL, {
+    headers: { "User-Agent": "Mozilla/5.0" },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!feedRes.ok) throw new Error(`Feed niet bereikbaar: ${feedRes.status}`);
+  const feedXml = await feedRes.text();
+
+  const entries = parseEntries(feedXml);
   const importedTitles: string[] = [];
   const updatedTitles: string[] = [];
   const errorTitles: string[] = [];
 
-  for (const shopifyRecipe of shopifyRecipes) {
+  for (const entry of entries) {
     try {
-      const recipeData = convertShopifyRecipeToRecipe(shopifyRecipe);
-      const existing = await db.recipe.findUnique({
-        where: { slug: recipeData.slug },
-      });
+      const parsed = parseRecipeHtml(entry.content);
+      const description = parseDescription(entry.summary) || null;
+      const imageUrl =
+        (await fetchArticleImage(entry.link)) ??
+        extractImageFromHtml(entry.content) ??
+        extractImageFromHtml(entry.summary);
 
+      const data = {
+        title:        entry.title,
+        description,
+        imageUrl,
+        ingredients:  parsed.ingredients  as never,
+        instructions: parsed.instructions as never,
+        calories:     parsed.calories,
+        protein:      parsed.protein,
+        carbs:        parsed.carbs,
+        fat:          parsed.fat,
+        isPublished:  true,
+        tags:         normalizeRecipeTags({
+          title: entry.title,
+          description,
+          ingredients: parsed.ingredients,
+          carbs: parsed.carbs,
+        }),
+      };
+
+      const existing = await db.recipe.findUnique({ where: { slug: entry.slug } });
       if (existing) {
         await db.recipe.update({
-          where: { slug: recipeData.slug },
+          where: { slug: entry.slug },
           data: {
-            ...recipeData,
-            isPublished: true,
+            ...data,
+            imageUrl: imageUrl ?? existing.imageUrl,
           },
         });
-        updatedTitles.push(recipeData.title);
+        updatedTitles.push(entry.title);
       } else {
-        await db.recipe.create({
-          data: {
-            ...recipeData,
-            isPublished: true,
-          },
-        });
-        importedTitles.push(recipeData.title);
+        await db.recipe.create({ data: { ...data, slug: entry.slug } });
+        importedTitles.push(entry.title);
       }
-    } catch (error) {
-      console.error(`Sync recipe ${shopifyRecipe.title}:`, error);
-      errorTitles.push(shopifyRecipe.title);
+    } catch (err) {
+      console.error(`Sync fout voor ${entry.title}:`, err);
+      errorTitles.push(entry.title);
     }
   }
 
   return {
     imported: importedTitles.length,
-    updated: updatedTitles.length,
-    errors: errorTitles.length,
+    updated:  updatedTitles.length,
+    errors:   errorTitles.length,
     importedTitles,
     updatedTitles,
     errorTitles,

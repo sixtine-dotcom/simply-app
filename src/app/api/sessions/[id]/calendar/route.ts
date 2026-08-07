@@ -16,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
     }
 
-    const session = await getSession(id, user.id);
+    const session = await getSession(id, user.id, user.tenantId);
 
     if (!session) {
       return NextResponse.json(
@@ -47,6 +47,7 @@ export async function GET(
     const ics = generateSessionICS({
       id: session.id,
       title: session.title,
+      description: session.description,
       scheduledAt: session.scheduledAt,
       duration: session.duration,
       coach: {

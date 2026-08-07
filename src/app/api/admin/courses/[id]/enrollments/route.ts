@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser, createAuditLog } from "@/lib/auth";
+import { ensureCourseCommunityMembership } from "@/lib/course-community";
+import { syncEnrollmentToRecurringGroupPlans } from "@/lib/coaching";
 
 const addEnrollmentsSchema = z.object({
   userIds: z.array(z.string()).optional(),
@@ -19,7 +21,7 @@ export async function GET(
   try {
     const { id: courseId } = await params;
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
     const enrollments = await db.enrollment.findMany({
@@ -50,7 +52,7 @@ export async function POST(
   try {
     const { id: courseId } = await params;
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
     const course = await db.course.findUnique({ where: { id: courseId } });
@@ -87,6 +89,8 @@ export async function POST(
       await db.enrollment.create({
         data: { userId, courseId, startDate, endDate },
       });
+      await ensureCourseCommunityMembership({ userId, courseId });
+      await syncEnrollmentToRecurringGroupPlans({ userId, courseId });
       created.push(userId);
     }
 

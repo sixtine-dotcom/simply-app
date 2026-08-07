@@ -1,6 +1,6 @@
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getCurrentUser } from "@/lib/auth";
+import { requireAdminUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,13 +13,9 @@ interface ModuleEditPageProps {
 
 export default async function ModuleEditPage({ params }: ModuleEditPageProps) {
   const { id: courseId, moduleId } = await params;
-  const user = await getCurrentUser();
+  await requireAdminUser("/admin/courses");
 
-  if (!user || user.role !== "ADMIN") {
-    redirect("/");
-  }
-
-  const module = await db.module.findUnique({
+  const courseModule = await db.module.findUnique({
     where: { id: moduleId },
     include: {
       course: true,
@@ -27,11 +23,11 @@ export default async function ModuleEditPage({ params }: ModuleEditPageProps) {
     },
   });
 
-  if (!module || module.courseId !== courseId) {
+  if (!courseModule || courseModule.courseId !== courseId) {
     notFound();
   }
 
-  const course = module.course;
+  const course = courseModule.course;
 
   return (
     <div className="p-6 md:p-8 lg:p-12 max-w-2xl">
@@ -53,7 +49,7 @@ export default async function ModuleEditPage({ params }: ModuleEditPageProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Module: {module.title}</CardTitle>
+          <CardTitle>Module: {courseModule.title}</CardTitle>
           <p className="text-sm text-muted-foreground">
             &quot;Ontgrendel na X dagen&quot; telt vanaf de startdatum van de inschrijving van de deelnemer. Leeg = direct zichtbaar.
           </p>
@@ -63,9 +59,9 @@ export default async function ModuleEditPage({ params }: ModuleEditPageProps) {
             courseId={courseId}
             moduleId={moduleId}
             initialModule={{
-              title: module.title,
-              description: module.description,
-              unlockAfterDays: module.unlockAfterDays,
+              title: courseModule.title,
+              description: courseModule.description,
+              unlockAfterDays: courseModule.unlockAfterDays,
             }}
           />
         </CardContent>

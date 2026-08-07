@@ -18,14 +18,14 @@ export async function POST(
     const { id: courseId } = await params;
     const user = await getCurrentUser();
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || (user.role !== "ADMIN" && user.role !== "SUPERADMIN")) {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 
     const body = await request.json();
     const data = createModuleSchema.parse(body);
 
-    const module = await db.module.create({
+    const createdModule = await db.module.create({
       data: {
         courseId,
         title: data.title,
@@ -37,10 +37,10 @@ export async function POST(
 
     await createAuditLog("module.created", user.id, {
       courseId,
-      moduleId: module.id,
+      moduleId: createdModule.id,
     });
 
-    return NextResponse.json(module);
+    return NextResponse.json(createdModule);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -65,7 +65,7 @@ export async function GET(
     const { id: courseId } = await params;
     const user = await getCurrentUser();
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || (user.role !== "ADMIN" && user.role !== "SUPERADMIN")) {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 

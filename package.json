@@ -13,9 +13,22 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "db:start": "docker compose up -d"
+    "db:start": "docker compose up -d",
+    "r2:login": "wrangler login",
+    "r2:create-bucket": "wrangler r2 bucket create simply-uploads --location=weur",
+    "r2:verify": "tsx scripts/verify-r2.ts",
+    "android:sync": "cap sync android",
+    "android:open": "cap open android",
+    "android:build": "cd android && ./gradlew bundleRelease",
+    "ios:sync": "cap sync ios",
+    "ios:open": "cap open ios"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1037.0",
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/ios": "^8.4.1",
     "@clerk/nextjs": "^6.12.0",
     "@daily-co/daily-js": "^0.50.0",
     "@prisma/client": "^5.10.0",
@@ -35,10 +48,12 @@
     "ical-generator": "^8.0.0",
     "lucide-react": "^0.344.0",
     "next": "14.1.0",
+    "openai": "^6.45.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "recharts": "^2.10.3",
     "resend": "^3.2.0",
+    "stripe": "^20.4.1",
     "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.22.4"
@@ -54,6 +69,7 @@
     "prisma": "^5.10.0",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.7.1",
-    "typescript": "^5.3.0"
+    "typescript": "^5.3.0",
+    "wrangler": "^4.104.0"
   }
 }

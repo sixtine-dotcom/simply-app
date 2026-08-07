@@ -1,5 +1,15 @@
 # Simply Platform - Milestone Plan
 
+Status note: historical milestone plan.
+
+This document predates the newer desktop/platform work.
+For the current roadmap and implementation audit, use:
+- `docs/DESKTOP-IMPLEMENTATION-PLAN.md`
+- `docs/DESKTOP-IMPLEMENTATION-STATUS.md`
+- `docs/FEATURE-INVENTORY.md`
+
+Read the milestones below as the original delivery sequence, not as the current source of truth for what is already shipped.
+
 ## Overview
 
 Each milestone delivers working, tested code with clear run instructions. Dependencies between milestones are minimized to allow parallel work where possible.

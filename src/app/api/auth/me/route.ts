@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { getHealthProfileStatus } from "@/lib/health-profile";
 
 export async function GET() {
   try {
@@ -12,6 +13,9 @@ export async function GET() {
       );
     }
 
+    const healthProfileStatus =
+      user.role === "CLIENT" ? await getHealthProfileStatus(user.id) : { isComplete: true };
+
     return NextResponse.json({
       user: {
         id: user.id,
@@ -22,6 +26,9 @@ export async function GET() {
         bio: user.bio,
         phone: user.phone,
         role: user.role,
+        preferredLanguage: user.preferredLanguage === "en" ? "en" : "nl",
+        healthProfileCompleted: healthProfileStatus.isComplete,
+        impersonation: user.impersonation ?? null,
       },
     });
   } catch (error) {

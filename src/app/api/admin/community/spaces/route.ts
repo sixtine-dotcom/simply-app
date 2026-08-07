@@ -2,22 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser, createAuditLog } from "@/lib/auth";
+import {
+  revokeCourseCommunityMembershipIfUnused,
+  syncCourseCommunityMembershipsForCourse,
+} from "@/lib/course-community";
 
 const createSpaceSchema = z.object({
   name: z.string().min(1),
   slug: z.string().min(1),
+  groupLabel: z.string().optional(),
   description: z.string().optional(),
   iconEmoji: z.string().optional(),
   isPublic: z.boolean().optional(),
   isHostOnly: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+  linkedCourseIds: z.array(z.string()).optional(),
 });
 
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
 
-    if (!user || user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
+    if (!user || (user.role !== "ADMIN" && user.role !== "SUPERADMIN")) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     const body = await request.json();
@@ -30,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     if (existingSpace) {
       return NextResponse.json(
-        { error: "Deze slug is al in gebruik" },
+        { error: "This slug is already in use" },
         { status: 400 }
       );
     }
@@ -44,16 +51,35 @@ export async function POST(request: NextRequest) {
       data: {
         name: data.name,
         slug: data.slug,
+        groupLabel: data.groupLabel?.trim() || null,
         description: data.description,
         iconEmoji: data.iconEmoji || "💬",
         isPublic: data.isPublic ?? true,
         isHostOnly: data.isHostOnly ?? false,
+        isActive: data.isActive ?? true,
         position: (maxPosition._max.position || 0) + 1,
       },
     });
 
+    const linkedCourseIds = Array.from(new Set(data.linkedCourseIds || []));
+
+    if (linkedCourseIds.length > 0) {
+      await db.course.updateMany({
+        where: { id: { in: linkedCourseIds } },
+        data: {
+          hasCommunity: true,
+          communitySpaceId: space.id,
+        },
+      });
+
+      for (const courseId of linkedCourseIds) {
+        await syncCourseCommunityMembershipsForCourse(courseId);
+      }
+    }
+
     await createAuditLog("space.created", user.id, {
       spaceId: space.id,
+      linkedCourseIds,
     });
 
     return NextResponse.json(space);
@@ -67,7 +93,7 @@ export async function POST(request: NextRequest) {
 
     console.error("Create space error:", error);
     return NextResponse.json(
-      { error: "Er is iets misgegaan" },
+      { error: "Something went wrong" },
       { status: 500 }
     );
   }
@@ -77,13 +103,20 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser();
 
-    if (!user || user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
+    if (!user || (user.role !== "ADMIN" && user.role !== "SUPERADMIN")) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     const spaces = await db.space.findMany({
       orderBy: { position: "asc" },
       include: {
+        courses: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+          },
+        },
         _count: {
           select: {
             posts: true,
@@ -97,7 +130,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Get spaces error:", error);
     return NextResponse.json(
-      { error: "Er is iets misgegaan" },
+      { error: "Something went wrong" },
       { status: 500 }
     );
   }

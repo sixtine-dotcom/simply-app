@@ -1,5 +1,84 @@
 # Simply Platform - Security & Compliance
 
+Status note: mixed current state and historical security design document.
+
+Parts of this document still read like intended policy rather than verified implementation.
+For the current implementation baseline, cross-check:
+- `src/lib/auth.ts`
+- `src/lib/tenant.ts`
+- `src/lib/feature-flags.ts`
+- `src/app/(dashboard)/layout.tsx`
+- `prisma/schema.prisma`
+
+## 0. Current State Security Snapshot
+
+### 0.1 Current role model
+
+The live codebase now uses a broader role model than the matrix below.
+Current roles in Prisma are:
+- `SUPERADMIN`
+- `ADMIN`
+- `STAFF`
+- `COACH`
+- `STUDENT`
+- `CLIENT`
+- `SUPPORT`
+
+This means older sections below that only refer to `ADMIN`, `COACH`, `CLIENT`, and `SUPPORT` are incomplete.
+
+### 0.2 Current access-control shape
+
+Access control is currently enforced through a mix of:
+- current-user/session resolution in `src/lib/auth.ts`
+- route-level guards such as `requireAdminUser(...)`
+- tenant-aware lookups and filters
+- role checks in page and API handlers
+- feature-flag checks for tenant capabilities
+
+Important limitation:
+- authorization is not yet expressed as one centralized permission engine across the whole app
+- some access rules are still distributed across route handlers and query logic
+
+### 0.3 Current tenant and platform controls
+
+The security model now includes platform and tenant concepts not reflected in the older sections below:
+- tenant resolution from headers/domain via `src/lib/tenant.ts`
+- tenant feature flags via `src/lib/feature-flags.ts`
+- tenant branding settings and plan state in Prisma
+- platform control-plane routes for `SUPERADMIN`
+- impersonation flows with audit logging
+
+### 0.4 Current audit capabilities
+
+Audit logging is no longer only theoretical.
+`createAuditLog(...)` is actively used across:
+- auth events
+- billing events
+- onboarding actions
+- platform tenant actions
+- course/community/session mutations
+- form submissions
+- Shopify and Stripe-related flows
+
+This is a meaningful control already present in the codebase.
+
+### 0.5 Current shell-level protections
+
+The dashboard shell currently enforces additional UX/security-adjacent behavior:
+- redirects unauthenticated users to `/login`
+- redirects `SUPERADMIN` users to `/platform`
+- surfaces impersonation state globally
+- can gate users behind required onboarding forms
+
+### 0.6 Practical reading rule
+
+Treat the policy sections below as useful intent, but not as a verified statement that every permission path is already hardened.
+The biggest current security gaps remain:
+- incomplete centralization of tenant-safe authorization
+- incomplete proof against cross-tenant leaks
+- incomplete GDPR/export implementation
+- incomplete formal test coverage for the permission matrix
+
 ## 1. Role-Based Access Control (RBAC)
 
 ### 1.1 Role Definitions

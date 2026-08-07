@@ -1,13 +1,18 @@
 import { db } from "./db";
+import { createAuditLog } from "./auth";
 
 export interface SessionWithDetails {
   id: string;
   title: string | null;
+  description: string | null;
   scheduledAt: Date;
   duration: number;
   status: string;
   roomId: string | null;
   roomUrl: string | null;
+  autoRecord: boolean;
+  isInstant: boolean;
+  externalAttendeeEmails: string[];
   recurrenceOccurrenceKey: string | null;
   completedAt: Date | null;
   createdAt: Date;
@@ -16,12 +21,14 @@ export interface SessionWithDetails {
     firstName: string;
     lastName: string;
     avatarUrl: string | null;
+    tenantId?: string | null;
   };
   coach: {
     id: string;
     firstName: string;
     lastName: string;
     avatarUrl: string | null;
+    tenantId?: string | null;
   };
   notes: {
     id: string;
@@ -37,6 +44,7 @@ export interface SessionWithDetails {
 export async function getUserSessions(
   userId: string,
   role: "CLIENT" | "COACH" | "ADMIN",
+  tenantId?: string | null,
   options: {
     status?: "scheduled" | "completed" | "cancelled" | "all";
     limit?: number;
@@ -48,7 +56,16 @@ export async function getUserSessions(
   if (role === "CLIENT") {
     where.clientId = userId;
   } else if (role === "COACH" || role === "ADMIN") {
-    where.coachId = userId;
+    if (role === "COACH") {
+      where.coachId = userId;
+    } else if (tenantId) {
+      where.OR = [
+        { client: { tenantId } },
+        { coach: { tenantId } },
+      ];
+    } else {
+      where.coachId = userId;
+    }
   }
 
   if (status !== "all") {
@@ -66,6 +83,7 @@ export async function getUserSessions(
           firstName: true,
           lastName: true,
           avatarUrl: true,
+          tenantId: true,
         },
       },
       coach: {
@@ -74,6 +92,7 @@ export async function getUserSessions(
           firstName: true,
           lastName: true,
           avatarUrl: true,
+          tenantId: true,
         },
       },
       notes: {
@@ -90,7 +109,8 @@ export async function getUserSessions(
  */
 export async function getSession(
   sessionId: string,
-  userId: string
+  userId: string,
+  tenantId?: string | null
 ): Promise<SessionWithDetails | null> {
   const session = await db.coachingSession.findUnique({
     where: { id: sessionId },
@@ -101,6 +121,7 @@ export async function getSession(
           firstName: true,
           lastName: true,
           avatarUrl: true,
+          tenantId: true,
         },
       },
       coach: {
@@ -109,6 +130,7 @@ export async function getSession(
           firstName: true,
           lastName: true,
           avatarUrl: true,
+          tenantId: true,
         },
       },
       notes: {
@@ -123,9 +145,16 @@ export async function getSession(
   if (session.clientId !== userId && session.coachId !== userId) {
     const user = await db.user.findUnique({
       where: { id: userId },
-      select: { role: true },
+      select: { role: true, tenantId: true },
     });
     if (user?.role !== "ADMIN") {
+      return null;
+    }
+    const sessionTenantId = session.client.tenantId || session.coach.tenantId || null;
+    if (tenantId && sessionTenantId !== tenantId) {
+      return null;
+    }
+    if (user.tenantId && sessionTenantId && user.tenantId !== sessionTenantId) {
       return null;
     }
   }
@@ -141,20 +170,51 @@ export async function createSession(
   clientId: string,
   data: {
     title?: string;
+    description?: string | null;
     scheduledAt: Date;
     duration?: number;
     recurrenceOccurrenceKey?: string | null;
+    autoRecord?: boolean;
+    isInstant?: boolean;
+    externalAttendeeEmails?: string[];
   }
 ) {
+  const [coach, client] = await Promise.all([
+    db.user.findUnique({
+      where: { id: coachId },
+      select: { id: true, tenantId: true, role: true },
+    }),
+    db.user.findUnique({
+      where: { id: clientId },
+      select: { id: true, tenantId: true, role: true },
+    }),
+  ]);
+
+  if (!coach || !client) {
+    throw new Error("Coach of klant niet gevonden");
+  }
+
+  if (client.role !== "CLIENT") {
+    throw new Error("Sessie kan alleen aan een klant gekoppeld worden");
+  }
+
+  if (coach.tenantId !== client.tenantId) {
+    throw new Error("Coach en klant moeten binnen dezelfde tenant vallen");
+  }
+
   return db.coachingSession.create({
     data: {
       coachId,
       clientId,
       title: data.title,
+      description: data.description ?? null,
       scheduledAt: data.scheduledAt,
       duration: data.duration || 45,
       status: "scheduled",
       recurrenceOccurrenceKey: data.recurrenceOccurrenceKey ?? null,
+      autoRecord: data.autoRecord ?? true,
+      isInstant: data.isInstant ?? false,
+      externalAttendeeEmails: data.externalAttendeeEmails ?? [],
     },
     include: {
       client: {
@@ -175,6 +235,78 @@ export async function createSession(
       },
     },
   });
+}
+
+export async function createSharedSessions(
+  coachId: string,
+  clientIds: string[],
+  data: {
+    title?: string;
+    description?: string | null;
+    scheduledAt: Date;
+    duration?: number;
+    autoRecord?: boolean;
+    externalAttendeeEmails?: string[];
+  }
+) {
+  const uniqueClientIds = Array.from(new Set(clientIds)).filter(Boolean);
+  if (uniqueClientIds.length === 0) {
+    if (!data.externalAttendeeEmails?.length) {
+      throw new Error("Selecteer minstens één klant of voeg een extern e-mailadres toe");
+    }
+
+    return [
+      await db.coachingSession.create({
+        data: {
+          coachId,
+          clientId: coachId,
+          title: data.title,
+          description: data.description ?? null,
+          scheduledAt: data.scheduledAt,
+          duration: data.duration || 45,
+          status: "scheduled",
+          autoRecord: data.autoRecord ?? true,
+          externalAttendeeEmails: data.externalAttendeeEmails,
+        },
+        include: {
+          client: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              avatarUrl: true,
+            },
+          },
+          coach: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              avatarUrl: true,
+            },
+          },
+        },
+      }),
+    ];
+  }
+
+  const occurrenceKey =
+    uniqueClientIds.length > 1
+      ? `manual-${coachId}-${data.scheduledAt.toISOString().slice(0, 16)}`
+      : null;
+
+  const sessions = [];
+  for (const clientId of uniqueClientIds) {
+    sessions.push(
+      await createSession(coachId, clientId, {
+        ...data,
+        recurrenceOccurrenceKey: occurrenceKey,
+        externalAttendeeEmails: data.externalAttendeeEmails ?? [],
+      })
+    );
+  }
+
+  return sessions;
 }
 
 /**
@@ -201,21 +333,62 @@ export async function updateSessionsRoomByOccurrenceKey(
   });
 }
 
+type RecurringScheduleMode = "weekly" | "biweekly" | "monthly" | "custom";
+
 /**
- * Generate dates for a recurring schedule: same day of week between start and end
+ * Generate dates for a recurring schedule.
  */
-function getOccurrenceDates(
-  dayOfWeek: number,
-  startDate: Date,
-  endDate: Date
-): Date[] {
+function getOccurrenceDates(input: {
+  scheduleMode?: RecurringScheduleMode;
+  dayOfWeek?: number;
+  startDate: Date;
+  endDate: Date;
+  customDates?: Date[];
+}): Date[] {
+  const scheduleMode = input.scheduleMode ?? "weekly";
+  if (scheduleMode === "custom") {
+    const start = new Date(input.startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(input.endDate);
+    end.setHours(23, 59, 59, 999);
+
+    return (input.customDates ?? [])
+      .map((date) => {
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        return d;
+      })
+      .filter((date) => date >= start && date <= end)
+      .sort((a, b) => a.getTime() - b.getTime());
+  }
+
   const dates: Date[] = [];
-  const start = new Date(startDate);
+  const start = new Date(input.startDate);
   start.setHours(0, 0, 0, 0);
-  const end = new Date(endDate);
+  const end = new Date(input.endDate);
   end.setHours(23, 59, 59, 999);
 
-  // First occurrence on or after startDate with correct day
+  if (scheduleMode === "monthly") {
+    const originalDayOfMonth = start.getDate();
+    let monthOffset = 0;
+    while (true) {
+      const year = start.getFullYear();
+      const month = start.getMonth() + monthOffset;
+      const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+      const cursor = new Date(
+        year,
+        month,
+        Math.min(originalDayOfMonth, lastDayOfMonth)
+      );
+      cursor.setHours(0, 0, 0, 0);
+      if (cursor > end) break;
+      dates.push(cursor);
+      monthOffset += 1;
+    }
+    return dates;
+  }
+
+  const dayOfWeek = input.dayOfWeek ?? start.getDay();
   let d = new Date(start);
   const startDay = start.getDay();
   let diff = dayOfWeek - startDay;
@@ -223,11 +396,119 @@ function getOccurrenceDates(
   if (diff > 0) d.setDate(d.getDate() + diff);
   else if (startDay !== dayOfWeek) d.setDate(d.getDate() + 7);
 
+  const stepDays = scheduleMode === "biweekly" ? 14 : 7;
   while (d <= end) {
     dates.push(new Date(d));
-    d.setDate(d.getDate() + 7);
+    d.setDate(d.getDate() + stepDays);
   }
   return dates;
+}
+
+async function createSessionsForRecurringPlan(input: {
+  coachId: string;
+  courseId: string;
+  clientIds: string[];
+  title: string;
+  description?: string | null;
+  scheduleMode?: RecurringScheduleMode;
+  dayOfWeek?: number;
+  startTime: string;
+  duration: number;
+  startDate: Date;
+  endDate: Date;
+  customDates?: Date[];
+}) {
+  if (input.clientIds.length === 0) {
+    return { created: 0 };
+  }
+
+  const occurrenceDates = getOccurrenceDates({
+    scheduleMode: input.scheduleMode,
+    dayOfWeek: input.dayOfWeek,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    customDates: input.customDates,
+  });
+  const [hours, minutes] = input.startTime.split(":").map(Number);
+  const created: string[] = [];
+
+  for (const date of occurrenceDates) {
+    const scheduledAt = new Date(date);
+    scheduledAt.setHours(hours, minutes, 0, 0);
+    const key = `recur-${input.courseId}-${scheduledAt.toISOString().slice(0, 16)}`;
+
+    for (const clientId of input.clientIds) {
+      const existing = await db.coachingSession.findFirst({
+        where: {
+          coachId: input.coachId,
+          clientId,
+          recurrenceOccurrenceKey: key,
+        },
+        select: { id: true },
+      });
+
+      if (existing) {
+        continue;
+      }
+
+      const session = await db.coachingSession.create({
+        data: {
+          coachId: input.coachId,
+          clientId,
+          title: input.title,
+          description: input.description ?? null,
+          scheduledAt,
+          duration: input.duration,
+          status: "scheduled",
+          recurrenceOccurrenceKey: key,
+        },
+      });
+      created.push(session.id);
+    }
+  }
+
+  return { created: created.length, sessionIds: created };
+}
+
+type StoredRecurringGroupPlan = {
+  courseId: string;
+  coachId: string;
+  tenantId: string | null;
+  title: string;
+  description?: string | null;
+  scheduleMode?: RecurringScheduleMode;
+  dayOfWeek?: number;
+  startTime: string;
+  duration: number;
+  startDate: string;
+  endDate: string;
+  customDates?: string[];
+  isActive: boolean;
+};
+
+async function getStoredRecurringGroupPlans(courseId: string, tenantId?: string | null) {
+  const logs = await db.auditLog.findMany({
+    where: {
+      action: "session.recurring_group_planned",
+      tenantId: tenantId ?? null,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return logs
+    .map((log) => log.metadata as StoredRecurringGroupPlan | null)
+    .filter((plan): plan is StoredRecurringGroupPlan => {
+      return Boolean(
+        plan &&
+          plan.isActive &&
+          plan.courseId === courseId &&
+          typeof plan.coachId === "string" &&
+          typeof plan.title === "string" &&
+          typeof plan.startTime === "string" &&
+          typeof plan.startDate === "string" &&
+          typeof plan.endDate === "string"
+      );
+    });
 }
 
 /**
@@ -237,18 +518,64 @@ function getOccurrenceDates(
 export async function createRecurringGroupSessions(
   coachId: string,
   courseId: string,
+  tenantId: string | null | undefined,
   options: {
     title: string;
-    dayOfWeek: number; // 0 = zondag, 1 = maandag, ...
+    description?: string | null;
+    scheduleMode?: RecurringScheduleMode;
+    dayOfWeek?: number; // 0 = zondag, 1 = maandag, ...
     startTime: string; // "19:30"
     duration: number;
     startDate: Date;
     endDate: Date;
+    customDates?: Date[];
   }
 ) {
+  const [coach, course] = await Promise.all([
+    db.user.findUnique({
+      where: { id: coachId },
+      select: { id: true, tenantId: true, role: true },
+    }),
+    db.course.findUnique({
+      where: { id: courseId },
+      select: { id: true, title: true },
+    }),
+  ]);
+
+  if (!coach || !course) {
+    throw new Error("Coach of cursus niet gevonden");
+  }
+
+  if (tenantId && coach.tenantId !== tenantId) {
+    throw new Error("Coach valt niet binnen deze tenant");
+  }
+
+  await createAuditLog(
+    "session.recurring_group_planned",
+    coachId,
+    {
+      courseId,
+      coachId,
+      tenantId: tenantId ?? null,
+      title: options.title,
+      description: options.description ?? null,
+      scheduleMode: options.scheduleMode ?? "weekly",
+      dayOfWeek: options.dayOfWeek,
+      startTime: options.startTime,
+      duration: options.duration,
+      startDate: options.startDate.toISOString(),
+      endDate: options.endDate.toISOString(),
+      customDates: options.customDates?.map((date) => date.toISOString()) ?? [],
+      isActive: true,
+    },
+    undefined,
+    tenantId
+  );
+
   const enrollments = await db.enrollment.findMany({
     where: {
       courseId,
+      user: tenantId ? { tenantId } : undefined,
       OR: [
         { endDate: { gt: new Date() } },
         { endDate: null },
@@ -259,38 +586,96 @@ export async function createRecurringGroupSessions(
     },
   });
   const clientIds = enrollments.map((e) => e.user.id);
-  if (clientIds.length === 0) {
-    return { created: 0, message: "Geen actieve deelnemers in deze cursus." };
-  }
+  const result = await createSessionsForRecurringPlan({
+    coachId,
+    courseId,
+    clientIds,
+    title: options.title,
+    description: options.description ?? null,
+    scheduleMode: options.scheduleMode ?? "weekly",
+    dayOfWeek: options.dayOfWeek,
+    startTime: options.startTime,
+    duration: options.duration,
+    startDate: options.startDate,
+    endDate: options.endDate,
+    customDates: options.customDates,
+  });
 
-  const occurrenceDates = getOccurrenceDates(
-    options.dayOfWeek,
-    options.startDate,
-    options.endDate
-  );
-  const [hours, minutes] = options.startTime.split(":").map(Number);
+  return {
+    ...result,
+    hasParticipants: clientIds.length > 0,
+    message:
+      clientIds.length > 0
+        ? undefined
+        : "Groepsreeks opgeslagen. Zodra deelnemers toegang krijgen tot deze cursus, kunnen hun sessies aangemaakt worden.",
+  };
+}
 
-  const created: string[] = [];
-  for (const date of occurrenceDates) {
-    const scheduledAt = new Date(date);
-    scheduledAt.setHours(hours, minutes, 0, 0);
-    const key = `recur-${courseId}-${scheduledAt.toISOString().slice(0, 16)}`;
-    for (const clientId of clientIds) {
-      const session = await db.coachingSession.create({
-        data: {
-          coachId,
-          clientId,
-          title: options.title,
-          scheduledAt,
-          duration: options.duration,
-          status: "scheduled",
-          recurrenceOccurrenceKey: key,
+export async function syncEnrollmentToRecurringGroupPlans(input: {
+  userId: string;
+  courseId: string;
+}) {
+  const now = new Date();
+  const enrollment = await db.enrollment.findUnique({
+    where: {
+      userId_courseId: {
+        userId: input.userId,
+        courseId: input.courseId,
+      },
+    },
+    select: {
+      courseId: true,
+      userId: true,
+      course: {
+        select: {
+          id: true,
+          coachId: true,
         },
-      });
-      created.push(session.id);
-    }
+      },
+      user: {
+        select: {
+          tenantId: true,
+        },
+      },
+    },
+  });
+
+  if (!enrollment) {
+    return { created: 0 };
   }
-  return { created: created.length, sessionIds: created };
+
+  const plans = await getStoredRecurringGroupPlans(
+    input.courseId,
+    enrollment.user.tenantId ?? null
+  );
+
+  let created = 0;
+  for (const plan of plans) {
+    const planStartDate = new Date(plan.startDate);
+    const planEndDate = new Date(plan.endDate);
+    if (planEndDate < now) {
+      continue;
+    }
+
+    const effectiveStartDate = planStartDate > now ? planStartDate : now;
+    const result = await createSessionsForRecurringPlan({
+      coachId: plan.coachId,
+      courseId: input.courseId,
+      clientIds: [input.userId],
+      title: plan.title,
+      description: plan.description ?? null,
+      scheduleMode: plan.scheduleMode ?? "weekly",
+      dayOfWeek: plan.dayOfWeek,
+      startTime: plan.startTime,
+      duration: plan.duration,
+      startDate: effectiveStartDate,
+      endDate: planEndDate,
+      customDates: (plan.customDates ?? []).map((date) => new Date(date)),
+    });
+    created += result.created;
+  }
+
+  return { created };
 }
 
 /**
@@ -319,6 +704,46 @@ export async function completeSession(sessionId: string) {
     data: {
       status: "completed",
       completedAt: new Date(),
+    },
+  });
+}
+
+export async function updateSessionStatus(
+  sessionId: string,
+  status: "scheduled" | "completed" | "cancelled"
+) {
+  return db.coachingSession.update({
+    where: { id: sessionId },
+    data: {
+      status,
+      completedAt: status === "completed" ? new Date() : null,
+    },
+  });
+}
+
+export async function updateSession(
+  sessionId: string,
+  data: {
+    title?: string | null;
+    description?: string | null;
+    scheduledAt?: Date;
+    duration?: number;
+    status?: "scheduled" | "completed" | "cancelled";
+  }
+) {
+  return db.coachingSession.update({
+    where: { id: sessionId },
+    data: {
+      ...(data.title !== undefined ? { title: data.title } : {}),
+      ...(data.description !== undefined ? { description: data.description } : {}),
+      ...(data.scheduledAt ? { scheduledAt: data.scheduledAt } : {}),
+      ...(data.duration !== undefined ? { duration: data.duration } : {}),
+      ...(data.status
+        ? {
+            status: data.status,
+            completedAt: data.status === "completed" ? new Date() : null,
+          }
+        : {}),
     },
   });
 }

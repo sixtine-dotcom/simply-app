@@ -2,13 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser, createAuditLog } from "@/lib/auth";
+import {
+  createCommunitySpaceForCourse,
+  syncCourseCommunityMembershipsForCourse,
+} from "@/lib/course-community";
 
 const createCourseSchema = z.object({
   title: z.string().min(1),
   slug: z.string().min(1),
   description: z.string().optional(),
   isPrivate: z.boolean().optional(),
+  hideForUnauthorized: z.boolean().optional(),
   hasCommunity: z.boolean().optional(),
+  communitySpaceId: z.string().nullable().optional(),
+  createCommunitySpace: z.boolean().optional(),
   drippingEnabled: z.boolean().optional(),
   drippingUnit: z.enum(["days", "weeks"]).optional(),
   photoMomentsCount: z.number().int().min(0).optional(),
@@ -19,12 +26,32 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || (user.role !== "ADMIN" && user.role !== "SUPERADMIN")) {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 
     const body = await request.json();
     const data = createCourseSchema.parse(body);
+
+    if (data.hasCommunity && data.communitySpaceId) {
+      const existingSpace = await db.space.findUnique({
+        where: { id: data.communitySpaceId },
+        select: { id: true },
+      });
+      if (!existingSpace) {
+        return NextResponse.json({ error: "Geselecteerde space bestaat niet" }, { status: 400 });
+      }
+    }
+
+    let communitySpaceId = data.hasCommunity ? data.communitySpaceId || null : null;
+    if (data.hasCommunity && !communitySpaceId && data.createCommunitySpace) {
+      const createdSpace = await createCommunitySpaceForCourse({
+        title: data.title,
+        slug: data.slug,
+        description: data.description || null,
+      });
+      communitySpaceId = createdSpace.id;
+    }
 
     // Check if slug is unique
     const existingCourse = await db.course.findUnique({
@@ -45,7 +72,9 @@ export async function POST(request: NextRequest) {
         description: data.description,
         isPublished: false,
         isPrivate: data.isPrivate || false,
+        hideForUnauthorized: data.hideForUnauthorized ?? true,
         hasCommunity: data.hasCommunity ?? true,
+        communitySpaceId,
         drippingEnabled: data.drippingEnabled || false,
         drippingUnit: data.drippingUnit || null,
         photoMomentsCount: data.photoMomentsCount ?? 0,
@@ -53,9 +82,19 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    await createAuditLog("course.created", user.id, {
-      courseId: course.id,
-    });
+    await createAuditLog(
+      "course.created",
+      user.id,
+      {
+        courseId: course.id,
+        communitySpaceId: course.communitySpaceId,
+        communityCreated: Boolean(data.createCommunitySpace && communitySpaceId),
+      },
+      undefined,
+      user.tenantId
+    );
+
+    await syncCourseCommunityMembershipsForCourse(course.id);
 
     return NextResponse.json(course);
   } catch (error) {
@@ -78,7 +117,7 @@ export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser();
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || (user.role !== "ADMIN" && user.role !== "SUPERADMIN")) {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 

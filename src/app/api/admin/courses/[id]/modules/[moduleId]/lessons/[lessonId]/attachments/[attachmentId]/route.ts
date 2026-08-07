@@ -10,7 +10,7 @@ export async function DELETE(
 ) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 

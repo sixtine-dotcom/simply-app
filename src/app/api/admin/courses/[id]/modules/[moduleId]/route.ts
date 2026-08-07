@@ -18,14 +18,14 @@ export async function PATCH(
     const { id: courseId, moduleId } = await params;
     const user = await getCurrentUser();
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 
     const body = await request.json();
     const data = updateModuleSchema.parse(body);
 
-    const module = await db.module.update({
+    const updatedModule = await db.module.update({
       where: { id: moduleId },
       data: {
         ...(data.title && { title: data.title }),
@@ -41,7 +41,7 @@ export async function PATCH(
       changes: data,
     });
 
-    return NextResponse.json(module);
+    return NextResponse.json(updatedModule);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -66,7 +66,7 @@ export async function DELETE(
     const { id: courseId, moduleId } = await params;
     const user = await getCurrentUser();
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 

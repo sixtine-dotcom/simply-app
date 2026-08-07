@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getCurrentUser, createAuditLog } from "@/lib/auth";
 import { generateSlug } from "@/lib/utils";
@@ -11,7 +12,7 @@ export async function POST(
     const { id } = await params;
     const user = await getCurrentUser();
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 
@@ -38,27 +39,29 @@ export async function POST(
     }
 
     let newTitle: string;
+    let baseSlug: string;
     let newSlug: string;
     try {
       const body = await request.json().catch(() => ({}));
       if (body && typeof body.newTitle === "string" && body.newTitle.trim()) {
         newTitle = body.newTitle.trim();
-        newSlug = generateSlug(newTitle);
+        baseSlug = generateSlug(newTitle);
+        newSlug = baseSlug;
       } else {
         newTitle = `${originalCourse.title} (kopie)`;
-        newSlug = `${originalCourse.slug}-copy`;
+        baseSlug = `${originalCourse.slug}-copy`;
+        newSlug = baseSlug;
       }
     } catch {
       newTitle = `${originalCourse.title} (kopie)`;
-      newSlug = `${originalCourse.slug}-copy`;
+      baseSlug = `${originalCourse.slug}-copy`;
+      newSlug = baseSlug;
     }
 
     let slugCounter = 0;
     while (await db.course.findUnique({ where: { slug: newSlug } })) {
       slugCounter++;
-      newSlug = slugCounter === 1
-        ? `${originalCourse.slug}-copy`
-        : `${originalCourse.slug}-copy-${slugCounter}`;
+      newSlug = `${baseSlug}-${slugCounter}`;
     }
 
     // Create the duplicate course
@@ -70,8 +73,16 @@ export async function POST(
         thumbnailUrl: originalCourse.thumbnailUrl,
         isPublished: false, // Start as draft
         isPrivate: originalCourse.isPrivate,
+        hasCommunity: originalCourse.hasCommunity,
+        communitySpaceId: originalCourse.communitySpaceId,
+        coachId: originalCourse.coachId,
         drippingEnabled: originalCourse.drippingEnabled,
         drippingUnit: originalCourse.drippingUnit,
+        drippingStartMode: originalCourse.drippingStartMode,
+        drippingReleaseWeekday: originalCourse.drippingReleaseWeekday,
+        drippingReleaseTime: originalCourse.drippingReleaseTime,
+        photoMomentsCount: originalCourse.photoMomentsCount,
+        photoMomentsIntervalWeeks: originalCourse.photoMomentsIntervalWeeks,
         modules: {
           create: originalCourse.modules.map((module) => ({
             title: module.title,
@@ -82,10 +93,17 @@ export async function POST(
               create: module.lessons.map((lesson) => ({
                 title: lesson.title,
                 content: lesson.content,
+                extraContent: lesson.extraContent,
+                checklistTitle: lesson.checklistTitle,
+                checklistItems:
+                  lesson.checklistItems === null
+                    ? Prisma.JsonNull
+                    : (lesson.checklistItems as Prisma.InputJsonValue),
                 position: lesson.position,
                 videoUrl: lesson.videoUrl,
                 videoProvider: lesson.videoProvider,
                 videoDuration: lesson.videoDuration,
+                videoEmbedCode: lesson.videoEmbedCode,
                 unlockAfterDays: lesson.unlockAfterDays,
                 attachments: {
                   create: lesson.attachments.map((attachment) => ({

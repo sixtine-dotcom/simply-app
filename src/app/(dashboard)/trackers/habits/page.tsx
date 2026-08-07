@@ -91,7 +91,7 @@ export default function HabitsPage() {
   };
 
   return (
-    <div className="p-6 md:p-8 lg:p-12 max-w-2xl mx-auto">
+    <div className="mx-auto max-w-3xl p-4 md:p-6 lg:p-8">
       <Link 
         href="/trackers"
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
@@ -100,12 +100,20 @@ export default function HabitsPage() {
         Terug naar trackers
       </Link>
 
-      <Card>
+      <div className="app-panel app-halo mb-6 overflow-hidden">
+        <p className="app-kicker">Habit tracker</p>
+        <h1 className="mt-3 flex items-center gap-3 font-display text-3xl tracking-tight text-slate-950 md:text-5xl">
+          <Droplet className="h-7 w-7 text-primary" />
+          Habits
+        </h1>
+        <p className="mt-3 text-muted-foreground">
+          Volg water, stappen en suppletie in een compacte dagelijkse routine.
+        </p>
+      </div>
+
+      <Card className="app-halo">
         <CardHeader>
-          <CardTitle className="font-display text-2xl tracking-wider flex items-center gap-2">
-            <Droplet className="h-6 w-6" />
-            HABIT TRACKER
-          </CardTitle>
+          <CardTitle className="font-display text-2xl tracking-tight">Dagelijkse gewoontes</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -114,7 +122,7 @@ export default function HabitsPage() {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="space-y-2">
+              <div className="app-panel-muted space-y-2 px-4 py-4 shadow-none">
                 <Label htmlFor="date">Datum</Label>
                 <Input
                   id="date"
@@ -125,7 +133,7 @@ export default function HabitsPage() {
               </div>
 
               <div className="space-y-4">
-                <div className="space-y-2">
+                <div className="app-panel-muted space-y-2 px-4 py-4 shadow-none">
                   <Label htmlFor="waterGlasses" className="flex items-center gap-2">
                     <Droplet className="h-4 w-4 text-cyan-500" />
                     Water (glazen)
@@ -142,7 +150,7 @@ export default function HabitsPage() {
                   />
                 </div>
 
-                <div className="space-y-2">
+                <div className="app-panel-muted space-y-2 px-4 py-4 shadow-none">
                   <Label htmlFor="steps" className="flex items-center gap-2">
                     <Footprints className="h-4 w-4 text-blue-500" />
                     Stappen
@@ -159,7 +167,7 @@ export default function HabitsPage() {
                   />
                 </div>
 
-                <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="app-panel-muted flex items-center justify-between px-4 py-4 shadow-none">
                   <Label htmlFor="supplements" className="flex items-center gap-2 cursor-pointer">
                     <Pill className="h-4 w-4 text-purple-500" />
                     Suppletie genomen

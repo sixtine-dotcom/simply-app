@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { Prisma } from "@prisma/client";
 
 export interface RecipeWithDetails {
   id: string;
@@ -6,10 +7,12 @@ export interface RecipeWithDetails {
   slug: string;
   description: string | null;
   imageUrl: string | null;
+  updatedAt?: Date;
   calories: number | null;
   protein: number | null;
   carbs: number | null;
   fat: number | null;
+  fiber?: number | null;
   servings: number;
   prepTime: number | null;
   cookTime: number | null;
@@ -18,6 +21,24 @@ export interface RecipeWithDetails {
   category: string | null;
   tags: string[];
   isPublished?: boolean;
+  isFavorite?: boolean;
+}
+
+export interface UserCustomRecipeWithDetails {
+  id: string;
+  userId: string;
+  title: string;
+  description: string | null;
+  imageUrl: string | null;
+  calories: number | null;
+  protein: number | null;
+  carbs: number | null;
+  fat: number | null;
+  fiber: number | null;
+  ingredients: any[] | null;
+  createdAt: Date;
+  updatedAt: Date;
+  isFavorite?: boolean;
 }
 
 /**
@@ -234,6 +255,15 @@ export async function addRecipeToMealPlan(
   dayOfWeek: number,
   mealType: string
 ) {
+  const recipe = await db.recipe.findUnique({
+    where: { id: recipeId },
+    select: { id: true, isPublished: true, title: true },
+  });
+
+  if (!recipe || !recipe.isPublished) {
+    throw new Error("Dit recept is niet meer beschikbaar om toe te voegen.");
+  }
+
   return db.mealPlanItem.create({
     data: {
       mealPlanId,
@@ -244,6 +274,382 @@ export async function addRecipeToMealPlan(
     include: {
       recipe: true,
     },
+  });
+}
+
+export async function addCustomMealPlanItem(input: {
+  mealPlanId: string;
+  dayOfWeek: number;
+  mealType: string;
+  title: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  calories?: number | null;
+  protein?: number | null;
+  carbs?: number | null;
+  fat?: number | null;
+  fiber?: number | null;
+  ingredients?: Array<{
+    name: string;
+    brandName?: string | null;
+    quantityGrams: number;
+    servingDescription?: string | null;
+    calories?: number | null;
+    protein?: number | null;
+    carbs?: number | null;
+    fat?: number | null;
+    fiber?: number | null;
+  }> | null;
+}) {
+  return db.mealPlanItem.create({
+    data: {
+      mealPlanId: input.mealPlanId,
+      dayOfWeek: input.dayOfWeek,
+      mealType: input.mealType,
+      isCustom: true,
+      customTitle: input.title,
+      customDescription: input.description ?? null,
+      customImageUrl: input.imageUrl ?? null,
+      customCalories: input.calories ?? null,
+      customProtein: input.protein ?? null,
+      customCarbs: input.carbs ?? null,
+      customFat: input.fat ?? null,
+      customFiber: input.fiber ?? null,
+      customIngredients: input.ingredients
+        ? (input.ingredients.map((ingredient) => ({
+            name: ingredient.name,
+            brandName: ingredient.brandName ?? null,
+            quantityGrams: ingredient.quantityGrams,
+            servingDescription: ingredient.servingDescription ?? null,
+            calories: ingredient.calories ?? null,
+            protein: ingredient.protein ?? null,
+            carbs: ingredient.carbs ?? null,
+            fat: ingredient.fat ?? null,
+            fiber: ingredient.fiber ?? null,
+          })) as Prisma.InputJsonValue)
+        : undefined,
+    },
+    include: {
+      recipe: true,
+    },
+  });
+}
+
+export async function getUserCustomRecipes(userId: string) {
+  const [recipes, favorites] = await Promise.all([
+    db.userCustomRecipe.findMany({
+      where: { userId },
+      orderBy: [{ updatedAt: "desc" }, { title: "asc" }],
+    }),
+    db.userFavoriteRecipe.findMany({
+      where: { userId, customRecipeId: { not: null } },
+      select: { customRecipeId: true },
+    }),
+  ]);
+
+  const favoriteIds = new Set(
+    favorites
+      .map((favorite) => favorite.customRecipeId)
+      .filter((value): value is string => Boolean(value))
+  );
+
+  return recipes.map((recipe) => ({
+    ...recipe,
+    isFavorite: favoriteIds.has(recipe.id),
+  })) as UserCustomRecipeWithDetails[];
+}
+
+export async function getFavoriteRecipes(userId: string) {
+  const favorites = await db.userFavoriteRecipe.findMany({
+    where: { userId },
+    include: {
+      recipe: true,
+      customRecipe: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return favorites;
+}
+
+export async function toggleFavoriteRecipe(input: {
+  userId: string;
+  recipeId?: string | null;
+  customRecipeId?: string | null;
+}) {
+  if (!input.recipeId && !input.customRecipeId) {
+    throw new Error("Een recept of eigen recept is verplicht.");
+  }
+
+  if (input.recipeId) {
+    const existing = await db.userFavoriteRecipe.findUnique({
+      where: {
+        userId_recipeId: {
+          userId: input.userId,
+          recipeId: input.recipeId,
+        },
+      },
+    });
+
+    if (existing) {
+      await db.userFavoriteRecipe.delete({ where: { id: existing.id } });
+      return { isFavorite: false };
+    }
+
+    await db.userFavoriteRecipe.create({
+      data: {
+        userId: input.userId,
+        recipeId: input.recipeId,
+      },
+    });
+    return { isFavorite: true };
+  }
+
+  const existing = await db.userFavoriteRecipe.findUnique({
+    where: {
+      userId_customRecipeId: {
+        userId: input.userId,
+        customRecipeId: input.customRecipeId!,
+      },
+    },
+  });
+
+  if (existing) {
+    await db.userFavoriteRecipe.delete({ where: { id: existing.id } });
+    return { isFavorite: false };
+  }
+
+  await db.userFavoriteRecipe.create({
+    data: {
+      userId: input.userId,
+      customRecipeId: input.customRecipeId!,
+    },
+  });
+  return { isFavorite: true };
+}
+
+export async function createUserCustomRecipe(input: {
+  userId: string;
+  title: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  calories?: number | null;
+  protein?: number | null;
+  carbs?: number | null;
+  fat?: number | null;
+  fiber?: number | null;
+  ingredients?: Array<{
+    name: string;
+    brandName?: string | null;
+    quantityGrams: number;
+    servingDescription?: string | null;
+    calories?: number | null;
+    protein?: number | null;
+    carbs?: number | null;
+    fat?: number | null;
+    fiber?: number | null;
+  }> | null;
+}) {
+  return db.userCustomRecipe.create({
+    data: {
+      userId: input.userId,
+      title: input.title,
+      description: input.description ?? null,
+      imageUrl: input.imageUrl ?? null,
+      calories: input.calories ?? null,
+      protein: input.protein ?? null,
+      carbs: input.carbs ?? null,
+      fat: input.fat ?? null,
+      fiber: input.fiber ?? null,
+      ingredients: input.ingredients
+        ? (input.ingredients.map((ingredient) => ({
+            name: ingredient.name,
+            brandName: ingredient.brandName ?? null,
+            quantityGrams: ingredient.quantityGrams,
+            servingDescription: ingredient.servingDescription ?? null,
+            calories: ingredient.calories ?? null,
+            protein: ingredient.protein ?? null,
+            carbs: ingredient.carbs ?? null,
+            fat: ingredient.fat ?? null,
+            fiber: ingredient.fiber ?? null,
+          })) as Prisma.InputJsonValue)
+        : undefined,
+    },
+  }) as Promise<UserCustomRecipeWithDetails>;
+}
+
+export async function updateMealPlanSettings(
+  mealPlanId: string,
+  input: {
+    calorieCalculatorEnabled?: boolean;
+  }
+) {
+  return db.mealPlan.update({
+    where: { id: mealPlanId },
+    data: {
+      ...(input.calorieCalculatorEnabled !== undefined
+        ? { calorieCalculatorEnabled: input.calorieCalculatorEnabled }
+        : {}),
+    },
+    include: {
+      items: {
+        include: {
+          recipe: true,
+        },
+        orderBy: [{ dayOfWeek: "asc" }, { mealType: "asc" }],
+      },
+    },
+  });
+}
+
+function recipeMatchesMealSlot(
+  recipe: {
+    title: string;
+    description: string | null;
+    category: string | null;
+    tags: string[];
+  },
+  mealType: string
+) {
+  const haystack = [
+    recipe.category,
+    recipe.title,
+    recipe.description,
+    ...recipe.tags,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const lookup: Record<string, string[]> = {
+    breakfast: ["ontbijt", "breakfast"],
+    lunch: ["lunch", "middag"],
+    dinner: ["avond", "diner", "dinner", "avondmaal"],
+    snack: ["snack", "tussendoor"],
+  };
+
+  return lookup[mealType]?.some((keyword) => haystack.includes(keyword)) ?? true;
+}
+
+function scoreRecipeForGoal(
+  recipe: {
+    calories: number | null;
+    protein: number | null;
+    carbs: number | null;
+    fat: number | null;
+    tags: string[];
+  },
+  goal?: string | null
+) {
+  const calories = recipe.calories ?? 0;
+  const protein = recipe.protein ?? 0;
+  const carbs = recipe.carbs ?? 0;
+  const fat = recipe.fat ?? 0;
+  const tags = recipe.tags.map((tag) => tag.toLowerCase());
+
+  switch (goal) {
+    case "MUSCLE_GAIN":
+      return protein * 5 + calories;
+    case "WEIGHT_GAIN":
+      return calories * 2 + fat + carbs;
+    case "SYMPTOM_RELIEF":
+      return (tags.includes("reset") ? 500 : 0) + (tags.includes("koolhydraatarm") ? 150 : 0) - carbs;
+    case "WEIGHT_LOSS":
+    default:
+      return (tags.includes("koolhydraatarm") ? 250 : 0) + protein * 4 - calories - carbs;
+  }
+}
+
+function pickRotatingRecipe<T extends { id: string }>(
+  recipes: T[],
+  usedRecipeIds: Set<string>,
+  fallbackIndex: number
+) {
+  const freshRecipe = recipes.find((recipe) => !usedRecipeIds.has(recipe.id));
+  if (freshRecipe) {
+    usedRecipeIds.add(freshRecipe.id);
+    return freshRecipe;
+  }
+
+  const fallbackRecipe = recipes[fallbackIndex % recipes.length] ?? null;
+  if (fallbackRecipe) {
+    usedRecipeIds.add(fallbackRecipe.id);
+  }
+  return fallbackRecipe;
+}
+
+export async function autoGenerateMealPlanForWeek(
+  userId: string,
+  weekStart: Date
+) {
+  const mealPlan = await getOrCreateMealPlan(userId, weekStart);
+
+  await db.mealPlanItem.deleteMany({
+    where: { mealPlanId: mealPlan.id },
+  });
+
+  const [recipes, profile] = await Promise.all([
+    db.recipe.findMany({
+      where: { isPublished: true },
+      orderBy: { title: "asc" },
+    }),
+    db.userHealthProfile.findUnique({
+      where: { userId },
+      select: { goal: true },
+    }),
+  ]);
+
+  const mealTypes = ["breakfast", "lunch", "dinner", "snack"] as const;
+  const usedRecipeIds = new Set<string>();
+
+  for (const mealType of mealTypes) {
+    const matchingRecipes = recipes
+      .filter((recipe) => recipeMatchesMealSlot(recipe, mealType))
+      .sort((a, b) => scoreRecipeForGoal(b, profile?.goal) - scoreRecipeForGoal(a, profile?.goal));
+
+    const candidates = matchingRecipes.length > 0 ? matchingRecipes : recipes;
+
+    for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek += 1) {
+      const pickedRecipe = pickRotatingRecipe(candidates, usedRecipeIds, dayOfWeek);
+      if (!pickedRecipe) continue;
+
+      await db.mealPlanItem.create({
+        data: {
+          mealPlanId: mealPlan.id,
+          recipeId: pickedRecipe.id,
+          dayOfWeek,
+          mealType,
+        },
+      });
+    }
+  }
+
+  return db.mealPlan.findUniqueOrThrow({
+    where: { id: mealPlan.id },
+    include: {
+      items: {
+        include: {
+          recipe: true,
+        },
+        orderBy: [{ dayOfWeek: "asc" }, { mealType: "asc" }],
+      },
+    },
+  });
+}
+
+export async function getMealPlanHistory(userId: string, limit = 12) {
+  return db.mealPlan.findMany({
+    where: { userId },
+    include: {
+      items: {
+        include: {
+          recipe: true,
+        },
+        orderBy: [{ dayOfWeek: "asc" }, { mealType: "asc" }],
+      },
+    },
+    orderBy: { weekStart: "desc" },
+    take: limit,
   });
 }
 

@@ -94,7 +94,7 @@ export default function CheckInsPage() {
   };
 
   return (
-    <div className="p-6 md:p-8 lg:p-12 max-w-4xl mx-auto">
+    <div className="mx-auto max-w-5xl p-4 md:p-6 lg:p-8">
       <Link 
         href="/trackers"
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
@@ -103,18 +103,25 @@ export default function CheckInsPage() {
         Terug naar trackers
       </Link>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Form */}
-        <Card>
+      <div className="app-panel app-halo mb-8 overflow-hidden">
+        <p className="app-kicker">Check-in flow</p>
+        <h1 className="mt-3 flex items-center gap-3 font-display text-3xl tracking-tight text-slate-950 md:text-5xl">
+          <Scale className="h-7 w-7 text-primary" />
+          Check-ins
+        </h1>
+        <p className="mt-3 max-w-2xl text-muted-foreground">
+          Log je metingen en houd je progressie overzichtelijk per week bij.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card className="app-halo">
           <CardHeader>
-            <CardTitle className="font-display text-xl tracking-wider flex items-center gap-2">
-              <Scale className="h-5 w-5" />
-              NIEUWE CHECK-IN
-            </CardTitle>
+            <CardTitle className="font-display text-xl tracking-tight">Nieuwe check-in</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="space-y-2">
+              <div className="app-panel-muted space-y-2 px-4 py-4 shadow-none">
                 <Label htmlFor="date">Datum</Label>
                 <Input
                   id="date"
@@ -127,7 +134,7 @@ export default function CheckInsPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+                <div className="app-panel-muted space-y-2 px-4 py-4 shadow-none">
                   <Label htmlFor="weight">Gewicht (kg)</Label>
                   <Input
                     id="weight"
@@ -141,7 +148,7 @@ export default function CheckInsPage() {
                   />
                 </div>
 
-                <div className="space-y-2">
+                <div className="app-panel-muted space-y-2 px-4 py-4 shadow-none">
                   <Label htmlFor="waist">Taille (cm)</Label>
                   <Input
                     id="waist"
@@ -155,7 +162,7 @@ export default function CheckInsPage() {
                   />
                 </div>
 
-                <div className="space-y-2">
+                <div className="app-panel-muted space-y-2 px-4 py-4 shadow-none">
                   <Label htmlFor="hip">Heup (cm)</Label>
                   <Input
                     id="hip"
@@ -169,7 +176,7 @@ export default function CheckInsPage() {
                   />
                 </div>
 
-                <div className="space-y-2">
+                <div className="app-panel-muted space-y-2 px-4 py-4 shadow-none">
                   <Label htmlFor="arm">Arm (cm)</Label>
                   <Input
                     id="arm"
@@ -184,7 +191,7 @@ export default function CheckInsPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="app-panel-muted space-y-2 px-4 py-4 shadow-none">
                 <Label htmlFor="notes">Notities</Label>
                 <textarea
                   id="notes"
@@ -221,10 +228,10 @@ export default function CheckInsPage() {
         </Card>
 
         {/* History */}
-        <Card>
+        <Card className="app-halo">
           <CardHeader>
-            <CardTitle className="font-display text-xl tracking-wider">
-              GESCHIEDENIS
+            <CardTitle className="font-display text-xl tracking-tight">
+              Geschiedenis
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -235,10 +242,7 @@ export default function CheckInsPage() {
             ) : checkIns.length > 0 ? (
               <div className="space-y-4">
                 {checkIns.map((checkIn) => (
-                  <div
-                    key={checkIn.id}
-                    className="p-4 border rounded-lg space-y-2"
-                  >
+                  <div key={checkIn.id} className="space-y-2 rounded-[24px] border p-4">
                     <div className="flex items-center justify-between">
                       <span className="font-medium">
                         Week {checkIn.weekNumber}, {checkIn.year}

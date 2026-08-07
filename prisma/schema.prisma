@@ -8,69 +8,318 @@ datasource db {
 }
 
 // ===========================================
+// PLATFORM (MULTI-TENANT CONTROL PLANE)
+// ===========================================
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  TRIAL
+}
+
+enum PlanTier {
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+// ===========================================
 // USERS & AUTHENTICATION
 // ===========================================
 
 enum Role {
+  SUPERADMIN
   ADMIN
+  STAFF
   COACH
+  STUDENT
   CLIENT
   SUPPORT
 }
 
+enum HealthGoal {
+  WEIGHT_LOSS
+  WEIGHT_GAIN
+  SYMPTOM_RELIEF
+  MUSCLE_GAIN
+}
+
+enum BiologicalSex {
+  FEMALE
+  MALE
+}
+
+enum ActivityLevel {
+  SEDENTARY
+  LIGHT
+  MODERATE
+  HIGH
+  ATHLETE
+}
+
+enum FormStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum FormQuestionType {
+  SHORT_TEXT
+  LONG_TEXT
+  EMAIL
+  PHONE
+  NUMBER
+  MULTIPLE_CHOICE
+  CHECKBOXES
+  DROPDOWN
+  DATE
+  YES_NO
+  CONTACT_INFO
+  FILE_UPLOAD
+}
+
+enum FormAssignmentAudienceType {
+  ROLE
+  COURSE
+  SPACE
+  USER
+}
+
+enum FormResponseStatus {
+  IN_PROGRESS
+  SUBMITTED
+}
+
+model Tenant {
+  id              String       @id @default(cuid())
+  name            String
+  slug            String       @unique
+  status          TenantStatus @default(TRIAL)
+  plan            PlanTier     @default(STARTER)
+  trialEndsAt     DateTime?
+  suspendedAt     DateTime?
+  suspendedReason String?
+
+  // Branding / white-label v1
+  platformName String?
+  logoUrl      String?
+  primaryColor String?
+  faviconUrl   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users           User[]
+  domains         TenantDomain[]
+  settings        TenantSettings?
+  subscriptions   TenantSubscription[]
+  featureFlags    TenantFeatureFlag[]
+  forms           Form[]
+  formAssignments FormAssignment[]
+  formResponses   FormResponse[]
+
+  @@index([status])
+  @@index([plan])
+}
+
+model TenantDomain {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  domain     String   @unique
+  isPrimary  Boolean  @default(false)
+  isVerified Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model TenantSettings {
+  id                      String    @id @default(cuid())
+  tenantId                String    @unique
+  tenant                  Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  platformName            String?
+  logoUrl                 String?
+  primaryColor            String?
+  secondaryColor          String?
+  faviconUrl              String?
+  loginBackgroundUrl      String?
+  loginVideoUrl           String?
+  emailSenderName         String?
+  emailReplyTo            String?
+  footerText              String?
+  billingCompanyName      String?
+  billingContactName      String?
+  billingEmail            String?
+  billingVatNumber        String?
+  billingStreet           String?
+  billingPostalCode       String?
+  billingCity             String?
+  billingCountry          String?
+  hidePoweredBy           Boolean   @default(false)
+  customCss               String?   @db.Text
+  communityIntroTitle     String?
+  communityIntroBody      String?   @db.Text
+  communityFlowTitle      String?
+  communityFlowBody       String?   @db.Text
+  communityFlowStep1Title String?
+  communityFlowStep1Body  String?   @db.Text
+  communityFlowStep2Title String?
+  communityFlowStep2Body  String?   @db.Text
+  communityFlowStep3Title String?
+  communityFlowStep3Body  String?   @db.Text
+  onboardingCompletedAt   DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+}
+
+model TenantSubscription {
+  id                     String    @id @default(cuid())
+  tenantId               String
+  tenant                 Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan                   PlanTier
+  status                 String // "active" | "past_due" | "cancelled" | "trialing"
+  billingInterval        String? // "monthly" | "yearly"
+  currency               String?   @default("EUR")
+  priceCents             Int?
+  platformFeePercent     Int?
+  stripeCustomerId       String?
+  stripeSubscriptionId   String?
+  cancelAtPeriodEnd      Boolean   @default(false)
+  cancelledAt            DateTime?
+  lastPaymentFailureAt   DateTime?
+  pastDueStartedAt       DateTime?
+  dunningReminder1SentAt DateTime?
+  dunningReminder4SentAt DateTime?
+  dunningReminder7SentAt DateTime?
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+model TenantFeatureFlag {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  key         String
+  isEnabled   Boolean  @default(false)
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+}
+
 model User {
   id                String    @id @default(cuid())
+  tenantId          String?
+  tenant            Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   email             String    @unique
   emailVerified     DateTime?
   passwordHash      String?
   firstName         String
   lastName          String
   avatarUrl         String?
-  bio               String?   @db.Text  // korte beschrijving, niet verplicht
+  bio               String?   @db.Text // korte beschrijving, niet verplicht
   role              Role      @default(CLIENT)
+  preferredLanguage String    @default("nl")
   phone             String?
   shopifyCustomerId String?   @unique
-  
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  lastLoginAt       DateTime?
-  deletedAt         DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+  deletedAt   DateTime?
 
   // Relations
-  sessions          AuthSession[]
-  enrollments       Enrollment[]
-  progress          Progress[]
-  spaceMemberships  SpaceMember[]
-  posts             Post[]
-  comments          Comment[]
+  sessions                 AuthSession[]
+  enrollments              Enrollment[]
+  progress                 Progress[]
+  spaceMemberships         SpaceMember[]
+  posts                    Post[]
+  scheduledCommunityPosts  ScheduledCommunityPost[]
+  postPollVotes            PostPollVote[]
+  comments                 Comment[]
   conversationParticipants ConversationParticipant[]
-  messages          Message[]
-  sessionsAsClient  CoachingSession[] @relation("ClientSessions")
-  sessionsAsCoach   CoachingSession[] @relation("CoachSessions")
-  checkIns          CheckIn[]
-  nutritionLogs     NutritionLog[]
-  habitLogs         HabitLog[]
-  cycleLogs         CycleLog[]
-  symptomLogs       SymptomLog[]
-  groceryLists      GroceryList[]
-  mealPlans         MealPlan[]
-  aiConversations   AiConversation[]
-  whatsappMessages  WhatsappMessage[]
-  notifications     Notification[]
-  progressPhotos    ProgressPhoto[]
-  fitnessConnections FitnessConnection[]
-  workouts          Workout[]
-  weeklySummaries   WeeklySummary[]
+  messages                 Message[]
+  sessionsAsClient         CoachingSession[]         @relation("ClientSessions")
+  sessionsAsCoach          CoachingSession[]         @relation("CoachSessions")
+  coursesAsCoach           Course[]                  @relation("CourseCoach")
+  calendarAccessAsCoach    CoachCalendarAccess[]     @relation("CoachCalendarAccessCoach")
+  calendarAccessAsClient   CoachCalendarAccess[]     @relation("CoachCalendarAccessClient")
+  checkIns                 CheckIn[]
+  nutritionLogs            NutritionLog[]
+  habitLogs                HabitLog[]
+  cycleLogs                CycleLog[]
+  symptomLogs              SymptomLog[]
+  groceryLists             GroceryList[]
+  mealPlans                MealPlan[]
+  customRecipes            UserCustomRecipe[]
+  favoriteRecipes          UserFavoriteRecipe[]
+  aiConversations          AiConversation[]
+  whatsappMessages         WhatsappMessage[]
+  notifications            Notification[]
+  progressPhotos           ProgressPhoto[]
+  fitnessConnections       FitnessConnection[]
+  calendarConnections      CalendarConnection[]
+  integrationConnections  IntegrationConnection[]
+  externalCalendarEvents   ExternalCalendarEvent[]
+  syncedCalendarEvents     SyncedCalendarEvent[]
+  hostedRecordings         CoachingRecording[]       @relation("CoachRecordings")
+  webinarRegistrations     WebinarRegistration[]
+  webinarsHosted           Webinar[]                 @relation("WebinarHost")
+  workouts                 Workout[]
+  weeklySummaries          WeeklySummary[]
+  offerAssignments         OfferAssignment[]
+  assignedForms            FormAssignment[]          @relation("AssignedUserForms")
+  formResponses            FormResponse[]
+  healthProfile            UserHealthProfile?
+  nutritionPlans           NutritionPlan[]
 
+  @@index([tenantId])
   @@index([email])
   @@index([shopifyCustomerId])
+}
+
+model UserHealthProfile {
+  id                      String        @id @default(cuid())
+  userId                  String        @unique
+  user                    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal                    HealthGoal
+  biologicalSex           BiologicalSex
+  age                     Int
+  heightCm                Int
+  weightKg                Float
+  targetWeightKg          Float?
+  activityLevel           ActivityLevel
+  trainingSessionsPerWeek Int
+  averageDailySteps       Int
+  primarySport            String?
+  symptoms                String?       @db.Text
+  calorieTarget           Int
+  proteinTargetGrams      Int
+  carbsTargetGrams        Int
+  fatTargetGrams          Int
+  completedAt             DateTime?
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+
+  @@index([goal])
+  @@index([completedAt])
 }
 
 model VerificationToken {
   id        String    @id @default(cuid())
   token     String    @unique
   email     String
-  type      String    // "magic_link" | "registration" | "password_reset"
+  type      String // "magic_link" | "registration" | "password_reset"
+  metadata  Json?
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
@@ -93,91 +342,367 @@ model AuthSession {
   @@index([userId])
 }
 
+model Form {
+  id                 String     @id @default(cuid())
+  tenantId           String
+  tenant             Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title              String
+  slug               String     @unique
+  description        String?    @db.Text
+  status             FormStatus @default(DRAFT)
+  introTitle         String?
+  introDescription   String?    @db.Text
+  submitButtonLabel  String?    @default("Versturen")
+  successTitle       String?
+  successDescription String?    @db.Text
+  isOnboardingForm   Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  questions   FormQuestion[]
+  assignments FormAssignment[]
+  responses   FormResponse[]
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+model FormQuestion {
+  id          String           @id @default(cuid())
+  formId      String
+  form        Form             @relation(fields: [formId], references: [id], onDelete: Cascade)
+  title       String
+  description String?          @db.Text
+  type        FormQuestionType
+  position    Int              @default(0)
+  isRequired  Boolean          @default(false)
+  placeholder String?
+  helperText  String?
+  options     Json?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  answers FormAnswer[]
+
+  @@index([formId])
+  @@index([position])
+}
+
+model FormAssignment {
+  id                 String                     @id @default(cuid())
+  tenantId           String
+  tenant             Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  formId             String
+  form               Form                       @relation(fields: [formId], references: [id], onDelete: Cascade)
+  audienceType       FormAssignmentAudienceType
+  audienceRole       Role?
+  courseId           String?
+  course             Course?                    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  spaceId            String?
+  space              Space?                     @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  userId             String?
+  user               User?                      @relation("AssignedUserForms", fields: [userId], references: [id], onDelete: Cascade)
+  title              String?
+  isRequired         Boolean                    @default(false)
+  // Wanneer actief, blijft de gekoppelde cursus op slot tot dit formulier is ingediend.
+  blocksCourseAccess Boolean                    @default(false)
+  startsAt           DateTime?
+  dueAt              DateTime?
+  isActive           Boolean                    @default(true)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  responses FormResponse[]
+
+  @@index([tenantId])
+  @@index([formId])
+  @@index([courseId])
+  @@index([spaceId])
+  @@index([userId])
+}
+
+model FormResponse {
+  id           String             @id @default(cuid())
+  tenantId     String
+  tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  formId       String
+  form         Form               @relation(fields: [formId], references: [id], onDelete: Cascade)
+  assignmentId String?
+  assignment   FormAssignment?    @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  userId       String
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status       FormResponseStatus @default(IN_PROGRESS)
+  startedAt    DateTime           @default(now())
+  submittedAt  DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  answers FormAnswer[]
+
+  @@unique([formId, assignmentId, userId])
+  @@index([tenantId])
+  @@index([formId])
+  @@index([userId])
+}
+
+model FormAnswer {
+  id         String       @id @default(cuid())
+  responseId String
+  response   FormResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  questionId String
+  question   FormQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  value      Json
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@unique([responseId, questionId])
+  @@index([questionId])
+}
+
 // ===========================================
 // COURSES & LEARNING
 // ===========================================
 
 model Course {
-  id              String    @id @default(cuid())
-  title           String
-  slug            String    @unique
-  description     String?   @db.Text
-  thumbnailUrl    String?
-  isPublished     Boolean   @default(false)
-  isPrivate       Boolean   @default(false)
-  
-  // Minicursus zonder community: false; traject met groep: true
-  hasCommunity    Boolean   @default(true)
-  
-  drippingEnabled Boolean   @default(false)
-  drippingUnit    String?   // "days" | "weeks"
-  
-  // Progressiefoto's: aantal momenten en interval (weken vanaf start inschrijving)
-  photoMomentsCount         Int       @default(0)
-  photoMomentsIntervalWeeks Int?      // bijv. 4 = week 0, 4, 8, ...
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                  String  @id @default(cuid())
+  title               String
+  slug                String  @unique
+  description         String? @db.Text
+  thumbnailUrl        String?
+  isPublished         Boolean @default(false)
+  isPrivate           Boolean @default(false)
+  hideForUnauthorized Boolean @default(true)
+  communitySpaceId    String?
+  communitySpace      Space?  @relation("CourseCommunitySpace", fields: [communitySpaceId], references: [id], onDelete: SetNull)
 
-  modules             Module[]
-  enrollments         Enrollment[]
-  progressPhotos     ProgressPhoto[]
-  coachingRecordings  CoachingRecording[]
-  shopifyMappings    ShopifyProductMapping[]
+  // Minicursus zonder community: false; traject met groep: true
+  hasCommunity Boolean @default(true)
+
+  coachId String?
+  coach   User?   @relation("CourseCoach", fields: [coachId], references: [id], onDelete: SetNull)
+
+  drippingEnabled        Boolean @default(false)
+  drippingUnit           String? // "days" | "weeks"
+  drippingStartMode      String? // "enrollment" | "published"
+  drippingReleaseWeekday Int? // 1 = Monday ... 7 = Sunday
+  drippingReleaseTime    String? // "09:00"
+
+  // Vaste looptijd van een traject/editie (bijv. Simply Challenge 15)
+  trajectoryStartDate DateTime?
+  trajectoryEndDate   DateTime?
+
+  // Progressiefoto's: aantal momenten en interval (weken vanaf start inschrijving)
+  photoMomentsCount         Int  @default(0)
+  photoMomentsIntervalWeeks Int? // bijv. 4 = week 0, 4, 8, ...
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  modules                 Module[]
+  enrollments             Enrollment[]
+  progressPhotos          ProgressPhoto[]
+  coachingRecordings      CoachingRecording[]
+  shopifyMappings         ShopifyProductMapping[]
+  offerLinks              OfferCourse[]
+  formAssignments         FormAssignment[]
+  calendarAccessRules     CoachCalendarAccess[]
+  scheduledCommunityPosts ScheduledCommunityPost[]
+  nutritionPlanTemplates  NutritionPlanTemplate[]
+  nutritionPlans          NutritionPlan[]
 
   @@index([slug])
+  @@index([communitySpaceId])
+  @@index([coachId])
+}
+
+model Offer {
+  id                 String   @id @default(cuid())
+  title              String
+  slug               String   @unique
+  description        String?  @db.Text
+  pricingType        String // "one_time" | "subscription" | "payment_plan"
+  priceCents         Int
+  currency           String   @default("EUR")
+  billingInterval    String? // "monthly" | "yearly"
+  trialDays          Int?
+  installmentCount   Int?
+  accessDurationDays Int?
+  isPublished        Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  courses     OfferCourse[]
+  assignments OfferAssignment[]
+  leads       OfferLead[]
+
+  @@index([slug])
+  @@index([pricingType])
+}
+
+model OfferCourse {
+  id        String   @id @default(cuid())
+  offerId   String
+  offer     Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([offerId, courseId])
+  @@index([offerId])
+  @@index([courseId])
+}
+
+model OfferAssignment {
+  id        String    @id @default(cuid())
+  offerId   String
+  offer     Offer     @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startDate DateTime  @default(now())
+  endDate   DateTime?
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  enrollments Enrollment[]
+
+  @@index([offerId])
+  @@index([userId])
+  @@index([revokedAt])
+}
+
+model OfferLead {
+  id        String   @id @default(cuid())
+  offerId   String
+  offer     Offer    @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  firstName String
+  lastName  String?
+  email     String
+  note      String?  @db.Text
+  status    String   @default("new") // "new" | "contacted" | "converted"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([offerId])
+  @@index([email])
+  @@index([status])
 }
 
 model CoachingRecording {
-  id                      String    @id @default(cuid())
-  courseId                String
-  course                  Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  recurrenceOccurrenceKey String?   // groepssessie: recur-{courseId}-{iso}
-  dailyRecordingId       String    @unique // Daily.co recording ID
+  id                      String           @id @default(cuid())
+  courseId                String?
+  course                  Course?          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  sessionId               String?
+  session                 CoachingSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  coachId                 String?
+  coach                   User?            @relation("CoachRecordings", fields: [coachId], references: [id], onDelete: SetNull)
+  recurrenceOccurrenceKey String? // groepssessie: recur-{courseId}-{iso}
+  dailyRecordingId        String           @unique // Daily.co recording ID
   title                   String?
+  summary                 String?          @db.Text
+  transcript              String?          @db.Text
+  transcriptSourceUrl     String?
+  googleDriveFileId       String?
+  googleDriveWebViewLink  String?
+  googleDriveFolderId     String?
+  googleDriveUploadedAt   DateTime?
   scheduledAt             DateTime?
   durationSecs            Int?
-  createdAt               DateTime  @default(now())
+  createdAt               DateTime         @default(now())
 
   @@index([courseId])
+  @@index([sessionId])
+  @@index([coachId])
   @@index([dailyRecordingId])
+  @@index([googleDriveFileId])
+}
+
+model Webinar {
+  id               String   @id @default(cuid())
+  hostId           String
+  host             User     @relation("WebinarHost", fields: [hostId], references: [id], onDelete: Cascade)
+  title            String
+  description      String?  @db.Text
+  startsAt         DateTime
+  duration         Int      @default(60)
+  registrationSlug String   @unique
+  autoRecord       Boolean  @default(true)
+  status           String   @default("scheduled")
+  roomId           String?
+  roomUrl          String?
+  eventType        String   @default("online") // "online" | "physical"
+  location         String?
+  onlineUrl        String?
+  bannerUrl        String?
+  capacity         Int?
+  registrationOpen Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  registrations WebinarRegistration[]
+
+  @@index([hostId])
+  @@index([startsAt])
+}
+
+model WebinarRegistration {
+  id         String    @id @default(cuid())
+  webinarId  String
+  webinar    Webinar   @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  firstName  String
+  lastName   String?
+  email      String
+  phone      String?
+  joinToken  String    @unique
+  attendedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([webinarId, email])
+  @@index([webinarId])
+  @@index([email])
 }
 
 model Module {
-  id              String   @id @default(cuid())
+  id              String  @id @default(cuid())
   courseId        String
-  course          Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course          Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
   title           String
-  description     String?  @db.Text
+  description     String? @db.Text
   position        Int
   unlockAfterDays Int?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
 
-  lessons         Lesson[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lessons Lesson[]
 
   @@index([courseId])
 }
 
 model Lesson {
-  id              String   @id @default(cuid())
-  moduleId        String
-  module          Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  title           String
-  content         String?  @db.Text
-  position        Int
-  
-  videoUrl        String?
-  videoProvider   String?  // "loom" | "mux" | "upload"
-  videoDuration   Int?
-  unlockAfterDays Int?
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String  @id @default(cuid())
+  moduleId       String
+  module         Module  @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  title          String
+  content        String? @db.Text
+  extraContent   String? @db.Text
+  checklistTitle String?
+  checklistItems Json?
+  position       Int
 
-  progress        Progress[]
-  attachments     LessonAttachment[]
+  videoUrl        String?
+  videoProvider   String? // "loom" | "mux" | "upload"
+  videoDuration   Int?
+  videoEmbedCode  String? @db.Text
+  unlockAfterDays Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  progress    Progress[]
+  attachments LessonAttachment[]
 
   @@index([moduleId])
 }
@@ -188,7 +713,7 @@ model LessonAttachment {
   lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   name      String
   url       String
-  type      String   // "pdf" | "image" | "file"
+  type      String // "pdf" | "image" | "file"
   size      Int?
   createdAt DateTime @default(now())
 
@@ -196,38 +721,44 @@ model LessonAttachment {
 }
 
 model Enrollment {
-  id               String    @id @default(cuid())
-  userId           String
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  courseId         String
-  course           Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  
-  startDate        DateTime  @default(now())
-  endDate          DateTime?
-  
+  id                String           @id @default(cuid())
+  userId            String
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId          String
+  course            Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  offerAssignmentId String?
+  offerAssignment   OfferAssignment? @relation(fields: [offerAssignmentId], references: [id], onDelete: SetNull)
+
+  startDate DateTime  @default(now())
+  endDate   DateTime?
+
   shopifyOrderId   String?
+  shopifyOrderName String?
   shopifyProductId String?
-  
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  revenueCents     Int?
+  revenueCurrency  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, courseId])
   @@index([userId])
   @@index([courseId])
+  @@index([offerAssignmentId])
 }
 
 model ProgressPhoto {
-  id              String    @id @default(cuid())
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  courseId        String
-  course          Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  periodIndex     Int       // 0-based moment (week 0, 4, 8, ...)
-  beforePhotoUrl  String?
-  afterPhotoUrl   String?
-  submittedAt     DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId       String
+  course         Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  periodIndex    Int // 0-based moment (week 0, 4, 8, ...)
+  beforePhotoUrl String?
+  afterPhotoUrl  String?
+  submittedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@unique([userId, courseId, periodIndex])
   @@index([userId])
@@ -235,17 +766,18 @@ model ProgressPhoto {
 }
 
 model Progress {
-  id            String    @id @default(cuid())
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lessonId      String
-  lesson        Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  
-  completedAt   DateTime?
-  videoProgress Int?
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  completedAt    DateTime?
+  videoProgress  Int?
+  checklistState Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, lessonId])
   @@index([userId])
@@ -257,32 +789,38 @@ model Progress {
 // ===========================================
 
 model Space {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   name        String
-  slug        String   @unique
-  description String?  @db.Text
+  slug        String  @unique
+  groupLabel  String?
+  description String? @db.Text
   iconEmoji   String?
-  
-  isPublic    Boolean  @default(false)
-  isHostOnly  Boolean  @default(false)
-  position    Int      @default(0)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 
-  members     SpaceMember[]
-  posts       Post[]
+  isPublic   Boolean @default(false)
+  isHostOnly Boolean @default(false)
+  isActive   Boolean @default(true)
+  position   Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members                 SpaceMember[]
+  posts                   Post[]
+  courses                 Course[]                 @relation("CourseCommunitySpace")
+  formAssignments         FormAssignment[]
+  scheduledCommunityPosts ScheduledCommunityPost[]
 
   @@index([slug])
+  @@index([groupLabel])
 }
 
 model SpaceMember {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  spaceId   String
-  space     Space    @relation(fields: [spaceId], references: [id], onDelete: Cascade)
-  
+  id      String @id @default(cuid())
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  spaceId String
+  space   Space  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
 
   @@unique([userId, spaceId])
@@ -291,26 +829,71 @@ model SpaceMember {
 }
 
 model Post {
-  id        String   @id @default(cuid())
-  spaceId   String
-  space     Space    @relation(fields: [spaceId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  
-  content   String   @db.Text
-  isPinned  Boolean  @default(false)
-  workoutId String?  @unique
-  workout   Workout? @relation(fields: [workoutId], references: [id], onDelete: SetNull)
-  
+  id       String @id @default(cuid())
+  spaceId  String
+  space    Space  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  title        String?
+  content      String   @db.Text
+  pollQuestion String?
+  pollOptions  Json?
+  isPinned     Boolean  @default(false)
+  workoutId    String?  @unique
+  workout      Workout? @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  comments    Comment[]
-  attachments PostAttachment[]
-  likes       PostLike[]
+  comments      Comment[]
+  attachments   PostAttachment[]
+  likes         PostLike[]
+  pollVotes     PostPollVote[]
+  scheduledFrom ScheduledCommunityPost?
 
   @@index([spaceId])
   @@index([authorId])
+}
+
+model ScheduledCommunityPost {
+  id       String @id @default(cuid())
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  spaceId  String
+  space    Space  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  title        String?
+  content      String  @db.Text
+  pollQuestion String?
+  pollOptions  Json?
+  attachments  Json?
+  isPinned     Boolean @default(false)
+
+  scheduledAt DateTime
+  status      String    @default("scheduled") // "scheduled" | "published" | "cancelled" | "failed"
+  publishedAt DateTime?
+  cancelledAt DateTime?
+  lastError   String?   @db.Text
+
+  publishedPostId String? @unique
+  publishedPost   Post?   @relation(fields: [publishedPostId], references: [id], onDelete: SetNull)
+
+  duplicateSourceId String?
+  duplicateSource   ScheduledCommunityPost?  @relation("ScheduledPostDuplicate", fields: [duplicateSourceId], references: [id], onDelete: SetNull)
+  duplicates        ScheduledCommunityPost[] @relation("ScheduledPostDuplicate")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId])
+  @@index([spaceId])
+  @@index([authorId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@index([duplicateSourceId])
 }
 
 model PostAttachment {
@@ -318,11 +901,25 @@ model PostAttachment {
   postId    String
   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   url       String
-  type      String   // "image" | "voice_memo" | "file"
+  type      String // "image" | "video" | "voice_memo" | "file"
   duration  Int?
   createdAt DateTime @default(now())
 
   @@index([postId])
+}
+
+model PostPollVote {
+  id          String   @id @default(cuid())
+  postId      String
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  optionIndex Int
+  createdAt   DateTime @default(now())
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
 }
 
 model PostLike {
@@ -337,23 +934,36 @@ model PostLike {
 }
 
 model Comment {
-  id        String    @id @default(cuid())
-  postId    String
-  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
-  authorId  String
-  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  
-  content   String    @db.Text
-  
-  parentId  String?
-  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
-  replies   Comment[] @relation("CommentReplies")
-  
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id       String @id @default(cuid())
+  postId   String
+  post     Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  content String @db.Text
+
+  parentId    String?
+  parent      Comment?            @relation("CommentReplies", fields: [parentId], references: [id])
+  replies     Comment[]           @relation("CommentReplies")
+  attachments CommentAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([postId])
   @@index([authorId])
+}
+
+model CommentAttachment {
+  id        String   @id @default(cuid())
+  commentId String
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  url       String
+  type      String // "image" | "voice_memo" | "file"
+  duration  Int?
+  createdAt DateTime @default(now())
+
+  @@index([commentId])
 }
 
 // ===========================================
@@ -364,7 +974,7 @@ model FitnessConnection {
   id             String    @id @default(cuid())
   userId         String
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  provider       String    // "strava" | "fitbit" | "garmin" | "polar" | "apple"
+  provider       String // "strava" | "fitbit" | "garmin" | "polar" | "apple"
   providerUserId String?
   accessToken    String
   refreshToken   String?
@@ -378,28 +988,115 @@ model FitnessConnection {
   @@index([provider])
 }
 
-model Workout {
-  id                 String    @id @default(cuid())
-  userId             String
-  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  provider           String    // "strava" | "fitbit" | ...
-  providerWorkoutId  String
-  type               String?   // "Run" | "Ride" | "Walk" | ...
-  name               String?
-  distance           Float?   // meter
-  durationSeconds    Int?
-  elevationGain      Float?
-  calories           Float?
-  heartRateAvg       Int?
-  heartRateMax       Int?
-  startTime          DateTime
-  endTime            DateTime?
-  isPublic           Boolean   @default(false)
-  syncedAt           DateTime  @default(now())
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+model CalendarConnection {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String // "google" | "microsoft"
+  providerAccountId String?
+  email             String?
+  accessToken       String    @db.Text
+  refreshToken      String?   @db.Text
+  expiresAt         DateTime?
+  scope             String?
+  syncEnabled       Boolean   @default(true)
+  lastSyncedAt      DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  post               Post?
+  events       ExternalCalendarEvent[]
+  syncedEvents SyncedCalendarEvent[]
+
+  @@unique([userId, provider])
+  @@index([userId])
+  @@index([provider])
+  @@index([syncEnabled])
+}
+
+model IntegrationConnection {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String // "canva" | "meta"
+  providerAccountId String?
+  accountName       String?
+  accessToken       String    @db.Text
+  refreshToken      String?   @db.Text
+  expiresAt         DateTime?
+  scope             String?
+  metadata          Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([userId, provider])
+  @@index([userId])
+  @@index([provider])
+}
+
+model ExternalCalendarEvent {
+  id              String             @id @default(cuid())
+  userId          String
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connectionId    String
+  connection      CalendarConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  provider        String // "google" | "microsoft"
+  providerEventId String
+  title           String
+  description     String?            @db.Text
+  location        String?
+  startsAt        DateTime
+  endsAt          DateTime
+  isAllDay        Boolean            @default(false)
+  externalUrl     String?
+  updatedAt       DateTime           @updatedAt
+  syncedAt        DateTime           @default(now())
+
+  @@unique([connectionId, providerEventId])
+  @@index([userId, startsAt])
+  @@index([connectionId])
+}
+
+model SyncedCalendarEvent {
+  id              String             @id @default(cuid())
+  userId          String
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connectionId    String
+  connection      CalendarConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  provider        String // "google" | "microsoft"
+  syncKey         String // CoachingSession.id or shared recurrenceOccurrenceKey
+  providerEventId String
+  externalUrl     String?
+  lastSyncedAt    DateTime           @default(now())
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@unique([connectionId, syncKey])
+  @@index([userId])
+  @@index([providerEventId])
+}
+
+model Workout {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String // "strava" | "fitbit" | ...
+  providerWorkoutId String
+  type              String? // "Run" | "Ride" | "Walk" | ...
+  name              String?
+  distance          Float? // meter
+  durationSeconds   Int?
+  elevationGain     Float?
+  calories          Float?
+  heartRateAvg      Int?
+  heartRateMax      Int?
+  startTime         DateTime
+  endTime           DateTime?
+  isPublic          Boolean   @default(false)
+  syncedAt          DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  post Post?
 
   @@unique([userId, provider, providerWorkoutId])
   @@index([userId])
@@ -413,9 +1110,9 @@ model Workout {
 // ===========================================
 
 model Conversation {
-  id            String   @id @default(cuid())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   lastMessageAt DateTime?
 
   participants ConversationParticipant[]
@@ -428,9 +1125,9 @@ model ConversationParticipant {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   userId         String
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  lastReadAt     DateTime?
-  createdAt      DateTime     @default(now())
+
+  lastReadAt DateTime?
+  createdAt  DateTime  @default(now())
 
   @@unique([conversationId, userId])
   @@index([conversationId])
@@ -443,12 +1140,12 @@ model Message {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderId       String
   sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
-  
-  content        String       @db.Text
-  voiceUrl       String?
-  voiceDuration  Int?
-  
-  createdAt      DateTime     @default(now())
+
+  content       String  @db.Text
+  voiceUrl      String?
+  voiceDuration Int?
+
+  createdAt DateTime @default(now())
 
   @@index([conversationId])
   @@index([senderId])
@@ -459,34 +1156,58 @@ model Message {
 // ===========================================
 
 model CoachingSession {
-  id          String    @id @default(cuid())
-  clientId    String
-  client      User      @relation("ClientSessions", fields: [clientId], references: [id], onDelete: Cascade)
-  coachId     String
-  coach       User      @relation("CoachSessions", fields: [coachId], references: [id], onDelete: Cascade)
-  
+  id       String @id @default(cuid())
+  clientId String
+  client   User   @relation("ClientSessions", fields: [clientId], references: [id], onDelete: Cascade)
+  coachId  String
+  coach    User   @relation("CoachSessions", fields: [coachId], references: [id], onDelete: Cascade)
+
   title       String?
+  description String?  @db.Text
   scheduledAt DateTime
-  duration    Int       @default(45)
-  
-  roomId      String?
-  roomUrl     String?
-  
+  duration    Int      @default(45)
+
+  roomId                 String?
+  roomUrl                String?
+  autoRecord             Boolean  @default(true)
+  isInstant              Boolean  @default(false)
+  externalAttendeeEmails String[] @default([])
+
   // Groepssessie: meerdere sessies delen dezelfde room via deze key (bijv. recur-{courseId}-{isoDateTime})
   recurrenceOccurrenceKey String?
-  
+
   status      String    @default("scheduled") // "scheduled" | "completed" | "cancelled"
   completedAt DateTime?
-  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
 
-  notes       SessionNote[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  notes      SessionNote[]
+  recordings CoachingRecording[]
 
   @@index([clientId])
   @@index([coachId])
   @@index([scheduledAt])
   @@index([recurrenceOccurrenceKey])
+}
+
+model CoachCalendarAccess {
+  id           String   @id @default(cuid())
+  coachId      String
+  coach        User     @relation("CoachCalendarAccessCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  audienceType String // "course" | "user"
+  courseId     String?
+  course       Course?  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?    @relation("CoachCalendarAccessClient", fields: [userId], references: [id], onDelete: Cascade)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([coachId, audienceType, courseId, userId])
+  @@index([coachId])
+  @@index([courseId])
+  @@index([userId])
 }
 
 model SessionNote {
@@ -506,46 +1227,46 @@ model SessionNote {
 // ===========================================
 
 model CheckIn {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   weekNumber Int
   year       Int
   date       DateTime
-  
-  weight     Float?
-  waist      Float?
-  hip        Float?
-  arm        Float?
-  
+
+  weight Float?
+  waist  Float?
+  hip    Float?
+  arm    Float?
+
   photoFront String?
   photoSide  String?
   photoBack  String?
-  
-  notes      String?  @db.Text
-  
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, weekNumber, year])
   @@index([userId])
 }
 
 model NutritionLog {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  date      DateTime @db.Date
-  
-  calories  Int?
-  protein   Int?
-  carbs     Int?
-  fat       Int?
-  
-  entries   Json?
-  
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date DateTime @db.Date
+
+  calories Int?
+  protein  Int?
+  carbs    Int?
+  fat      Int?
+
+  entries Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -555,20 +1276,20 @@ model NutritionLog {
 }
 
 model HabitLog {
-  id           String   @id @default(cuid())
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  date         DateTime @db.Date
-  
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date DateTime @db.Date
+
   waterGlasses Int?
   steps        Int?
   supplements  Boolean?
-  
+
   customHabits Json?
-  
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, date])
   @@index([userId])
@@ -576,17 +1297,17 @@ model HabitLog {
 }
 
 model CycleLog {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  date      DateTime @db.Date
-  
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date DateTime @db.Date
+
   phase     String?
   flowLevel Int?
-  
-  notes     String?  @db.Text
-  
+
+  notes String? @db.Text
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -596,20 +1317,20 @@ model CycleLog {
 }
 
 model SymptomLog {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  date      DateTime @db.Date
-  
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date DateTime @db.Date
+
   energy    Int?
   cravings  Int?
   digestion Int?
   sleep     Int?
   mood      Int?
-  
-  notes     String?  @db.Text
-  
+
+  notes String? @db.Text
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -623,50 +1344,51 @@ model SymptomLog {
 // ===========================================
 
 model Recipe {
-  id           String   @id @default(cuid())
-  title        String
-  slug         String   @unique
-  description  String?  @db.Text
-  imageUrl     String?
-  
-  calories     Int?
-  protein      Int?
-  carbs        Int?
-  fat          Int?
-  
-  servings     Int      @default(2)
-  prepTime     Int?
-  cookTime     Int?
-  
+  id          String  @id @default(cuid())
+  title       String
+  slug        String  @unique
+  description String? @db.Text
+  imageUrl    String?
+
+  calories Int?
+  protein  Int?
+  carbs    Int?
+  fat      Int?
+
+  servings Int  @default(2)
+  prepTime Int?
+  cookTime Int?
+
   ingredients  Json
   instructions Json
-  
-  category     String?
-  tags         String[]
-  
-  isPublished  Boolean  @default(false)
-  
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+
+  category String?
+  tags     String[]
+
+  isPublished Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   groceryItems  GroceryItem[]
   mealPlanItems MealPlanItem[]
+  favoritedBy   UserFavoriteRecipe[]
 
   @@index([slug])
   @@index([category])
 }
 
 model GroceryList {
-  id        String        @id @default(cuid())
-  userId    String
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  name      String        @default("Boodschappenlijst")
-  
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  items     GroceryItem[]
+  name String @default("Boodschappenlijst")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items GroceryItem[]
 
   @@index([userId])
 }
@@ -677,28 +1399,29 @@ model GroceryItem {
   groceryList   GroceryList @relation(fields: [groceryListId], references: [id], onDelete: Cascade)
   recipeId      String?
   recipe        Recipe?     @relation(fields: [recipeId], references: [id])
-  
-  ingredient    String
-  amount        String?
-  unit          String?
-  isChecked     Boolean     @default(false)
-  
-  createdAt     DateTime    @default(now())
+
+  ingredient String
+  amount     String?
+  unit       String?
+  isChecked  Boolean @default(false)
+
+  createdAt DateTime @default(now())
 
   @@index([groceryListId])
 }
 
 model MealPlan {
-  id        String         @id @default(cuid())
-  userId    String
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  weekStart DateTime       @db.Date
-  
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  items     MealPlanItem[]
+  weekStart                DateTime @db.Date
+  calorieCalculatorEnabled Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items MealPlanItem[]
 
   @@unique([userId, weekStart])
   @@index([userId])
@@ -708,25 +1431,100 @@ model MealPlanItem {
   id         String   @id @default(cuid())
   mealPlanId String
   mealPlan   MealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
-  recipeId   String
-  recipe     Recipe   @relation(fields: [recipeId], references: [id])
-  
-  dayOfWeek  Int
-  mealType   String
+  recipeId   String?
+  recipe     Recipe?  @relation(fields: [recipeId], references: [id])
+
+  dayOfWeek         Int
+  mealType          String
+  isCustom          Boolean @default(false)
+  customTitle       String?
+  customDescription String? @db.Text
+  customImageUrl    String?
+  customCalories    Int?
+  customProtein     Int?
+  customCarbs       Int?
+  customFat         Int?
+  customFiber       Int?
+  customIngredients Json?
 
   @@index([mealPlanId])
 }
 
-model NutritionPlan {
-  id        String   @id @default(cuid())
-  userId    String
-  
-  title     String
-  fileUrl   String
-  
-  createdAt DateTime @default(now())
+model UserCustomRecipe {
+  id          String               @id @default(cuid())
+  userId      String
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?              @db.Text
+  imageUrl    String?
+  calories    Int?
+  protein     Int?
+  carbs       Int?
+  fat         Int?
+  fiber       Int?
+  ingredients Json?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  favoritedBy UserFavoriteRecipe[]
 
   @@index([userId])
+}
+
+model UserFavoriteRecipe {
+  id             String            @id @default(cuid())
+  userId         String
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipeId       String?
+  recipe         Recipe?           @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  customRecipeId String?
+  customRecipe   UserCustomRecipe? @relation(fields: [customRecipeId], references: [id], onDelete: Cascade)
+  createdAt      DateTime          @default(now())
+
+  @@unique([userId, recipeId])
+  @@unique([userId, customRecipeId])
+  @@index([userId])
+  @@index([recipeId])
+  @@index([customRecipeId])
+}
+
+model NutritionPlan {
+  id         String                 @id @default(cuid())
+  userId     String
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId   String?
+  course     Course?                @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  templateId String?
+  template   NutritionPlanTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  title           String
+  fileUrl         String
+  displayFileName String?
+  availableAt     DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@index([availableAt])
+}
+
+model NutritionPlanTemplate {
+  id            String        @id @default(cuid())
+  courseId      String
+  course        Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  biologicalSex BiologicalSex
+  title         String
+  fileUrl       String
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  plans NutritionPlan[]
+
+  @@unique([courseId, biologicalSex])
+  @@index([courseId])
 }
 
 // ===========================================
@@ -741,31 +1539,31 @@ model KnowledgeCategory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  items     KnowledgeItem[]
+  items KnowledgeItem[]
 
   @@index([slug])
 }
 
 model KnowledgeItem {
-  id         String   @id @default(cuid())
-  categoryId String
-  category   KnowledgeCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  title      String
-  videoUrl   String?  // Loom of andere embed
-  videoProvider String?  // "loom" | "mux" | "youtube" | ...
-  description String? @db.Text
-  position   Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id            String            @id @default(cuid())
+  categoryId    String
+  category      KnowledgeCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  title         String
+  videoUrl      String? // Loom of andere embed
+  videoProvider String? // "loom" | "mux" | "youtube" | ...
+  description   String?           @db.Text
+  position      Int               @default(0)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 
   @@index([categoryId])
 }
 
 model FavoriteProduct {
   id           String   @id @default(cuid())
-  brand        String   // bijv. "Pit & Pit"
+  brand        String // bijv. "Pit & Pit"
   name         String
-  description  String?  @db.Text  // uitleg, "mijn lijstje", etc.
+  description  String?  @db.Text // uitleg, "mijn lijstje", etc.
   discountCode String?
   productUrl   String?
   position     Int      @default(0)
@@ -780,51 +1578,56 @@ model FavoriteProduct {
 // ===========================================
 
 model AiConversation {
-  id        String      @id @default(cuid())
-  userId    String
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  id       String  @id @default(cuid())
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId String?
+  title    String?
 
-  messages  AiMessage[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages AiMessage[]
 
   @@index([userId])
+  @@index([tenantId])
 }
 
 model AiMessage {
   id             String         @id @default(cuid())
   conversationId String
   conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  
-  role           String         // "user" | "assistant"
-  content        String         @db.Text
-  
-  feedback       String?        // "positive" | "negative"
-  feedbackNote   String?
-  
-  sourceIds      String[]
-  
-  createdAt      DateTime       @default(now())
+
+  role    String // "user" | "assistant"
+  content String @db.Text
+
+  feedback     String? // "positive" | "negative"
+  feedbackNote String?
+
+  sourceIds String[]
+
+  createdAt DateTime @default(now())
 
   @@index([conversationId])
 }
 
 model AiSource {
-  id        String   @id @default(cuid())
-  
+  id       String  @id @default(cuid())
+  tenantId String?
+
   title     String
-  content   String   @db.Text
-  type      String   // "course" | "qa" | "guideline" | "recipe" | "custom"
+  content   String  @db.Text
+  type      String // "course" | "qa" | "guideline" | "recipe" | "custom"
   sourceRef String?
-  
-  tags      String[]
-  isActive  Boolean  @default(true)
-  
+
+  tags     String[]
+  isActive Boolean  @default(true)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([type])
+  @@index([tenantId])
 }
 
 model AiDailyTip {
@@ -842,13 +1645,13 @@ model AiDailyTip {
 // ===========================================
 
 model WeeklySummary {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  weekStart   DateTime @db.Date   // maandag van de week
-  highlights  Json      // { stepsTotal, stepsDelta, weightDelta, workoutsCount, recipeTitles[], postsCount, commentsCount, likesReceived, ... }
-  shareImageUrl String?           // optioneel: gegenereerde share-afbeelding
-  createdAt   DateTime @default(now())
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStart     DateTime @db.Date // maandag van de week
+  highlights    Json // { stepsTotal, stepsDelta, weightDelta, workoutsCount, recipeTitles[], postsCount, commentsCount, likesReceived, ... }
+  shareImageUrl String? // optioneel: gegenereerde share-afbeelding
+  createdAt     DateTime @default(now())
 
   @@unique([userId, weekStart])
   @@index([userId])
@@ -860,41 +1663,41 @@ model WeeklySummary {
 // ===========================================
 
 model WhatsappMessage {
-  id          String    @id @default(cuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   phoneNumber String
-  message     String    @db.Text
+  message     String  @db.Text
   templateId  String?
-  mediaUrl    String?   // voice of meme (image)
-  mediaType   String?   // "image" | "audio"
-  
-  status      String    // "pending" | "sent" | "delivered" | "failed"
-  externalId  String?
-  sentAt      DateTime?
-  
-  createdAt   DateTime  @default(now())
+  mediaUrl    String? // voice of meme (image)
+  mediaType   String? // "image" | "audio"
+
+  status     String // "pending" | "sent" | "delivered" | "failed"
+  externalId String?
+  sentAt     DateTime?
+
+  createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([status])
 }
 
 model Notification {
-  id        String    @id @default(cuid())
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  type      String    // "reminder" | "session" | "message" | "community" | "session_reminder"
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type      String // "reminder" | "session" | "message" | "community" | "session_reminder"
   title     String
   body      String
   link      String?
-  sessionId String?   // voor session_reminder: welke sessie, om dubbele te voorkomen
-  
-  isRead    Boolean   @default(false)
-  readAt    DateTime?
-  
-  createdAt DateTime  @default(now())
+  sessionId String? // voor session_reminder: welke sessie, om dubbele te voorkomen
+
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([isRead])
@@ -906,15 +1709,15 @@ model Notification {
 // ===========================================
 
 model ShopifyProductMapping {
-  id               String   @id @default(cuid())
-  shopifyProductId String   @unique
+  id               String @id @default(cuid())
+  shopifyProductId String @unique
   courseId         String
-  course           Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  
-  accessDays       Int?
-  
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  course           Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  accessDays Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([courseId])
 }
@@ -922,6 +1725,7 @@ model ShopifyProductMapping {
 model AuditLog {
   id         String   @id @default(cuid())
   userId     String?
+  tenantId   String?
   action     String
   entityType String?
   entityId   String?
@@ -930,6 +1734,7 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([userId])
+  @@index([tenantId])
   @@index([action])
   @@index([createdAt])
 }
@@ -948,19 +1753,19 @@ model FeatureFlag {
 // ===========================================
 
 model LandingPage {
-  id        String   @id @default(cuid())
-  title     String   // paginatitel / browser tab
-  slug      String   @unique
-  headline  String?  // hero titel
+  id          String  @id @default(cuid())
+  title       String // paginatitel / browser tab
+  slug        String  @unique
+  headline    String? // hero titel
   subheadline String? @db.Text
   isPublished Boolean @default(false)
 
   // Shopify (voor product-blokken): optioneel, kan ook per blok
-  shopifyStoreDomain       String?
-  shopifyStorefrontToken   String?
+  shopifyStoreDomain     String?
+  shopifyStorefrontToken String?
 
   // Blokken: tekst, afbeelding, video, product, Calendly, CTA, etc.
-  blocks    Json     // [{ type: 'heading'|'text'|'image'|'video'|'product'|'calendly'|'cta', ... }]
+  blocks Json // [{ type: 'heading'|'text'|'image'|'video'|'product'|'calendly'|'cta', ... }]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

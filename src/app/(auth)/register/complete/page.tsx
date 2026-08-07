@@ -16,6 +16,7 @@ function CompleteContent() {
   const token = searchParams.get("token");
 
   const [email, setEmail] = useState("");
+  const [registrationMeta, setRegistrationMeta] = useState<Record<string, unknown> | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
@@ -42,6 +43,7 @@ function CompleteContent() {
         }
 
         setEmail(data.email || "");
+        setRegistrationMeta(data.metadata || null);
         setStatus("form");
       } catch {
         setStatus("error");
@@ -79,7 +81,9 @@ function CompleteContent() {
         return;
       }
 
-      router.push("/");
+      router.push(
+        registrationMeta?.accountType === "tenant_admin" ? "/admin/onboarding" : "/"
+      );
     } catch {
       setStatus("form");
       setError("Er is iets misgegaan. Probeer het opnieuw.");
@@ -139,10 +143,22 @@ function CompleteContent() {
           </div>
           <CardTitle className="font-display text-xl tracking-wider">ACCOUNT VOLTOOIEN</CardTitle>
           <CardDescription>
-            Vul je gegevens in – we hebben je telefoonnummer nodig om je via WhatsApp te kunnen bereiken
+            {registrationMeta?.accountType === "tenant_admin"
+              ? "Vul je gegevens in. We maken daarna automatisch je coachplatform en proefperiode aan."
+              : "Vul je gegevens in – we hebben je telefoonnummer nodig om je via WhatsApp te kunnen bereiken"}
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {registrationMeta?.accountType === "tenant_admin" ? (
+            <div className="mb-4 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">
+                Platform: {String(registrationMeta.tenantName || "")}
+              </p>
+              <p className="mt-1">
+                Slug: {String(registrationMeta.tenantSlug || "")}
+              </p>
+            </div>
+          ) : null}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label>Email</Label>

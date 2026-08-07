@@ -19,6 +19,8 @@ export function VideoRoomLoader({ sessionId, userName }: VideoRoomLoaderProps) {
   const [roomData, setRoomData] = useState<{
     roomUrl: string;
     token: string;
+    autoRecord: boolean;
+    canManageRecording: boolean;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +39,8 @@ export function VideoRoomLoader({ sessionId, userName }: VideoRoomLoaderProps) {
         setRoomData({
           roomUrl: data.roomUrl,
           token: data.token,
+          autoRecord: Boolean(data.autoRecord),
+          canManageRecording: Boolean(data.canManageRecording),
         });
       } catch (error) {
         console.error("Failed to load room:", error);
@@ -96,6 +100,8 @@ export function VideoRoomLoader({ sessionId, userName }: VideoRoomLoaderProps) {
       roomUrl={roomData.roomUrl}
       token={roomData.token}
       userName={userName}
+      autoRecord={roomData.autoRecord}
+      canManageRecording={roomData.canManageRecording}
     />
   );
 }

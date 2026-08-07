@@ -19,6 +19,13 @@
 # misc
 .DS_Store
 *.pem
+.clang-module-cache/
+.wrangler/
+.claude/
+.vscode/
+.tmp-*
+bridge/trusted-read-shortening/
+src/app/(dashboard)/admin/page 2.tsx
 
 # debug
 npm-debug.log*

@@ -24,9 +24,10 @@ interface ChatMessagesProps {
   conversationId: string;
   initialMessages: Message[];
   currentUserId: string;
+  isCoach?: boolean;
 }
 
-export function ChatMessages({ conversationId, initialMessages, currentUserId }: ChatMessagesProps) {
+export function ChatMessages({ conversationId, initialMessages, currentUserId, isCoach }: ChatMessagesProps) {
   const [messages, setMessages] = useState(initialMessages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -145,10 +146,19 @@ export function ChatMessages({ conversationId, initialMessages, currentUserId }:
       ))}
 
       {messages.length === 0 && (
-        <div className="flex items-center justify-center h-full">
-          <p className="text-muted-foreground">
-            Nog geen berichten. Stuur het eerste bericht!
-          </p>
+        <div className="flex h-full items-center justify-center p-8">
+          {isCoach ? (
+            <div className="max-w-sm rounded-[1.6rem] border border-border bg-white p-6 text-center shadow-sm">
+              <p className="text-sm leading-6 text-muted-foreground">
+                Hier zal je coach belangrijke berichten sturen.
+              </p>
+              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                Heb je vragen voor je coach? Zet ze in de community. Enkel voor persoonlijke vragen kan je hier terecht.
+              </p>
+            </div>
+          ) : (
+            <p className="text-muted-foreground">Nog geen berichten. Stuur het eerste bericht!</p>
+          )}
         </div>
       )}
 

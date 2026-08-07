@@ -5,7 +5,7 @@ import { getCurrentUser, createAuditLog } from "@/lib/auth";
 
 const blocksSchema = z.array(
   z.object({
-    type: z.enum(["heading", "text", "image", "video", "product", "calendly", "cta"]),
+    type: z.enum(["heading", "text", "image", "video", "product", "calendly", "cta", "testimonials", "faq", "pricing"]),
     id: z.string().optional(),
     // heading
     level: z.number().optional(),
@@ -26,6 +26,23 @@ const blocksSchema = z.array(
     label: z.string().optional(),
     href: z.string().optional(),
     primary: z.boolean().optional(),
+    items: z
+      .array(
+        z.object({
+          quote: z.string().optional(),
+          name: z.string().optional(),
+          role: z.string().optional(),
+          question: z.string().optional(),
+          answer: z.string().optional(),
+          text: z.string().optional(),
+        })
+      )
+      .optional(),
+    title: z.string().optional(),
+    price: z.string().optional(),
+    priceSuffix: z.string().optional(),
+    buttonLabel: z.string().optional(),
+    buttonHref: z.string().optional(),
   })
 );
 
@@ -42,7 +59,7 @@ const createSchema = z.object({
 export async function GET() {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || (user.role !== "ADMIN" && user.role !== "SUPERADMIN" && user.role !== "COACH")) {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
     const pages = await db.landingPage.findMany({
@@ -58,7 +75,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || (user.role !== "ADMIN" && user.role !== "SUPERADMIN" && user.role !== "COACH")) {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
     const body = await request.json();

@@ -3,10 +3,13 @@ import { z } from "zod";
 import { getCurrentUser, createAuditLog } from "@/lib/auth";
 import { markLessonComplete, markLessonIncomplete, updateVideoProgress } from "@/lib/courses";
 import { db } from "@/lib/db";
+import { getBlockingCourseFormForUser } from "@/lib/forms";
 
 const progressSchema = z.object({
   completed: z.boolean().optional(),
   videoProgress: z.number().optional(),
+  videoDuration: z.number().optional(),
+  checklistState: z.record(z.boolean()).optional(),
 });
 
 export async function POST(
@@ -53,6 +56,19 @@ export async function POST(
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 
+    const now = new Date();
+    if (enrollment.startDate > now || (enrollment.endDate && enrollment.endDate < now)) {
+      return NextResponse.json({ error: "Deze cursus is nog niet actief" }, { status: 403 });
+    }
+
+    const accessGate = await getBlockingCourseFormForUser(user.id, lesson.module.courseId);
+    if (accessGate) {
+      return NextResponse.json(
+        { error: "Vul eerst het verplichte formulier in", formSlug: accessGate.formSlug },
+        { status: 403 }
+      );
+    }
+
     // Update progress
     if (data.completed !== undefined) {
       if (data.completed) {
@@ -68,6 +84,32 @@ export async function POST(
 
     if (data.videoProgress !== undefined) {
       await updateVideoProgress(lessonId, user.id, data.videoProgress);
+    }
+
+    if (data.videoDuration !== undefined && data.videoDuration > 0 && !lesson.videoDuration) {
+      await db.lesson.update({
+        where: { id: lessonId },
+        data: { videoDuration: Math.floor(data.videoDuration) },
+      });
+    }
+
+    if (data.checklistState !== undefined) {
+      await db.progress.upsert({
+        where: {
+          userId_lessonId: {
+            userId: user.id,
+            lessonId,
+          },
+        },
+        create: {
+          userId: user.id,
+          lessonId,
+          checklistState: data.checklistState,
+        },
+        update: {
+          checklistState: data.checklistState,
+        },
+      });
     }
 
     return NextResponse.json({ success: true });
@@ -111,6 +153,7 @@ export async function GET(
     return NextResponse.json({
       isCompleted: !!progress?.completedAt,
       videoProgress: progress?.videoProgress || 0,
+      checklistState: progress?.checklistState || {},
     });
   } catch (error) {
     console.error("Get progress error:", error);

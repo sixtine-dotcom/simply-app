@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, UserPlus } from "lucide-react";
 
-export function AddUserForm() {
+export function AddUserForm({ embedded = false }: { embedded?: boolean }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -16,13 +16,16 @@ export function AddUserForm() {
   const [role, setRole] = useState<"CLIENT" | "COACH" | "ADMIN" | "SUPPORT">("CLIENT");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState<{
+    message: string;
+    devRegistrationLink?: string | null;
+  } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
-    setSuccess(false);
+    setSuccess(null);
     try {
       const res = await fetch("/api/admin/users", {
         method: "POST",
@@ -34,7 +37,10 @@ export function AddUserForm() {
         setError(data.error || "Er is iets misgegaan");
         return;
       }
-      setSuccess(true);
+      setSuccess({
+        message: data.message || "Gebruiker toegevoegd.",
+        devRegistrationLink: data.devRegistrationLink || null,
+      });
       setEmail("");
       setFirstName("");
       setLastName("");
@@ -47,8 +53,8 @@ export function AddUserForm() {
     }
   };
 
-  return (
-    <Card>
+  const content = (
+    <>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <UserPlus className="h-4 w-4" />
@@ -56,8 +62,11 @@ export function AddUserForm() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 items-end">
-          <div className="space-y-2">
+        <form
+          onSubmit={handleSubmit}
+          className={embedded ? "grid gap-5 sm:grid-cols-2" : "grid items-end gap-4 sm:grid-cols-2 lg:grid-cols-5"}
+        >
+          <div className={embedded ? "space-y-2 sm:col-span-2" : "space-y-2"}>
             <Label htmlFor="email">Email</Label>
             <Input
               id="email"
@@ -106,13 +115,29 @@ export function AddUserForm() {
               <option value="SUPPORT">Support</option>
             </select>
           </div>
-          <Button type="submit" disabled={isLoading}>
+          <Button type="submit" disabled={isLoading} className={embedded ? "sm:col-span-2 sm:justify-self-end" : undefined}>
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Toevoegen"}
           </Button>
         </form>
         {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
-        {success && <p className="mt-2 text-sm text-green-600">Gebruiker toegevoegd.</p>}
+        {success && (
+          <div className="mt-3 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+            <p>{success.message}</p>
+            {success.devRegistrationLink ? (
+              <a
+                href={success.devRegistrationLink}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex text-green-900 underline underline-offset-4"
+              >
+                Open activatielink
+              </a>
+            ) : null}
+          </div>
+        )}
       </CardContent>
-    </Card>
+    </>
   );
+
+  return embedded ? <div>{content}</div> : <Card>{content}</Card>;
 }

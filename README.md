@@ -2,6 +2,13 @@
 
 Online leer- en communityplatform voor Simply in Balance klanten.
 
+Status note: this README is a lightweight project overview, not the detailed current state source of truth.
+
+For the up-to-date implementation picture, start with:
+- `docs/README.md`
+- `docs/FEATURE-INVENTORY.md`
+- `docs/DESKTOP-IMPLEMENTATION-STATUS.md`
+
 ## Features
 
 - 📚 **Cursussen** - Programma's met modules en lessen (Kajabi-style)
@@ -12,6 +19,9 @@ Online leer- en communityplatform voor Simply in Balance klanten.
 - 🤖 **SIX AI** - AI assistent getraind op jouw content
 - 📅 **Coaching** - Video sessies met agenda-integratie
 - 💬 **WhatsApp** - Berichten sturen naar klanten
+- 🏢 **Platform / tenants** - SuperAdmin control plane, tenant branding, billing, and onboarding
+- 📝 **Forms** - Toewijsbare intake-, onboarding- en check-informulieren
+- 💳 **Billing** - Tenant planbeheer, Stripe subscription state en dunning flows
 
 ## Tech Stack
 
@@ -110,31 +120,31 @@ Get your Daily.co API key from [https://dashboard.daily.co](https://dashboard.da
 ```
 src/
 ├── app/
-│   ├── (auth)/           # Login, verify pages
-│   ├── (dashboard)/      # Protected pages (requires login)
-│   │   ├── page.tsx      # Dashboard
-│   │   ├── courses/      # Course pages
-│   │   ├── community/    # Community pages
-│   │   ├── messages/     # DM pages
-│   │   ├── coaching/     # Coaching pages
-│   │   ├── trackers/     # Tracker pages
-│   │   ├── recipes/      # Recipe pages
-│   │   ├── six/          # AI chat
-│   │   └── admin/        # Admin pages
-│   └── api/              # API routes
-│       ├── auth/         # Auth endpoints
-│       └── webhooks/     # Webhook handlers
+│   ├── (auth)/           # Login, register, sign-up flows
+│   ├── (dashboard)/      # Member + tenant admin product shell
+│   │   ├── admin/        # Tenant admin workspace
+│   │   ├── forms/        # Member-facing forms
+│   │   ├── trackers/     # Trackers and progress
+│   │   └── ...           # Courses, community, messages, coaching, recipes, etc.
+│   ├── (platform)/       # SuperAdmin control plane
+│   └── api/              # Auth, admin, platform, webhooks, cron, uploads
 ├── components/
 │   ├── ui/               # Base UI components
-│   └── layout/           # Layout components
+│   ├── layout/           # Shared app shell components
+│   └── admin/            # Admin-focused UI pieces
+├── hooks/                # Shared client hooks
 ├── lib/
-│   ├── db.ts             # Prisma client
-│   ├── auth.ts           # Auth utilities
-│   ├── email.ts          # Email sending
-│   └── utils.ts          # Helper functions
-└── prisma/
-    ├── schema.prisma     # Database schema
-    └── seed.ts           # Seed data
+│   ├── auth.ts           # Auth, sessions, impersonation, audit helpers
+│   ├── tenant.ts         # Tenant resolution helpers
+│   ├── billing.ts        # Plan and subscription logic
+│   ├── forms.ts          # Forms and assignments logic
+│   └── ...               # Branding, community, courses, messaging, etc.
+├── prisma/
+│   ├── schema.prisma     # Database schema
+│   └── seed.ts           # Seed data
+└── docs/
+    ├── README.md         # Documentation guide
+    └── ...               # Product, architecture, status, and setup docs
 ```
 
 ## Development Commands
@@ -162,28 +172,34 @@ pnpm build
 pnpm start
 ```
 
-## Milestone Progress
+## Roadmap Note
 
-- [x] **M1**: Foundation & Authentication
-- [x] **M2**: Courses & Progress
-- [x] **M3**: Community & Messaging
-- [x] **M4**: Coaching Sessions
-- [x] **M5**: Trackers & Check-ins
-- [x] **M6**: Recipes & Meal Planning
-- [ ] **M7**: SIX AI & Knowledge Base
-- [ ] **M8**: WhatsApp & Notifications
-- [ ] **M9**: Voice Memos & Polish
+The older milestone framing in this README is no longer the best way to read project progress.
+Use these instead:
+- `docs/DESKTOP-IMPLEMENTATION-PLAN.md` for intended platform/desktop roadmap
+- `docs/DESKTOP-IMPLEMENTATION-STATUS.md` for audited current progress
 
 ## Documentation
 
 See the `/docs` folder for detailed documentation:
 
-- [PRD.md](docs/PRD.md) - Product Requirements
-- [UX-ARCHITECTURE.md](docs/UX-ARCHITECTURE.md) - UX & Navigation
-- [DATA-MODEL.md](docs/DATA-MODEL.md) - Database Schema
-- [INTEGRATIONS.md](docs/INTEGRATIONS.md) - External Services
-- [SECURITY.md](docs/SECURITY.md) - Security & RBAC
-- [MILESTONES.md](docs/MILESTONES.md) - Development Plan
+- [docs/README.md](docs/README.md) - Documentation guide and reading order
+- [SETUP.md](SETUP.md) - Local setup guide
+- [DEPLOYMENT.md](DEPLOYMENT.md) - Deployment guide
+
+Current state docs:
+- [FEATURE-INVENTORY.md](docs/FEATURE-INVENTORY.md) - Current shipped surface
+- [DESKTOP-IMPLEMENTATION-STATUS.md](docs/DESKTOP-IMPLEMENTATION-STATUS.md) - Current implementation audit
+- [DASHBOARD-CONTEXTS.md](docs/DASHBOARD-CONTEXTS.md) - Shared dashboard shell context rules
+- [INTEGRATIONS.md](docs/INTEGRATIONS.md) - Integration status and design
+
+Mixed or historical docs:
+- [DESKTOP-IMPLEMENTATION-PLAN.md](docs/DESKTOP-IMPLEMENTATION-PLAN.md) - Desktop/platform target roadmap
+- [PRD.md](docs/PRD.md) - Earlier product requirements framing
+- [UX-ARCHITECTURE.md](docs/UX-ARCHITECTURE.md) - UX reference with historical wireframes
+- [DATA-MODEL.md](docs/DATA-MODEL.md) - Schema reference with current state deltas
+- [SECURITY.md](docs/SECURITY.md) - Security intent plus current state notes
+- [MILESTONES.md](docs/MILESTONES.md) - Original delivery plan
 
 ## License
 

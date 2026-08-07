@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { ChevronLeft, Loader2, Calendar, Users } from "lucide-react";
@@ -20,27 +21,147 @@ const DAYS = [
   { value: 6, label: "Zaterdag" },
 ];
 
+const SCHEDULE_MODES = [
+  { value: "weekly", label: "Wekelijks" },
+  { value: "biweekly", label: "Tweewekelijks" },
+  { value: "monthly", label: "Maandelijks" },
+  { value: "custom", label: "Flexibel" },
+] as const;
+
+const DURATION_OPTIONS = [15, 30, 45, 60, 75, 90, 120];
+
+type CourseOption = {
+  id: string;
+  title: string;
+  _count?: {
+    enrollments?: number;
+  };
+};
+
+function formatDateInput(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function countOccurrences(
+  scheduleMode: string,
+  dayOfWeek: number,
+  startDateValue: string,
+  endDateValue: string,
+  customDates: string[]
+) {
+  if (!startDateValue || !endDateValue) return 0;
+  const start = new Date(`${startDateValue}T00:00:00`);
+  const end = new Date(`${endDateValue}T23:59:59`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return 0;
+
+  if (scheduleMode === "custom") {
+    return customDates.filter((value) => {
+      const date = new Date(`${value}T00:00:00`);
+      return !Number.isNaN(date.getTime()) && date >= start && date <= end;
+    }).length;
+  }
+
+  if (scheduleMode === "monthly") {
+    const originalDayOfMonth = start.getDate();
+    let count = 0;
+    let monthOffset = 0;
+    while (true) {
+      const year = start.getFullYear();
+      const month = start.getMonth() + monthOffset;
+      const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+      const cursor = new Date(
+        year,
+        month,
+        Math.min(originalDayOfMonth, lastDayOfMonth)
+      );
+      cursor.setHours(0, 0, 0, 0);
+      if (cursor > end) break;
+      count += 1;
+      monthOffset += 1;
+    }
+    return count;
+  }
+
+  const cursor = new Date(start);
+  let diff = dayOfWeek - cursor.getDay();
+  if (diff < 0) diff += 7;
+  cursor.setDate(cursor.getDate() + diff);
+
+  const stepDays = scheduleMode === "biweekly" ? 14 : 7;
+  let count = 0;
+  while (cursor <= end) {
+    count += 1;
+    cursor.setDate(cursor.getDate() + stepDays);
+  }
+
+  return count;
+}
+
 export default function RecurringGroupSessionPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [courses, setCourses] = useState<{ id: string; title: string }[]>([]);
+  const [courses, setCourses] = useState<CourseOption[]>([]);
+  const [prefilledCourseId, setPrefilledCourseId] = useState("");
   const [formData, setFormData] = useState({
     courseId: "",
     title: "",
+    description: "",
+    scheduleMode: "weekly",
     dayOfWeek: 1,
     startTime: "19:30",
     duration: "60",
     startDate: "",
     endDate: "",
+    customDates: [""],
   });
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const courseId = params.get("courseId") || "";
+    if (courseId) {
+      setPrefilledCourseId(courseId);
+    }
+
+    const now = new Date();
+    const eightWeeksLater = new Date(now);
+    eightWeeksLater.setDate(eightWeeksLater.getDate() + 56);
+    setFormData((current) => ({
+      ...current,
+      startDate: current.startDate || formatDateInput(now),
+      endDate: current.endDate || formatDateInput(eightWeeksLater),
+    }));
+
     fetch("/api/admin/courses")
       .then((res) => res.json())
-      .then((data) => setCourses(Array.isArray(data) ? data : []))
+      .then((data) => {
+        const nextCourses = Array.isArray(data) ? data : [];
+        setCourses(nextCourses);
+
+        if (courseId) {
+          const selectedCourse = nextCourses.find((entry) => entry.id === courseId);
+          if (selectedCourse) {
+            setFormData((current) => ({
+              ...current,
+              courseId,
+              title: current.title || `Groepscoaching ${selectedCourse.title}`,
+            }));
+          }
+        }
+      })
       .catch(console.error);
   }, []);
+
+  const selectedCourse = courses.find((course) => course.id === formData.courseId) || null;
+  const participantCount = selectedCourse?._count?.enrollments || 0;
+  const occurrenceCount = countOccurrences(
+    formData.scheduleMode,
+    formData.dayOfWeek,
+    formData.startDate,
+    formData.endDate,
+    formData.customDates
+  );
+  const estimatedSessions = participantCount * occurrenceCount;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,11 +174,14 @@ export default function RecurringGroupSessionPage() {
         body: JSON.stringify({
           courseId: formData.courseId,
           title: formData.title,
+          description: formData.description,
+          scheduleMode: formData.scheduleMode,
           dayOfWeek: formData.dayOfWeek,
           startTime: formData.startTime,
           duration: parseInt(formData.duration, 10),
           startDate: formData.startDate,
           endDate: formData.endDate,
+          customDates: formData.customDates.filter(Boolean),
         }),
       });
 
@@ -113,7 +237,16 @@ export default function RecurringGroupSessionPage() {
                 id="courseId"
                 value={formData.courseId}
                 onChange={(e) =>
-                  setFormData({ ...formData, courseId: e.target.value })
+                  setFormData((current) => {
+                    const course = courses.find((entry) => entry.id === e.target.value);
+                    return {
+                      ...current,
+                      courseId: e.target.value,
+                      title:
+                        current.title ||
+                        (course ? `Groepscoaching ${course.title}` : current.title),
+                    };
+                  })
                 }
                 className="flex w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
                 required
@@ -125,9 +258,20 @@ export default function RecurringGroupSessionPage() {
                   </option>
                 ))}
               </select>
+              {prefilledCourseId && selectedCourse ? (
+                <p className="text-xs text-primary">
+                  Deze cursus werd automatisch voorgeselecteerd vanuit je cursusoverzicht.
+                </p>
+              ) : null}
               <p className="text-xs text-muted-foreground">
-                Alle actief ingeschreven deelnemers van deze cursus krijgen de sessies
+                Je kunt deze groepsreeks al klaarzetten zonder deelnemers. Huidige deelnemers krijgen meteen sessies, en nieuwe deelnemers kunnen later automatisch gekoppeld worden.
               </p>
+              {selectedCourse ? (
+                <div className="rounded-xl border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                  Actieve inschrijvingen in deze cursus:{" "}
+                  <span className="font-medium text-foreground">{participantCount}</span>
+                </div>
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -144,25 +288,61 @@ export default function RecurringGroupSessionPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="dayOfWeek">Dag van de week *</Label>
+              <Label htmlFor="description">Beschrijving (optioneel)</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+                placeholder="Agenda, voorbereiding of afspraken voor deze groepscall..."
+                rows={4}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="scheduleMode">Herhaling *</Label>
               <select
-                id="dayOfWeek"
-                value={formData.dayOfWeek}
+                id="scheduleMode"
+                value={formData.scheduleMode}
                 onChange={(e) =>
                   setFormData({
                     ...formData,
-                    dayOfWeek: parseInt(e.target.value, 10),
+                    scheduleMode: e.target.value,
                   })
                 }
                 className="flex w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
               >
-                {DAYS.map((d) => (
-                  <option key={d.value} value={d.value}>
-                    {d.label}
+                {SCHEDULE_MODES.map((mode) => (
+                  <option key={mode.value} value={mode.value}>
+                    {mode.label}
                   </option>
                 ))}
               </select>
             </div>
+
+            {formData.scheduleMode === "weekly" || formData.scheduleMode === "biweekly" ? (
+              <div className="space-y-2">
+                <Label htmlFor="dayOfWeek">Dag van de week *</Label>
+                <select
+                  id="dayOfWeek"
+                  value={formData.dayOfWeek}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      dayOfWeek: parseInt(e.target.value, 10),
+                    })
+                  }
+                  className="flex w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                >
+                  {DAYS.map((d) => (
+                    <option key={d.value} value={d.value}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -179,18 +359,32 @@ export default function RecurringGroupSessionPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="duration">Duur (min) *</Label>
-                <select
+                <div className="grid grid-cols-4 gap-2">
+                  {DURATION_OPTIONS.map((minutes) => (
+                    <Button
+                      key={minutes}
+                      type="button"
+                      variant={formData.duration === String(minutes) ? "default" : "outline"}
+                      onClick={() =>
+                        setFormData({ ...formData, duration: String(minutes) })
+                      }
+                    >
+                      {minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}u${minutes % 60 ? ` ${minutes % 60}m` : ""}`}
+                    </Button>
+                  ))}
+                </div>
+                <Input
                   id="duration"
+                  type="number"
+                  min="5"
+                  max="1440"
+                  step="5"
                   value={formData.duration}
                   onChange={(e) =>
                     setFormData({ ...formData, duration: e.target.value })
                   }
-                  className="flex w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                >
-                  <option value="45">45 min</option>
-                  <option value="60">1 uur</option>
-                  <option value="90">1u30</option>
-                </select>
+                  placeholder="Bijv. 50"
+                />
               </div>
             </div>
 
@@ -221,8 +415,97 @@ export default function RecurringGroupSessionPage() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Bijv. elke maandag van 19:30–20:30 tot en met 30 juni 2025
+              Bij wekelijks/tweewekelijks kies je een vaste weekdag. Bij maandelijks is de startdatum het terugkerende maandmoment.
             </p>
+
+            {formData.scheduleMode === "custom" ? (
+              <div className="space-y-3 rounded-2xl border bg-muted/20 p-4">
+                <div>
+                  <Label>Flexibele datums *</Label>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Voeg de losse call-datums toe, bijvoorbeeld week 1, week 2 en daarna om de twee weken.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {formData.customDates.map((date, index) => (
+                    <div key={index} className="flex gap-2">
+                      <Input
+                        type="date"
+                        value={date}
+                        onChange={(e) =>
+                          setFormData((current) => ({
+                            ...current,
+                            customDates: current.customDates.map((entry, entryIndex) =>
+                              entryIndex === index ? e.target.value : entry
+                            ),
+                          }))
+                        }
+                        required={formData.scheduleMode === "custom"}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          setFormData((current) => ({
+                            ...current,
+                            customDates:
+                              current.customDates.length > 1
+                                ? current.customDates.filter((_, entryIndex) => entryIndex !== index)
+                                : [""],
+                          }))
+                        }
+                      >
+                        Verwijder
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    setFormData((current) => ({
+                      ...current,
+                      customDates: [...current.customDates, ""],
+                    }))
+                  }
+                >
+                  Datum toevoegen
+                </Button>
+              </div>
+            ) : null}
+
+            <div className="rounded-2xl border bg-muted/20 p-4">
+              <p className="text-sm font-medium text-foreground">Planning inschatting</p>
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                <div className="rounded-xl border bg-background px-3 py-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    Deelnemers
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold">{participantCount}</p>
+                </div>
+                <div className="rounded-xl border bg-background px-3 py-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    Herhalingen
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold">{occurrenceCount}</p>
+                </div>
+                <div className="rounded-xl border bg-background px-3 py-3">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    Sessies totaal
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold">{estimatedSessions}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Dit is een schatting op basis van actieve cursusinschrijvingen × aantal weekmomenten.
+              </p>
+              {participantCount === 0 ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Er zijn nog geen deelnemers in deze cursus. De planning kan wel al opgeslagen worden voor later.
+                </p>
+              ) : null}
+            </div>
 
             <div className="flex gap-4 pt-4">
               <Button type="submit" disabled={isLoading} className="flex-1">

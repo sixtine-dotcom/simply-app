@@ -81,19 +81,20 @@ export default async function TrackersPage() {
   ];
 
   return (
-    <div className="p-6 md:p-8 lg:p-12">
-      <div className="mb-8">
-        <h1 className="font-display text-2xl md:text-3xl tracking-wider">
-          MIJN OMGEVING
+    <div className="p-4 md:p-6 lg:p-8">
+      <div className="app-panel app-halo mb-8 overflow-hidden">
+        <p className="app-kicker">Progress command</p>
+        <h1 className="mt-3 font-display text-3xl tracking-tight text-slate-950 md:text-5xl">
+          Mijn omgeving
         </h1>
-        <p className="mt-2 text-muted-foreground">
+        <p className="mt-3 max-w-2xl text-muted-foreground">
           Track je voortgang en blijf gemotiveerd
         </p>
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <Card>
+      <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Card className="app-halo">
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
               <div className="h-12 w-12 rounded-full bg-orange-100 flex items-center justify-center">
@@ -109,7 +110,7 @@ export default async function TrackersPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="app-halo">
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
               <div className="h-12 w-12 rounded-full bg-cyan-100 flex items-center justify-center">
@@ -125,7 +126,7 @@ export default async function TrackersPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="app-halo">
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
               <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
@@ -143,17 +144,17 @@ export default async function TrackersPage() {
       </div>
 
       {/* Tracker Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {trackerCards.map((tracker) => {
           const Icon = tracker.icon;
           return (
             <Link key={tracker.href} href={tracker.href}>
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+              <Card className="app-halo h-full cursor-pointer transition-transform duration-200 hover:-translate-y-1">
                 <CardContent className="p-6">
-                  <div className={`h-12 w-12 rounded-lg ${tracker.bgColor} flex items-center justify-center mb-4`}>
+                  <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${tracker.bgColor}`}>
                     <Icon className={`h-6 w-6 ${tracker.color}`} />
                   </div>
-                  <h3 className="font-display text-lg tracking-wider mb-1">
+                  <h3 className="mb-1 font-display text-lg tracking-tight text-slate-950">
                     {tracker.title}
                   </h3>
                   <p className="text-sm text-muted-foreground mb-4">
@@ -174,7 +175,7 @@ export default async function TrackersPage() {
 
       {/* Weekoverzicht + Progress Overview */}
       <div className="mt-8 space-y-4">
-        <Card>
+        <Card className="app-halo">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -182,8 +183,8 @@ export default async function TrackersPage() {
                   <TrendingUp className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-display text-lg tracking-wider">
-                    WEEKOVERZICHT
+                  <h3 className="font-display text-lg tracking-tight">
+                    Weekoverzicht
                   </h3>
                   <p className="text-sm text-muted-foreground">
                     Wat heb je bereikt? Deel op Instagram of TikTok
@@ -199,7 +200,7 @@ export default async function TrackersPage() {
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="app-halo">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -207,8 +208,8 @@ export default async function TrackersPage() {
                   <TrendingUp className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-display text-lg tracking-wider">
-                    VOORTGANG OVERZICHT
+                  <h3 className="font-display text-lg tracking-tight">
+                    Voortgang overzicht
                   </h3>
                   <p className="text-sm text-muted-foreground">
                     Bekijk je voortgang in grafieken en trends

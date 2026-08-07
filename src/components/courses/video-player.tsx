@@ -7,11 +7,25 @@ import { cn } from "@/lib/utils";
 interface VideoPlayerProps {
   url: string;
   provider: string | null;
-  onProgress?: (seconds: number) => void;
+  onProgress?: (seconds: number, duration?: number) => void;
+  onDuration?: (duration: number) => void;
+  onComplete?: (duration?: number) => void;
   initialProgress?: number;
 }
 
-export function VideoPlayer({ url, provider, onProgress, initialProgress = 0 }: VideoPlayerProps) {
+export function VideoPlayer({ url, provider, onProgress, onDuration, onComplete, initialProgress = 0 }: VideoPlayerProps) {
+  if (isImageUrl(url)) {
+    return (
+      <div className="overflow-hidden rounded-lg bg-stone-100">
+        <img
+          src={url}
+          alt=""
+          className="max-h-[680px] w-full object-contain"
+        />
+      </div>
+    );
+  }
+
   // Handle Loom embeds
   if (provider === "loom" || url.includes("loom.com")) {
     return <LoomEmbed url={url} />;
@@ -32,9 +46,20 @@ export function VideoPlayer({ url, provider, onProgress, initialProgress = 0 }: 
     <NativeVideoPlayer 
       url={url} 
       onProgress={onProgress}
+      onDuration={onDuration}
+      onComplete={onComplete}
       initialProgress={initialProgress}
     />
   );
+}
+
+function isImageUrl(url: string) {
+  try {
+    const pathname = new URL(url, "http://local.test").pathname.toLowerCase();
+    return /\.(gif|jpe?g|png|webp|avif)$/.test(pathname);
+  } catch {
+    return /\.(gif|jpe?g|png|webp|avif)(\?.*)?$/i.test(url);
+  }
 }
 
 function LoomEmbed({ url }: { url: string }) {
@@ -127,11 +152,13 @@ function VimeoEmbed({ url }: { url: string }) {
 
 interface NativeVideoPlayerProps {
   url: string;
-  onProgress?: (seconds: number) => void;
+  onProgress?: (seconds: number, duration?: number) => void;
+  onDuration?: (duration: number) => void;
+  onComplete?: (duration?: number) => void;
   initialProgress?: number;
 }
 
-function NativeVideoPlayer({ url, onProgress, initialProgress }: NativeVideoPlayerProps) {
+function NativeVideoPlayer({ url, onProgress, onDuration, onComplete, initialProgress }: NativeVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -141,6 +168,8 @@ function NativeVideoPlayer({ url, onProgress, initialProgress }: NativeVideoPlay
   const [duration, setDuration] = useState(0);
   const [showControls, setShowControls] = useState(true);
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
+  const lastProgressReportRef = useRef(0);
+  const completedRef = useRef(false);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -149,6 +178,9 @@ function NativeVideoPlayer({ url, onProgress, initialProgress }: NativeVideoPlay
     const handleLoadedMetadata = () => {
       setDuration(video.duration);
       setIsLoading(false);
+      if (Number.isFinite(video.duration) && video.duration > 0) {
+        onDuration?.(Math.floor(video.duration));
+      }
       const ip = initialProgress ?? 0;
       if (ip > 0 && ip < video.duration - 10) {
         video.currentTime = ip;
@@ -157,10 +189,28 @@ function NativeVideoPlayer({ url, onProgress, initialProgress }: NativeVideoPlay
 
     const handleTimeUpdate = () => {
       setCurrentTime(video.currentTime);
-      // Report progress every 10 seconds
-      if (onProgress && Math.floor(video.currentTime) % 10 === 0) {
-        onProgress(Math.floor(video.currentTime));
+      const seconds = Math.floor(video.currentTime);
+      if (onProgress && seconds - lastProgressReportRef.current >= 10) {
+        lastProgressReportRef.current = seconds;
+        onProgress(seconds, Math.floor(video.duration));
       }
+
+      if (
+        onComplete &&
+        !completedRef.current &&
+        video.duration > 0 &&
+        video.duration - video.currentTime <= 10
+      ) {
+        completedRef.current = true;
+        onProgress?.(Math.floor(video.duration), Math.floor(video.duration));
+        onComplete(Math.floor(video.duration));
+      }
+    };
+
+    const handleEnded = () => {
+      completedRef.current = true;
+      onProgress?.(Math.floor(video.duration), Math.floor(video.duration));
+      onComplete?.(Math.floor(video.duration));
     };
 
     const handlePlay = () => setIsPlaying(true);
@@ -170,6 +220,7 @@ function NativeVideoPlayer({ url, onProgress, initialProgress }: NativeVideoPlay
 
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
     video.addEventListener("timeupdate", handleTimeUpdate);
+    video.addEventListener("ended", handleEnded);
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
     video.addEventListener("waiting", handleWaiting);
@@ -178,12 +229,13 @@ function NativeVideoPlayer({ url, onProgress, initialProgress }: NativeVideoPlay
     return () => {
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
       video.removeEventListener("timeupdate", handleTimeUpdate);
+      video.removeEventListener("ended", handleEnded);
       video.removeEventListener("play", handlePlay);
       video.removeEventListener("pause", handlePause);
       video.removeEventListener("waiting", handleWaiting);
       video.removeEventListener("canplay", handleCanPlay);
     };
-  }, [initialProgress, onProgress]);
+  }, [initialProgress, onProgress, onDuration, onComplete]);
 
   const togglePlay = () => {
     const video = videoRef.current;

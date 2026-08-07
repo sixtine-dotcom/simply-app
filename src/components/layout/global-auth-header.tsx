@@ -1,12 +1,17 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ClerkAuthControls } from "@/components/layout/clerk-auth-controls";
 
 const HIDDEN_ON_PATHS = ["/login", "/sign-up"];
 
 export function GlobalAuthHeader() {
-  const pathname = usePathname();
+  const [pathname, setPathname] = useState("/");
+
+  useEffect(() => {
+    setPathname(window.location.pathname || "/");
+  }, []);
+
   const shouldHide = HIDDEN_ON_PATHS.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`)
   );

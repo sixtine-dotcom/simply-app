@@ -1,5 +1,130 @@
 # Simply Platform - UX & Information Architecture
 
+Status note: mixed current state and historical wireframe document.
+
+The lower wireframes still describe the product direction reasonably well, but the live navigation and route architecture have moved on.
+Use this document as:
+- a high-level UX reference
+- not a pixel-accurate or route-complete description of the current app
+
+For current implementation context, cross-check:
+- `src/components/layout/sidebar.tsx`
+- `src/components/layout/mobile-nav.tsx`
+- `src/app/(dashboard)/layout.tsx`
+- `docs/FEATURE-INVENTORY.md`
+
+## 0. Current UX Architecture Snapshot
+
+### 0.1 Shell split
+
+The current product has three top-level UX shells:
+- auth/public shell
+- dashboard shell for tenant members and tenant admins
+- platform shell for `SUPERADMIN`
+
+Important runtime rules:
+- unauthenticated users are redirected to `/login`
+- `SUPERADMIN` users are redirected from the dashboard shell to `/platform`
+- active impersonation is surfaced globally in the dashboard shell
+- required onboarding forms can gate member access through the dashboard shell
+
+### 0.2 Current member navigation
+
+Current desktop member navigation in `sidebar.tsx` is organized as:
+- Core
+- Dashboard
+- Mijn Cursussen
+- Community
+- Formulieren
+- Berichten
+- Coaching
+- Mijn Omgeving
+- Overzicht
+- Weekoverzicht
+- Voeding
+- Check-ins
+- Progressiefoto's
+- Habits
+- Cyclus
+- Symptomen
+- Extra
+- Producten & kennisbank
+- Recepten
+- SIX AI
+- Shared utility actions
+- Notifications
+- Instellingen
+- Uitloggen
+
+Compared with the older wireframe, this means:
+- forms are now a first-class member destination
+- trackers have a broader sub-navigation
+- notifications are explicit in the shell
+- the shell is branding-aware and tenant-aware
+
+### 0.3 Current admin navigation
+
+Tenant admins now use a dedicated grouped admin workspace inside the dashboard shell.
+
+Current desktop admin navigation groups are:
+- Overview
+- Dashboard
+- Onboarding
+- Billing
+- Sales
+- Offers
+- Landing Pages
+- Products
+- Courses
+- Community
+- Library
+- Recipes
+- People
+- Forms
+- Coaching
+- Brand
+- Branding
+- AI Knowledge
+
+This is materially broader than the older "additional admin links" model.
+The admin UX is now a real workspace, not just a few extra pages appended to the member app.
+
+### 0.4 Current mobile navigation
+
+The mobile nav is intentionally narrower than desktop.
+
+Member mobile nav:
+- Home
+- Cursussen
+- Community
+- Forms
+- Trackers
+- SIX
+
+Admin mobile nav:
+- Home
+- People
+- Billing
+- Brand
+- AI
+
+### 0.5 Current route architecture
+
+Major live route groups now include:
+- member dashboard routes under `src/app/(dashboard)`
+- tenant admin routes under `src/app/(dashboard)/admin/*`
+- forms under `src/app/(dashboard)/forms/*`
+- platform control plane under `src/app/(platform)/platform/*`
+
+This means the information architecture is no longer just:
+- client pages
+- plus a lightweight admin add-on
+
+It is now closer to:
+- member experience
+- tenant operator experience
+- platform operator experience
+
 ## 1. Navigation Structure
 
 ### 1.1 Main Navigation (Sidebar - Left)

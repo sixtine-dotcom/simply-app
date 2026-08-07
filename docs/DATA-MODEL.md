@@ -1,5 +1,115 @@
 # Simply Platform - Data Model
 
+Status note: partially historical schema document.
+
+The embedded schema examples below reflect an earlier app shape and no longer capture the full current Prisma model.
+For the actual source of truth, use:
+- `prisma/schema.prisma`
+- `docs/FEATURE-INVENTORY.md`
+- `docs/DESKTOP-IMPLEMENTATION-STATUS.md`
+
+## Current State Deltas
+
+The largest schema changes since this document was first written are:
+- platform multi-tenant primitives
+- tenant branding/settings and subscriptions
+- forms and response tracking
+- offers, offer assignments, and leads
+- platform audit and feature-flag infrastructure
+- newer community/fitness extensions such as polls and workout-linked posts
+
+## Current Core Additions
+
+### 1. Platform / multi-tenant layer
+
+The current schema now includes:
+- `Tenant`
+- `TenantDomain`
+- `TenantSettings`
+- `TenantSubscription`
+- `TenantFeatureFlag`
+- `FeatureFlag`
+- `AuditLog`
+
+This means the app is no longer modeled as a purely single-brand product.
+Tenant state now includes:
+- plan (`STARTER`, `PRO`, `ENTERPRISE`)
+- status (`ACTIVE`, `SUSPENDED`, `TRIAL`)
+- white-label settings
+- domain mappings
+- subscription and dunning metadata
+
+### 2. Expanded role model
+
+The current Prisma role enum is broader than the historical examples below.
+Current roles include:
+- `SUPERADMIN`
+- `ADMIN`
+- `STAFF`
+- `COACH`
+- `STUDENT`
+- `CLIENT`
+- `SUPPORT`
+
+### 3. Forms subsystem
+
+The current schema contains a full forms layer:
+- `Form`
+- `FormQuestion`
+- `FormAssignment`
+- `FormResponse`
+- `FormAnswer`
+
+Important capabilities now modeled in data:
+- tenant-scoped forms
+- role/course/space/user targeting
+- required onboarding forms
+- response lifecycle (`IN_PROGRESS`, `SUBMITTED`)
+- due dates and activation windows
+
+### 4. Offers and access model
+
+The current schema contains a separate offer/access model:
+- `Offer`
+- `OfferCourse`
+- `OfferAssignment`
+- `OfferLead`
+
+This sits alongside direct Shopify-driven enrollment and supports:
+- one-time offers
+- subscriptions
+- payment plans
+- manual access assignment
+- lead capture and conversion
+
+`Enrollment` now also optionally links back to `OfferAssignment`.
+
+### 5. Billing and platform revenue state
+
+Tenant billing is now modeled explicitly through `TenantSubscription`.
+Important stored fields include:
+- interval
+- price
+- platform fee percentage
+- Stripe customer/subscription ids
+- cancellation state
+- payment failure timestamps
+- past-due/dunning reminders
+- billing period boundaries
+
+### 6. Community and coaching extensions
+
+The current schema also includes newer relations not reflected cleanly in the older examples:
+- post polls via `pollQuestion`, `pollOptions`, and `PostPollVote`
+- workout-linked community posts
+- course-linked community spaces
+- coaching recordings linked to courses
+
+### 7. Practical reading rule
+
+When this document conflicts with `prisma/schema.prisma`, trust the Prisma schema.
+Read the historical blocks below as conceptual background, not exact schema documentation.
+
 ## Entity Relationship Overview
 
 ```
@@ -936,4 +1046,4 @@ Key indexes for performance:
 
 3. **Soft Deletes**: Not implemented in MVP. Add `deletedAt` columns if needed for data recovery.
 
-4. **Multi-tenancy**: Current schema is single-tenant. To support multiple brands later, add `tenantId` to relevant tables.
+4. **Multi-tenancy**: Historical note only. The current Prisma schema already includes tenant/platform models, but tenant isolation is still not fully hardened across every data path.

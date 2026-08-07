@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser, createAuditLog } from "@/lib/auth";
+import { getCurrentUser, createAuditLog, createRegistrationToken } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { sendRegistrationEmail } from "@/lib/email";
 
 function parseCSV(text: string): { email: string; firstName: string; lastName: string }[] {
   const lines = text.trim().split(/\r?\n/).filter((line) => line.trim());
@@ -29,7 +30,7 @@ function parseCSV(text: string): { email: string; firstName: string; lastName: s
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
     const body = await request.json();
@@ -41,8 +42,12 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    const appUrl = process.env.APP_URL || "http://localhost:3000";
     const created: string[] = [];
     const skipped: string[] = [];
+    const invited: string[] = [];
+    const inviteFailures: string[] = [];
+    const devLinks: { email: string; url: string }[] = [];
     for (const row of rows) {
       const existing = await db.user.findUnique({ where: { email: row.email } });
       if (existing) {
@@ -51,24 +56,55 @@ export async function POST(request: NextRequest) {
       }
       const newUser = await db.user.create({
         data: {
+          tenantId: user.tenantId ?? null,
           email: row.email,
           firstName: row.firstName || "Klant",
           lastName: row.lastName || "",
           role: "CLIENT",
         },
       });
+
+      const registrationToken = await createRegistrationToken(newUser.email, {
+        accountType: "client",
+        source: "admin_user_csv_import",
+      });
+      const registrationLink = `${appUrl}/register/complete?token=${registrationToken}`;
+
+      let inviteSent = false;
+      try {
+        const emailResult = await sendRegistrationEmail(newUser.email, registrationToken);
+        inviteSent = emailResult.success;
+      } catch (error) {
+        console.error("CSV import invite email error:", error);
+      }
+
       created.push(newUser.email);
+      if (inviteSent) {
+        invited.push(newUser.email);
+      } else {
+        inviteFailures.push(newUser.email);
+      }
+      if (process.env.NODE_ENV === "development") {
+        devLinks.push({ email: newUser.email, url: registrationLink });
+      }
     }
     await createAuditLog("users.import_csv", user.id, {
       created: created.length,
       skipped: skipped.length,
-    });
+      invited: invited.length,
+      inviteFailures: inviteFailures.length,
+    }, undefined, user.tenantId);
     return NextResponse.json({
       success: true,
       created: created.length,
       skipped: skipped.length,
+      invited: invited.length,
+      inviteFailures: inviteFailures.length,
       createdEmails: created,
       skippedEmails: skipped,
+      inviteFailureEmails: inviteFailures,
+      devRegistrationLinks:
+        process.env.NODE_ENV === "development" ? devLinks : undefined,
     });
   } catch (error) {
     console.error("Import CSV error:", error);

@@ -1,11 +1,18 @@
 import { db } from "./db";
+import { getBlockingCourseFormForUser } from "./forms";
+import type { CourseAccessGate } from "./forms";
 
 export interface LessonWithStatus {
   id: string;
   title: string;
   position: number;
   videoUrl: string | null;
+  videoEmbedCode: string | null;
   videoProvider: string | null;
+  videoDuration: number | null;
+  videoProgress: number;
+  watchedPercentage: number | null;
+  remainingSeconds: number | null;
   isCompleted: boolean;
   isLocked: boolean;
   unlocksAt: Date | null;
@@ -21,6 +28,8 @@ export interface ModuleWithLessons {
   lessons: LessonWithStatus[];
   completedCount: number;
   totalCount: number;
+  totalVideoDuration: number;
+  watchedPercentage: number | null;
 }
 
 export interface CourseWithProgress {
@@ -40,6 +49,7 @@ export interface CourseWithProgress {
     endDate: Date | null;
     daysRemaining: number | null;
   };
+  accessGate: CourseAccessGate | null;
 }
 
 /**
@@ -114,8 +124,10 @@ export async function getCourseWithProgress(
 
   const { course } = enrollment;
 
-  // Get all completed lessons for this user in this course
-  const completedProgress = await db.progress.findMany({
+  const accessGate = await getBlockingCourseFormForUser(userId, course.id);
+
+  // Get all lesson progress for this user in this course
+  const lessonProgress = await db.progress.findMany({
     where: {
       userId,
       lesson: {
@@ -123,12 +135,11 @@ export async function getCourseWithProgress(
           courseId: course.id,
         },
       },
-      completedAt: { not: null },
     },
-    select: { lessonId: true },
+    select: { lessonId: true, completedAt: true, videoProgress: true },
   });
 
-  const completedLessonIds = new Set(completedProgress.map((p) => p.lessonId));
+  const progressByLessonId = new Map(lessonProgress.map((p) => [p.lessonId, p]));
 
   // Build modules with status
   const modulesWithStatus: ModuleWithLessons[] = course.modules.map((module) => {
@@ -137,7 +148,8 @@ export async function getCourseWithProgress(
       module.unlockAfterDays,
       course.drippingUnit
     );
-    const moduleIsLocked = isContentLocked(moduleUnlockDate);
+    const courseHasNotStarted = now < enrollment.startDate;
+    const moduleIsLocked = courseHasNotStarted || isContentLocked(moduleUnlockDate);
 
     const lessonsWithStatus: LessonWithStatus[] = module.lessons.map((lesson) => {
       // Lesson can have its own unlock date, or inherit from module
@@ -145,19 +157,41 @@ export async function getCourseWithProgress(
         ? calculateUnlockDate(enrollment.startDate, lesson.unlockAfterDays, course.drippingUnit)
         : moduleUnlockDate;
       
-      const lessonIsLocked = moduleIsLocked || isContentLocked(lessonUnlockDate);
+      const lessonIsLocked = courseHasNotStarted || moduleIsLocked || isContentLocked(lessonUnlockDate);
+      const progress = progressByLessonId.get(lesson.id);
+      const videoProgress = progress?.videoProgress ?? 0;
+      const watchedSeconds = progress?.completedAt && lesson.videoDuration
+        ? lesson.videoDuration
+        : Math.min(videoProgress, lesson.videoDuration ?? videoProgress);
+      const watchedPercentage = lesson.videoDuration && lesson.videoDuration > 0
+        ? Math.min(100, Math.round((watchedSeconds / lesson.videoDuration) * 100))
+        : null;
+      const remainingSeconds = lesson.videoDuration && watchedPercentage !== null && watchedPercentage < 100
+        ? Math.max(0, lesson.videoDuration - watchedSeconds)
+        : null;
 
       return {
         id: lesson.id,
         title: lesson.title,
         position: lesson.position,
         videoUrl: lesson.videoUrl,
+        videoEmbedCode: lesson.videoEmbedCode,
         videoProvider: lesson.videoProvider,
-        isCompleted: completedLessonIds.has(lesson.id),
+        videoDuration: lesson.videoDuration,
+        videoProgress,
+        watchedPercentage,
+        remainingSeconds,
+        isCompleted: Boolean(progress?.completedAt),
         isLocked: lessonIsLocked,
-        unlocksAt: lessonIsLocked ? lessonUnlockDate : null,
+        unlocksAt: lessonIsLocked ? (courseHasNotStarted ? enrollment.startDate : lessonUnlockDate) : null,
       };
     });
+
+    const totalVideoDuration = lessonsWithStatus.reduce((total, l) => total + (l.videoDuration ?? 0), 0);
+    const watchedVideoDuration = lessonsWithStatus.reduce((total, l) => {
+      if (!l.videoDuration || l.watchedPercentage === null) return total;
+      return total + Math.round((l.videoDuration * l.watchedPercentage) / 100);
+    }, 0);
 
     return {
       id: module.id,
@@ -165,10 +199,14 @@ export async function getCourseWithProgress(
       description: module.description,
       position: module.position,
       isLocked: moduleIsLocked,
-      unlocksAt: moduleIsLocked ? moduleUnlockDate : null,
+      unlocksAt: moduleIsLocked ? (courseHasNotStarted ? enrollment.startDate : moduleUnlockDate) : null,
       lessons: lessonsWithStatus,
       completedCount: lessonsWithStatus.filter((l) => l.isCompleted).length,
       totalCount: lessonsWithStatus.length,
+      totalVideoDuration,
+      watchedPercentage: totalVideoDuration > 0
+        ? Math.min(100, Math.round((watchedVideoDuration / totalVideoDuration) * 100))
+        : null,
     };
   });
 
@@ -201,6 +239,7 @@ export async function getCourseWithProgress(
       endDate: enrollment.endDate,
       daysRemaining: daysRemaining !== null && daysRemaining >= 0 ? daysRemaining : null,
     },
+    accessGate,
   };
 }
 
@@ -216,7 +255,7 @@ export async function getLesson(lessonId: string, userId: string) {
           course: true,
           lessons: {
             orderBy: { position: "asc" },
-            select: { id: true, title: true, position: true },
+            select: { id: true, title: true, position: true, videoDuration: true },
           },
         },
       },
@@ -238,6 +277,24 @@ export async function getLesson(lessonId: string, userId: string) {
 
   if (!enrollment) return null;
 
+  const now = new Date();
+
+  const accessGate = await getBlockingCourseFormForUser(userId, lesson.module.courseId);
+  if (accessGate) {
+    return {
+      ...lesson,
+      isLocked: true,
+      unlocksAt: null,
+      accessGate,
+      isCompleted: false,
+      videoProgress: 0,
+      moduleWatchedPercentage: null,
+      checklistState: {},
+      previousLesson: null,
+      nextLesson: null,
+    };
+  }
+
   // Check if lesson is locked
   const course = lesson.module.course;
   const moduleUnlockDate = calculateUnlockDate(
@@ -249,15 +306,17 @@ export async function getLesson(lessonId: string, userId: string) {
     ? calculateUnlockDate(enrollment.startDate, lesson.unlockAfterDays, course.drippingUnit)
     : moduleUnlockDate;
 
-  const isLocked = isContentLocked(moduleUnlockDate) || isContentLocked(lessonUnlockDate);
+  const isLocked = now < enrollment.startDate || isContentLocked(moduleUnlockDate) || isContentLocked(lessonUnlockDate);
 
   if (isLocked) {
     return {
       ...lesson,
       isLocked: true,
-      unlocksAt: lessonUnlockDate || moduleUnlockDate,
+      unlocksAt: now < enrollment.startDate ? enrollment.startDate : lessonUnlockDate || moduleUnlockDate,
       isCompleted: false,
       videoProgress: 0,
+      moduleWatchedPercentage: null,
+      checklistState: {},
       previousLesson: null,
       nextLesson: null,
     };
@@ -278,6 +337,30 @@ export async function getLesson(lessonId: string, userId: string) {
   const currentIndex = allLessons.findIndex((l) => l.id === lessonId);
   const previousLesson = currentIndex > 0 ? allLessons[currentIndex - 1] : null;
   const nextLesson = currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null;
+  const moduleProgress = await db.progress.findMany({
+    where: {
+      userId,
+      lessonId: {
+        in: allLessons.map((moduleLesson) => moduleLesson.id),
+      },
+    },
+    select: {
+      lessonId: true,
+      completedAt: true,
+      videoProgress: true,
+    },
+  });
+  const moduleProgressByLessonId = new Map(moduleProgress.map((item) => [item.lessonId, item]));
+  const moduleTotalDuration = allLessons.reduce((total, moduleLesson) => total + (moduleLesson.videoDuration ?? 0), 0);
+  const moduleWatchedDuration = allLessons.reduce((total, moduleLesson) => {
+    const item = moduleProgressByLessonId.get(moduleLesson.id);
+    const duration = moduleLesson.videoDuration ?? 0;
+    const watched = item?.completedAt && duration > 0
+      ? duration
+      : Math.min(item?.videoProgress ?? 0, duration);
+
+    return total + watched;
+  }, 0);
 
   return {
     ...lesson,
@@ -285,6 +368,10 @@ export async function getLesson(lessonId: string, userId: string) {
     unlocksAt: null,
     isCompleted: !!progress?.completedAt,
     videoProgress: progress?.videoProgress || 0,
+    moduleWatchedPercentage: moduleTotalDuration > 0
+      ? Math.min(100, Math.round((moduleWatchedDuration / moduleTotalDuration) * 100))
+      : null,
+    checklistState: progress?.checklistState || {},
     previousLesson,
     nextLesson,
   };

@@ -77,7 +77,7 @@ export default function WeeklyOverviewPage() {
   const weekEnd = data?.weekEnd;
 
   return (
-    <div className="p-6 md:p-8 lg:p-12 max-w-2xl">
+    <div className="max-w-3xl p-4 md:p-6 lg:p-8">
       <Link
         href="/trackers"
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
@@ -86,17 +86,18 @@ export default function WeeklyOverviewPage() {
         Terug naar Mijn Omgeving
       </Link>
 
-      <div className="mb-8">
-        <h1 className="font-display text-2xl md:text-3xl tracking-wider">
-          WEEKOVERZICHT
+      <div className="app-panel app-halo mb-8 overflow-hidden">
+        <p className="app-kicker">Weekly recap</p>
+        <h1 className="mt-3 font-display text-3xl tracking-tight text-slate-950 md:text-5xl">
+          Weekoverzicht
         </h1>
-        <p className="mt-2 text-muted-foreground">
+        <p className="mt-3 max-w-2xl text-muted-foreground">
           Wat heb je bereikt deze week? Deel je voortgang op Instagram of TikTok.
         </p>
       </div>
 
       {!summary ? (
-        <Card>
+        <Card className="app-halo">
           <CardContent className="py-12 text-center text-muted-foreground">
             <TrendingUp className="h-12 w-12 mx-auto opacity-50 mb-4" />
             <p className="mb-2">{data?.message ?? "Nog geen weekoverzicht."}</p>
@@ -110,7 +111,7 @@ export default function WeeklyOverviewPage() {
           {/* Highlights lijst */}
           <div className="space-y-3 mb-8">
             {highlights?.stepsDelta !== undefined && highlights.stepsDelta > 0 && (
-              <Card>
+              <Card className="app-halo">
                 <CardContent className="p-4 flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                     <Footprints className="h-5 w-5 text-primary" />
@@ -123,7 +124,7 @@ export default function WeeklyOverviewPage() {
               </Card>
             )}
             {highlights?.weightDelta != null && highlights.weightDelta > 0 && (
-              <Card>
+              <Card className="app-halo">
                 <CardContent className="p-4 flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
                     <Scale className="h-5 w-5 text-blue-600" />
@@ -138,7 +139,7 @@ export default function WeeklyOverviewPage() {
               </Card>
             )}
             {(highlights?.workoutsCount ?? 0) > 0 && (
-              <Card>
+              <Card className="app-halo">
                 <CardContent className="p-4 flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
                     <Dumbbell className="h-5 w-5 text-orange-600" />
@@ -150,7 +151,7 @@ export default function WeeklyOverviewPage() {
               </Card>
             )}
             {highlights?.recipeTitles && highlights.recipeTitles.length > 0 && (
-              <Card>
+              <Card className="app-halo">
                 <CardContent className="p-4 flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
                     <UtensilsCrossed className="h-5 w-5 text-amber-700" />
@@ -166,7 +167,7 @@ export default function WeeklyOverviewPage() {
               </Card>
             )}
             {((highlights?.postsCount ?? 0) > 0 || (highlights?.commentsCount ?? 0) > 0 || (highlights?.likesReceived ?? 0) > 0) && (
-              <Card>
+              <Card className="app-halo">
                 <CardContent className="p-4 flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
                     <MessageCircle className="h-5 w-5 text-green-700" />
@@ -199,10 +200,10 @@ export default function WeeklyOverviewPage() {
             <p className="text-sm font-medium text-muted-foreground mb-2">Deel op sociale media</p>
             <div
               ref={shareCardRef}
-              className="rounded-xl overflow-hidden border-2 border-primary/20 bg-[#f0f5ef] p-6 text-center"
+              className="overflow-hidden rounded-[28px] border-2 border-primary/20 bg-[#f0f5ef] p-6 text-center shadow-[0_20px_60px_-35px_rgba(0,0,0,0.25)]"
               style={{ minHeight: 320 }}
             >
-              <p className="font-display text-xl tracking-widest text-primary mb-1">SIMPLY</p>
+              <p className="mb-1 font-display text-xl tracking-widest text-primary">SIMPLY APP</p>
               <p className="text-sm text-muted-foreground mb-4">Weekoverzicht</p>
               {weekStart && weekEnd && (
                 <p className="text-sm font-medium text-foreground mb-4">
@@ -229,7 +230,7 @@ export default function WeeklyOverviewPage() {
                   <p className="text-sm">📚 {highlights?.lessonsCompleted ?? 0} les(sen) afgerond</p>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-6">simplyinbalance.com</p>
+              <p className="mt-6 text-xs text-muted-foreground">simplyapp.com</p>
             </div>
 
             <div className="flex flex-wrap gap-3 mt-4">

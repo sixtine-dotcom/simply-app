@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+.wrangler
+.claude
+.clang-module-cache
+.vercel/cache
+*.tsbuildinfo
+public/uploads

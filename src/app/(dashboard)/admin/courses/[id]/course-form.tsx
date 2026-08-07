@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -16,18 +17,30 @@ interface Course {
   thumbnailUrl: string | null;
   isPublished: boolean;
   isPrivate: boolean;
+  hideForUnauthorized: boolean;
   hasCommunity: boolean;
-  drippingEnabled: boolean;
-  drippingUnit: string | null;
+  communitySpaceId: string | null;
+  coachId: string | null;
   photoMomentsCount: number;
   photoMomentsIntervalWeeks: number | null;
 }
 
 interface CourseEditFormProps {
   course: Course;
+  spaces: Array<{
+    id: string;
+    name: string;
+    slug: string;
+  }>;
+  coaches: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+  }>;
 }
 
-export function CourseEditForm({ course }: CourseEditFormProps) {
+export function CourseEditForm({ course, spaces, coaches }: CourseEditFormProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -38,11 +51,13 @@ export function CourseEditForm({ course }: CourseEditFormProps) {
     thumbnailUrl: course.thumbnailUrl || "",
     isPublished: course.isPublished,
     isPrivate: course.isPrivate,
+    hideForUnauthorized: course.hideForUnauthorized ?? true,
     hasCommunity: course.hasCommunity ?? true,
-    drippingEnabled: course.drippingEnabled,
-    drippingUnit: course.drippingUnit || "days",
+    communitySpaceId: course.communitySpaceId || "",
+    createCommunitySpace: false,
     photoMomentsCount: course.photoMomentsCount ?? 0,
     photoMomentsIntervalWeeks: course.photoMomentsIntervalWeeks ?? "",
+    coachId: course.coachId || "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,10 +71,14 @@ export function CourseEditForm({ course }: CourseEditFormProps) {
         body: JSON.stringify({
           ...formData,
           hasCommunity: formData.hasCommunity,
+          communitySpaceId: formData.hasCommunity ? formData.communitySpaceId || null : null,
+          createCommunitySpace:
+            formData.hasCommunity && !formData.communitySpaceId && formData.createCommunitySpace,
           photoMomentsIntervalWeeks:
             formData.photoMomentsCount > 0 && formData.photoMomentsIntervalWeeks !== ""
               ? Number(formData.photoMomentsIntervalWeeks)
               : null,
+          coachId: formData.coachId || null,
         }),
       });
 
@@ -129,6 +148,26 @@ export function CourseEditForm({ course }: CourseEditFormProps) {
         />
       </div>
 
+      <div className="space-y-2">
+        <Label htmlFor="coachId">Coach voor dit traject</Label>
+        <select
+          id="coachId"
+          value={formData.coachId}
+          onChange={(e) => setFormData({ ...formData, coachId: e.target.value })}
+          className="flex w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+        >
+          <option value="">Geen coach toegewezen</option>
+          {coaches.map((coach) => (
+            <option key={coach.id} value={coach.id}>
+              {coach.firstName} {coach.lastName} ({coach.role})
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground">
+          De coach ziet dit traject in het berichten-overzicht van de klant.
+        </p>
+      </div>
+
       <div className="space-y-4 pt-4 border-t">
         <div className="flex items-center justify-between">
           <div>
@@ -160,6 +199,25 @@ export function CourseEditForm({ course }: CourseEditFormProps) {
           />
         </div>
 
+        <div className="flex items-start justify-between gap-4 rounded-lg border border-border/60 bg-stone-50 p-4">
+          <div>
+            <Label>Zichtbaarheid zonder toegang</Label>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Staat deze knop aan, dan is de cursus alleen zichtbaar voor deelnemers met toegang.
+              Staat deze knop uit, dan zien deelnemers zonder toegang alleen de cursusnaam met een
+              slotje. Ze kunnen de cursus niet openen en zien geen modules, lessen of inhoud.
+            </p>
+          </div>
+          <Switch
+            checked={formData.hideForUnauthorized}
+            onCheckedChange={(checked) =>
+              setFormData({ ...formData, hideForUnauthorized: checked })
+            }
+            ariaLabel="Cursus verbergen voor deelnemers zonder toegang"
+            className="mt-1"
+          />
+        </div>
+
         <div className="flex items-center justify-between">
           <div>
             <Label>Heeft community</Label>
@@ -175,33 +233,48 @@ export function CourseEditForm({ course }: CourseEditFormProps) {
           />
         </div>
 
-        <div className="flex items-center justify-between">
-          <div>
-            <Label>Dripping inschakelen</Label>
-            <p className="text-sm text-muted-foreground">
-              Content gefaseerd vrijgeven
-            </p>
-          </div>
-          <input
-            type="checkbox"
-            checked={formData.drippingEnabled}
-            onChange={(e) => setFormData({ ...formData, drippingEnabled: e.target.checked })}
-            className="h-4 w-4"
-          />
-        </div>
-
-        {formData.drippingEnabled && (
-          <div className="space-y-2">
-            <Label htmlFor="drippingUnit">Dripping eenheid</Label>
-            <select
-              id="drippingUnit"
-              value={formData.drippingUnit}
-              onChange={(e) => setFormData({ ...formData, drippingUnit: e.target.value })}
-              className="flex w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-            >
-              <option value="days">Dagen</option>
-              <option value="weeks">Weken</option>
-            </select>
+        {formData.hasCommunity && (
+          <div className="space-y-4 rounded-lg border border-border/60 p-4">
+            <div className="space-y-2">
+              <Label htmlFor="communitySpaceId">Gekoppelde community space</Label>
+              <select
+                id="communitySpaceId"
+                value={formData.communitySpaceId}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    communitySpaceId: e.target.value,
+                    createCommunitySpace: false,
+                  })
+                }
+                className="flex w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Geen space gekoppeld</option>
+                {spaces.map((space) => (
+                  <option key={space.id} value={space.id}>
+                    {space.name} ({space.slug})
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Actieve inschrijvingen krijgen automatisch toegang tot deze space.
+              </p>
+            </div>
+            {!formData.communitySpaceId ? (
+              <label className="flex items-center gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={formData.createCommunitySpace}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      createCommunitySpace: e.target.checked,
+                    })
+                  }
+                />
+                Maak automatisch een besloten community space voor deze cursus
+              </label>
+            ) : null}
           </div>
         )}
 

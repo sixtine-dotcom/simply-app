@@ -21,7 +21,7 @@ export default async function SessionPage({ params }: SessionPageProps) {
     redirect("/login");
   }
 
-  const session = await getSession(id, user.id);
+  const session = await getSession(id, user.id, user.tenantId);
 
   if (!session) {
     notFound();

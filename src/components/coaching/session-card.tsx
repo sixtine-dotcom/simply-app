@@ -20,19 +20,30 @@ export function SessionCard({ session, currentUser, isClient }: SessionCardProps
   const isPast = session.status === "completed";
   const otherPerson = isClient ? session.coach : session.client;
   const canJoin = isUpcoming && session.roomUrl;
+  const detailHref = isClient ? `/coaching/${session.id}` : `/admin/sessions/${session.id}`;
+  const roomHref = isClient ? `/coaching/${session.id}/room` : `/coaching/${session.id}/room`;
 
   // Check if session is happening soon (within 15 minutes)
   const now = new Date();
   const sessionTime = new Date(session.scheduledAt);
   const timeUntilSession = sessionTime.getTime() - now.getTime();
   const canJoinNow = isUpcoming && timeUntilSession <= 15 * 60 * 1000 && timeUntilSession >= -session.duration * 60 * 1000;
+  const endTime = new Date(sessionTime.getTime() + session.duration * 60 * 1000);
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+  const roomUrl = `${appUrl}/coaching/${session.id}/room`;
+  const calendarTitle = session.title || "Coaching sessie";
+  const calendarDescription = [session.description, `Deelnemen: ${roomUrl}`]
+    .filter(Boolean)
+    .join("\n\n");
+  const googleCalendarHref = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(calendarTitle)}&dates=${formatCalendarDate(sessionTime)}/${formatCalendarDate(endTime)}&details=${encodeURIComponent(calendarDescription)}&location=${encodeURIComponent(roomUrl)}`;
+  const outlookCalendarHref = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(calendarTitle)}&startdt=${encodeURIComponent(sessionTime.toISOString())}&enddt=${encodeURIComponent(endTime.toISOString())}&body=${encodeURIComponent(calendarDescription)}&location=${encodeURIComponent(roomUrl)}`;
 
   return (
     <Card>
       <CardContent className="p-5">
         <div className="flex flex-col md:flex-row md:items-center gap-4">
           {/* Avatar & Info */}
-          <div className="flex items-center gap-4 flex-1">
+          <Link href={detailHref} className="flex items-center gap-4 flex-1">
             <Avatar className="h-12 w-12">
               <AvatarImage src={otherPerson.avatarUrl || undefined} />
               <AvatarFallback>
@@ -75,14 +86,19 @@ export function SessionCard({ session, currentUser, isClient }: SessionCardProps
                   <span>{session.duration} min</span>
                 </div>
               </div>
+              {session.description ? (
+                <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
+                  {session.description}
+                </p>
+              ) : null}
             </div>
-          </div>
+          </Link>
 
           {/* Actions */}
           <div className="flex items-center gap-2">
             {canJoinNow && (
               <Button asChild>
-                <Link href={`/coaching/${session.id}/room`}>
+                <Link href={roomHref}>
                   <Video className="h-4 w-4 mr-2" />
                   Deelnemen
                 </Link>
@@ -91,13 +107,14 @@ export function SessionCard({ session, currentUser, isClient }: SessionCardProps
 
             {isUpcoming && !canJoinNow && (
               <Button variant="outline" asChild>
-                <Link href={`/coaching/${session.id}`}>
+                <Link href={detailHref}>
                   Details
                 </Link>
               </Button>
             )}
 
             {isUpcoming && (
+              <>
               <Button variant="outline" size="icon" asChild>
                 <a
                   href={`/api/sessions/${session.id}/calendar`}
@@ -107,11 +124,22 @@ export function SessionCard({ session, currentUser, isClient }: SessionCardProps
                   <Download className="h-4 w-4" />
                 </a>
               </Button>
+              <Button variant="outline" size="icon" asChild>
+                <a href={googleCalendarHref} target="_blank" rel="noreferrer" title="Toevoegen aan Google Calendar">
+                  <Calendar className="h-4 w-4" />
+                </a>
+              </Button>
+              <Button variant="outline" size="icon" asChild>
+                <a href={outlookCalendarHref} target="_blank" rel="noreferrer" title="Toevoegen aan Outlook">
+                  <Clock className="h-4 w-4" />
+                </a>
+              </Button>
+              </>
             )}
 
             {isPast && (
               <Button variant="outline" asChild>
-                <Link href={`/coaching/${session.id}`}>
+                <Link href={detailHref}>
                   <FileText className="h-4 w-4 mr-2" />
                   Bekijk notities
                 </Link>
@@ -122,4 +150,8 @@ export function SessionCard({ session, currentUser, isClient }: SessionCardProps
       </CardContent>
     </Card>
   );
+}
+
+function formatCalendarDate(date: Date) {
+  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }

@@ -89,7 +89,7 @@ export default function CyclePage() {
   };
 
   return (
-    <div className="p-6 md:p-8 lg:p-12 max-w-2xl mx-auto">
+    <div className="mx-auto max-w-3xl p-4 md:p-6 lg:p-8">
       <Link 
         href="/trackers"
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
@@ -98,12 +98,20 @@ export default function CyclePage() {
         Terug naar trackers
       </Link>
 
-      <Card>
+      <div className="app-panel app-halo mb-6 overflow-hidden">
+        <p className="app-kicker">Cycle tracking</p>
+        <h1 className="mt-3 flex items-center gap-3 font-display text-3xl tracking-tight text-slate-950 md:text-5xl">
+          <Heart className="h-7 w-7 text-primary" />
+          Cyclus
+        </h1>
+        <p className="mt-3 text-muted-foreground">
+          Registreer fase, flow en notities in een rustige gezondheidslog.
+        </p>
+      </div>
+
+      <Card className="app-halo">
         <CardHeader>
-          <CardTitle className="font-display text-2xl tracking-wider flex items-center gap-2">
-            <Heart className="h-6 w-6" />
-            CYCUS TRACKING
-          </CardTitle>
+          <CardTitle className="font-display text-2xl tracking-tight">Dagelijkse cycluslog</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -112,7 +120,7 @@ export default function CyclePage() {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="space-y-2">
+              <div className="app-panel-muted space-y-2 px-4 py-4 shadow-none">
                 <Label htmlFor="date">Datum</Label>
                 <Input
                   id="date"
@@ -122,7 +130,7 @@ export default function CyclePage() {
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="app-panel-muted space-y-2 px-4 py-4 shadow-none">
                 <Label htmlFor="phase">Fase</Label>
                 <select
                   id="phase"
@@ -140,7 +148,7 @@ export default function CyclePage() {
                 </select>
               </div>
 
-              <div className="space-y-2">
+              <div className="app-panel-muted space-y-2 px-4 py-4 shadow-none">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="flowLevel">Flow niveau</Label>
                   <span className="text-sm font-medium">
@@ -164,7 +172,7 @@ export default function CyclePage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="app-panel-muted space-y-2 px-4 py-4 shadow-none">
                 <Label htmlFor="notes">Notities</Label>
                 <textarea
                   id="notes"

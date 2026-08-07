@@ -17,11 +17,11 @@ export default async function CoachingPage() {
   }
 
   const [upcomingSessions, pastSessions] = await Promise.all([
-    getUserSessions(user.id, user.role as "CLIENT" | "COACH" | "ADMIN", {
+    getUserSessions(user.id, user.role as "CLIENT" | "COACH" | "ADMIN", user.tenantId, {
       status: "scheduled",
       limit: 10,
     }),
-    getUserSessions(user.id, user.role as "CLIENT" | "COACH" | "ADMIN", {
+    getUserSessions(user.id, user.role as "CLIENT" | "COACH" | "ADMIN", user.tenantId, {
       status: "completed",
       limit: 10,
     }),
@@ -31,15 +31,17 @@ export default async function CoachingPage() {
   const isCoach = user.role === "COACH" || user.role === "ADMIN";
 
   return (
-    <div className="p-6 md:p-8 lg:p-12">
-      <div className="mb-8">
-        <h1 className="font-display text-2xl md:text-3xl tracking-wider">
-          COACHING
+    <div className="p-4 md:p-6 lg:p-8">
+      <div className="mx-auto max-w-6xl space-y-8">
+      <div className="overflow-hidden rounded-[34px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(248,242,233,0.82))] p-6 shadow-[0_24px_80px_-34px_rgba(50,32,14,0.28)] md:p-8">
+        <p className="app-kicker">Coaching suite</p>
+        <h1 className="mt-3 font-display text-3xl tracking-tight text-slate-950 md:text-5xl">
+          Coaching
         </h1>
-        <p className="mt-2 text-muted-foreground">
+        <p className="mt-3 text-muted-foreground">
           {isClient
-            ? "Jouw coaching sessies"
-            : "Beheer je coaching sessies"}
+            ? "Jouw coaching sessies, opvolging en opnames in één rustige omgeving."
+            : "Beheer je coaching sessies en houd overzicht over je hele agenda."}
         </p>
       </div>
 
@@ -83,7 +85,7 @@ export default async function CoachingPage() {
 
       {/* Empty State */}
       {upcomingSessions.length === 0 && pastSessions.length === 0 && (
-        <Card>
+        <Card className="app-halo">
           <CardContent className="py-12 text-center">
             <Calendar className="h-12 w-12 mx-auto text-muted-foreground/50" />
             <h2 className="mt-4 font-display text-xl tracking-wider">
@@ -106,6 +108,7 @@ export default async function CoachingPage() {
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   );
 }

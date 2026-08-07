@@ -97,7 +97,7 @@ export function ModuleEditForm({
           disabled={isLoading}
         />
         <p className="text-xs text-muted-foreground">
-          X dagen na de startdatum van de inschrijving van de deelnemer wordt deze module zichtbaar. Cursus moet &quot;Dripping inschakelen&quot; hebben (dagen of weken).
+          Dit is een manuele override voor deze module. Gebruik dit wanneer deze module anders moet vrijgeven dan je algemene dripping-instellingen.
         </p>
       </div>
       <Button type="submit" disabled={isLoading}>

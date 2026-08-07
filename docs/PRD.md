@@ -1,5 +1,18 @@
 # Simply Platform - Product Requirements Document
 
+Status note: historical product document.
+
+This PRD reflects the earlier single-brand product framing and is no longer a full description of the current codebase.
+Use these companion docs for current state planning:
+- `docs/FEATURE-INVENTORY.md`
+- `docs/DESKTOP-IMPLEMENTATION-PLAN.md`
+- `docs/DESKTOP-IMPLEMENTATION-STATUS.md`
+
+Important drift since this PRD was written:
+- the app now includes platform/tenant primitives and a SuperAdmin surface
+- branding, billing, offers, onboarding, and forms have expanded materially
+- some sections below are still useful as product intent, but not as a precise build-status document
+
 ## 1. Overview
 
 ### 1.1 Product Vision

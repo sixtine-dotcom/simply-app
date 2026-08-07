@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader2, PhoneOff, Video, VideoOff, Mic, MicOff } from "lucide-react";
+import { Loader2, PhoneOff, Video, VideoOff, Mic, MicOff, CircleDot } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 
 interface VideoRoomProps {
@@ -11,14 +11,25 @@ interface VideoRoomProps {
   roomUrl: string;
   token: string;
   userName: string;
+  autoRecord: boolean;
+  canManageRecording: boolean;
 }
 
-export function VideoRoom({ sessionId, roomUrl, token, userName }: VideoRoomProps) {
+export function VideoRoom({
+  sessionId,
+  roomUrl,
+  token,
+  userName,
+  autoRecord,
+  canManageRecording,
+}: VideoRoomProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isAudioOn, setIsAudioOn] = useState(true);
+  const [isRecordingStarted, setIsRecordingStarted] = useState(autoRecord);
+  const [isRecordingLoading, setIsRecordingLoading] = useState(false);
   const callFrameRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -112,6 +123,30 @@ export function VideoRoom({ sessionId, roomUrl, token, userName }: VideoRoomProp
     }
   };
 
+  const startManualRecording = async () => {
+    setIsRecordingLoading(true);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/recording/start`, {
+        method: "POST",
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Kon opname niet starten");
+      setIsRecordingStarted(true);
+      toast({
+        title: "Opname gestart",
+        description: "De vergadering wordt nu opgenomen.",
+      });
+    } catch (error) {
+      toast({
+        title: "Fout",
+        description: error instanceof Error ? error.message : "Kon opname niet starten",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRecordingLoading(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen bg-gray-900">
       {/* Video Container */}
@@ -156,6 +191,21 @@ export function VideoRoom({ sessionId, roomUrl, token, userName }: VideoRoomProp
           <PhoneOff className="h-5 w-5 mr-2" />
           Verlaten
         </Button>
+
+        {canManageRecording ? (
+          <Button
+            variant={isRecordingStarted ? "outline" : "default"}
+            onClick={startManualRecording}
+            disabled={isRecordingStarted || isRecordingLoading}
+          >
+            {isRecordingLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <CircleDot className="mr-2 h-4 w-4" />
+            )}
+            {isRecordingStarted ? "Opname actief" : "Opname starten"}
+          </Button>
+        ) : null}
       </div>
     </div>
   );

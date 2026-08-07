@@ -3,17 +3,61 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { createRegistrationToken } from "@/lib/auth";
 import { sendRegistrationEmail } from "@/lib/email";
+import { isLaunchLockEnabled, launchLockMessage } from "@/lib/launch-lock";
 
 const registerSchema = z.object({
   email: z.string().email("Ongeldig email adres"),
+  accountType: z.enum(["client", "tenant_admin"]).default("client"),
+  tenantName: z.string().trim().max(120).optional(),
+  tenantSlug: z
+    .string()
+    .trim()
+    .max(100)
+    .optional(),
 });
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .trim();
+}
 
 export async function POST(request: NextRequest) {
   try {
+    if (isLaunchLockEnabled()) {
+      return NextResponse.json({ error: launchLockMessage() }, { status: 403 });
+    }
+
     const body = await request.json();
     const data = registerSchema.parse(body);
 
     const email = data.email.toLowerCase();
+    const normalizedSlug =
+      data.accountType === "tenant_admin" ? slugify(data.tenantSlug || "") : "";
+
+    if (data.accountType === "tenant_admin") {
+      if (!data.tenantName?.trim()) {
+        return NextResponse.json({ error: "Platformnaam is verplicht." }, { status: 400 });
+      }
+      if (!normalizedSlug) {
+        return NextResponse.json({ error: "Platform slug is verplicht." }, { status: 400 });
+      }
+
+      const existingTenant = await db.tenant.findUnique({
+        where: { slug: normalizedSlug },
+        select: { id: true },
+      });
+
+      if (existingTenant) {
+        return NextResponse.json(
+          { error: "Deze platform slug is al in gebruik." },
+          { status: 400 }
+        );
+      }
+    }
 
     // Check if user already exists → redirect to login
     const existing = await db.user.findUnique({
@@ -28,7 +72,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Create registration token (7 days valid)
-    const token = await createRegistrationToken(email);
+    const token = await createRegistrationToken(
+      email,
+      data.accountType === "tenant_admin"
+        ? {
+            accountType: "tenant_admin",
+            tenantName: data.tenantName?.trim(),
+            tenantSlug: normalizedSlug,
+          }
+        : { accountType: "client" }
+    );
 
     const appUrl = process.env.APP_URL || "http://localhost:3000";
     const completeLink = `${appUrl}/register/complete?token=${token}`;
@@ -53,6 +106,7 @@ export async function POST(request: NextRequest) {
       success: true,
       message: "Check je inbox voor de link om je account te voltooien.",
       devMagicLink: process.env.NODE_ENV === "development" ? completeLink : undefined,
+      accountType: data.accountType,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

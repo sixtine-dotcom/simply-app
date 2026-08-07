@@ -115,7 +115,7 @@ export default function GroceryListPage() {
   }
 
   return (
-    <div className="p-6 md:p-8 lg:p-12 max-w-4xl mx-auto">
+    <div className="mx-auto max-w-5xl p-4 md:p-6 lg:p-8">
       <Link 
         href="/recipes"
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
@@ -124,16 +124,19 @@ export default function GroceryListPage() {
         Terug naar recepten
       </Link>
 
-      <div className="mb-8">
-        <h1 className="font-display text-2xl md:text-3xl tracking-wider flex items-center gap-2">
-          <ShoppingCart className="h-6 w-6" />
-          BOODSCHAPPENLIJST
+      <div className="app-panel app-halo mb-8 overflow-hidden">
+        <p className="app-kicker">Grocery planning</p>
+        <h1 className="mt-3 flex items-center gap-3 font-display text-3xl tracking-tight text-slate-950 md:text-5xl">
+          <ShoppingCart className="h-7 w-7 text-primary" />
+          Boodschappenlijst
         </h1>
+        <p className="mt-3 max-w-2xl text-muted-foreground">
+          Genereer slim je boodschappen uit recepten en werk je lijst onderweg af.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Create New List */}
-        <Card>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card className="app-halo">
           <CardHeader>
             <CardTitle className="font-display text-lg tracking-wider">
               NIEUWE LIJST
@@ -145,12 +148,9 @@ export default function GroceryListPage() {
                 Selecteer recepten om een boodschappenlijst te genereren
               </p>
 
-              <div className="max-h-64 overflow-y-auto space-y-2 border rounded-lg p-3">
+              <div className="max-h-64 space-y-2 overflow-y-auto rounded-[24px] border border-border/70 bg-muted/20 p-3">
                 {recipes.map((recipe) => (
-                  <label
-                    key={recipe.id}
-                    className="flex items-center gap-2 cursor-pointer hover:bg-muted p-2 rounded"
-                  >
+                  <label key={recipe.id} className="flex cursor-pointer items-center gap-2 rounded-xl p-2 hover:bg-muted">
                     <input
                       type="checkbox"
                       checked={selectedRecipes.includes(recipe.id)}
@@ -179,7 +179,7 @@ export default function GroceryListPage() {
         </Card>
 
         {/* Existing Lists */}
-        <Card>
+        <Card className="app-halo">
           <CardHeader>
             <CardTitle className="font-display text-lg tracking-wider">
               JOUW LIJSTEN
@@ -191,7 +191,7 @@ export default function GroceryListPage() {
                 {lists.map((list) => (
                   <div
                     key={list.id}
-                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                    className={`cursor-pointer rounded-[24px] border p-4 transition-colors ${
                       selectedList?.id === list.id
                         ? "border-primary bg-primary/5"
                         : "hover:bg-muted"
@@ -223,7 +223,7 @@ export default function GroceryListPage() {
 
       {/* Selected List Items */}
       {selectedList && (
-        <Card className="mt-6">
+        <Card className="app-halo mt-6">
           <CardHeader>
             <CardTitle className="font-display text-lg tracking-wider">
               {selectedList.name}
@@ -235,7 +235,7 @@ export default function GroceryListPage() {
                 {selectedList.items.map((item: any) => (
                   <div
                     key={item.id}
-                    className={`flex items-center gap-3 p-3 border rounded-lg ${
+                    className={`flex items-center gap-3 rounded-2xl border p-3 ${
                       item.isChecked ? "bg-muted opacity-60" : ""
                     }`}
                   >

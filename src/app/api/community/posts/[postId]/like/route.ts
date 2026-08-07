@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import { togglePostLike } from "@/lib/community";
+import { canUserAccessSpace, togglePostLike } from "@/lib/community";
+import { db } from "@/lib/db";
 
 export async function POST(
   request: NextRequest,
@@ -12,6 +13,20 @@ export async function POST(
 
     if (!user) {
       return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
+    }
+
+    const post = await db.post.findUnique({
+      where: { id: postId },
+      select: { spaceId: true },
+    });
+
+    if (!post) {
+      return NextResponse.json({ error: "Post niet gevonden" }, { status: 404 });
+    }
+
+    const hasAccess = await canUserAccessSpace(user.id, post.spaceId);
+    if (!hasAccess) {
+      return NextResponse.json({ error: "Geen toegang tot deze space" }, { status: 403 });
     }
 
     const result = await togglePostLike(postId, user.id);

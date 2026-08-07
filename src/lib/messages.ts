@@ -17,6 +17,7 @@ export interface ConversationWithDetails {
     senderId: string;
   } | null;
   unreadCount: number;
+  isCoach: boolean;
 }
 
 export interface MessageWithSender {
@@ -37,7 +38,10 @@ export interface MessageWithSender {
 /**
  * Get all conversations for a user
  */
-export async function getUserConversations(userId: string): Promise<ConversationWithDetails[]> {
+export async function getUserConversations(
+  userId: string,
+  coachIds: string[] = []
+): Promise<ConversationWithDetails[]> {
   const participations = await db.conversationParticipant.findMany({
     where: { userId },
     include: {
@@ -85,19 +89,27 @@ export async function getUserConversations(userId: string): Promise<Conversation
       ? 0 // We'll calculate this properly in a production app
       : 0;
 
+    const other = otherParticipant?.user || {
+      id: "",
+      firstName: "Verwijderd",
+      lastName: "Gebruiker",
+      avatarUrl: null,
+      role: "CLIENT",
+    };
+    // Coach is de specifiek toegewezen coach van het traject (of ADMIN/COACH rol als fallback)
+    const isCoach =
+      coachIds.length > 0
+        ? coachIds.includes(other.id)
+        : other.role === "ADMIN" || other.role === "COACH";
+
     return {
       id: p.conversation.id,
       lastMessageAt: p.conversation.lastMessageAt,
       updatedAt: p.conversation.updatedAt,
-      otherParticipant: otherParticipant?.user || {
-        id: "",
-        firstName: "Verwijderd",
-        lastName: "Gebruiker",
-        avatarUrl: null,
-        role: "CLIENT",
-      },
+      otherParticipant: other,
       lastMessage: p.conversation.messages[0] || null,
       unreadCount,
+      isCoach,
     };
   });
 }

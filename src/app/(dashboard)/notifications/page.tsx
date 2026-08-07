@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Bell, ChevronLeft, Calendar, TrendingUp } from "lucide-react";
+import { useCurrentUserSummary } from "@/hooks/use-current-user";
+import { getDashboardHomeHref } from "@/lib/current-user";
+import { Bell, ChevronLeft, Calendar, ShieldAlert, TrendingUp } from "lucide-react";
 
 interface NotificationItem {
   id: string;
@@ -18,6 +20,8 @@ interface NotificationItem {
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useCurrentUserSummary();
+  const backHref = getDashboardHomeHref(user?.role);
 
   useEffect(() => {
     fetch("/api/notifications")
@@ -37,29 +41,35 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div className="p-6 md:p-8 lg:p-12 max-w-2xl">
-      <Link
-        href="/"
-        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
-      >
-        <ChevronLeft className="h-4 w-4 mr-1" />
-        Terug
-      </Link>
+    <div className="p-4 md:p-6 lg:p-8">
+      <div className="mx-auto max-w-3xl space-y-8">
+      <Card className="overflow-hidden app-halo">
+        <CardContent className="p-8">
+          <Link
+            href={backHref}
+            className="mb-6 inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ChevronLeft className="mr-1 h-4 w-4" />
+            Terug
+          </Link>
 
-      <div className="mb-8">
-        <h1 className="font-display text-2xl md:text-3xl tracking-wider flex items-center gap-2">
-          <Bell className="h-6 w-6" />
-          MELDINGEN
-        </h1>
-        <p className="mt-2 text-muted-foreground">
-          Herinneringen en updates (o.a. 1u15 voor coaching)
-        </p>
-      </div>
+          <div>
+            <p className="app-kicker">Notification center</p>
+            <h1 className="mt-3 flex items-center gap-2 font-display text-3xl tracking-tight text-slate-950">
+              <Bell className="h-6 w-6" />
+              Meldingen
+            </h1>
+            <p className="mt-2 text-muted-foreground">
+              Herinneringen, security-signalen en updates op één rustige plek.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {loading ? (
         <p className="text-muted-foreground">Laden...</p>
       ) : notifications.length === 0 ? (
-        <Card>
+        <Card className="app-halo">
           <CardContent className="py-12 text-center text-muted-foreground">
             <Bell className="h-12 w-12 mx-auto opacity-50 mb-4" />
             Geen meldingen
@@ -77,8 +87,8 @@ export default function NotificationsPage() {
               <Card
                 className={
                   n.isRead
-                    ? "opacity-80 hover:opacity-100"
-                    : "border-primary/30 bg-primary/5"
+                    ? "app-halo opacity-80 hover:opacity-100"
+                    : "app-halo border-primary/30 bg-primary/5"
                 }
               >
                 <CardContent className="p-4 flex gap-3">
@@ -87,6 +97,9 @@ export default function NotificationsPage() {
                   )}
                   {n.type === "weekly_summary" && (
                     <TrendingUp className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                  )}
+                  {n.type === "security" && (
+                    <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">{n.title}</p>
@@ -103,6 +116,7 @@ export default function NotificationsPage() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

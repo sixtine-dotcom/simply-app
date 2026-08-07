@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { db } from "@/lib/db";
 import { createMagicLink, createAuditLog } from "@/lib/auth";
+import { syncEnrollmentToRecurringGroupPlans } from "@/lib/coaching";
 import { sendWelcomeEmail, sendCourseAccessEmail } from "@/lib/email";
 
 // Verify Shopify webhook signature
@@ -32,10 +33,13 @@ interface ShopifyLineItem {
   product_id: number;
   title: string;
   quantity: number;
+  price?: string;
 }
 
 interface ShopifyOrder {
   id: number;
+  name?: string;
+  currency?: string;
   customer: ShopifyCustomer;
   line_items: ShopifyLineItem[];
 }
@@ -88,6 +92,16 @@ async function handleOrderPaid(order: ShopifyOrder) {
 
   const email = customer.email.toLowerCase();
 
+  // De Shopify-shop hoort in deze installatie bij één actieve organisatie.
+  // Zonder tenantId kan de klant geen toegewezen intakeformulieren zien.
+  const activeTenants = await db.tenant.findMany({
+    where: { status: "ACTIVE" },
+    orderBy: { createdAt: "asc" },
+    take: 2,
+    select: { id: true },
+  });
+  const tenantId = activeTenants.length === 1 ? activeTenants[0].id : null;
+
   // Find or create user
   let user = await db.user.findUnique({ where: { email } });
 
@@ -102,6 +116,7 @@ async function handleOrderPaid(order: ShopifyOrder) {
         phone: customer.phone || null,
         shopifyCustomerId: customer.id.toString(),
         role: "CLIENT",
+        tenantId,
       },
     });
 
@@ -109,11 +124,14 @@ async function handleOrderPaid(order: ShopifyOrder) {
       source: "shopify",
       orderId: order.id,
     });
-  } else if (!user.shopifyCustomerId) {
+  } else if (!user.shopifyCustomerId || (!user.tenantId && tenantId)) {
     // Link existing user to Shopify customer
     await db.user.update({
       where: { id: user.id },
-      data: { shopifyCustomerId: customer.id.toString() },
+      data: {
+        ...(!user.shopifyCustomerId && { shopifyCustomerId: customer.id.toString() }),
+        ...(!user.tenantId && tenantId && { tenantId }),
+      },
     });
   }
 
@@ -122,7 +140,11 @@ async function handleOrderPaid(order: ShopifyOrder) {
   for (const item of line_items) {
     const mapping = await db.shopifyProductMapping.findUnique({
       where: { shopifyProductId: item.product_id.toString() },
-      include: { course: { select: { title: true } } },
+      include: {
+        course: {
+          select: { title: true, trajectoryStartDate: true, trajectoryEndDate: true },
+        },
+      },
     });
 
     if (mapping) {
@@ -136,10 +158,10 @@ async function handleOrderPaid(order: ShopifyOrder) {
       });
 
       if (!existingEnrollment) {
-        const startDate = new Date();
-        const endDate = mapping.accessDays
+        const startDate = mapping.course.trajectoryStartDate || new Date();
+        const endDate = mapping.course.trajectoryEndDate || (mapping.accessDays
           ? new Date(startDate.getTime() + mapping.accessDays * 24 * 60 * 60 * 1000)
-          : null;
+          : null);
 
         await db.enrollment.create({
           data: {
@@ -148,8 +170,17 @@ async function handleOrderPaid(order: ShopifyOrder) {
             startDate,
             endDate,
             shopifyOrderId: order.id.toString(),
+            shopifyOrderName: order.name || null,
             shopifyProductId: item.product_id.toString(),
+            revenueCents: item.price
+              ? Math.round(Number.parseFloat(item.price) * item.quantity * 100)
+              : null,
+            revenueCurrency: order.currency || null,
           },
+        });
+        await syncEnrollmentToRecurringGroupPlans({
+          userId: user.id,
+          courseId: mapping.courseId,
         });
 
         newCourseTitles.push(mapping.course.title);

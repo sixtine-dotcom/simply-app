@@ -155,7 +155,9 @@ export async function computeWeeklyHighlights(
       : null;
 
   const recipeTitles =
-    mealPlan?.items.map((i) => i.recipe.title).filter(Boolean) ?? [];
+    mealPlan?.items
+      .map((i) => i.recipe?.title)
+      .filter((title): title is string => Boolean(title)) ?? [];
   const uniqueRecipes = Array.from(new Set(recipeTitles));
 
   let likesReceived = 0;

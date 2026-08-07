@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Clock, UtensilsCrossed } from "lucide-react";
 import { RecipeWithDetails } from "@/lib/recipes";
+import { getRecipeImagePresentation } from "@/lib/recipe-image-presentation";
 
 interface RecipeCardProps {
   recipe: RecipeWithDetails;
@@ -9,21 +10,33 @@ interface RecipeCardProps {
 
 export function RecipeCard({ recipe }: RecipeCardProps) {
   const totalTime = (recipe.prepTime || 0) + (recipe.cookTime || 0);
+  const imageSrc = recipe.imageUrl
+    ? `${recipe.imageUrl}${recipe.updatedAt ? `?v=${new Date(recipe.updatedAt).getTime()}` : ""}`
+    : null;
+  const imagePresentation = getRecipeImagePresentation(recipe.slug, recipe.imageUrl);
 
   return (
     <Link href={`/recipes/${recipe.slug}`}>
       <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-        {recipe.imageUrl && (
-          <div className="relative h-48 w-full overflow-hidden rounded-t-lg">
+        {imageSrc && (
+          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-t-lg bg-muted/30">
             <img
-              src={recipe.imageUrl}
+              src={imageSrc}
               alt={recipe.title}
-              className="object-cover w-full h-full"
+              className="h-full w-full object-cover"
+              style={
+                imagePresentation.isPdfRecipeImage
+                  ? {
+                      clipPath: imagePresentation.cardClipPath,
+                      objectPosition: imagePresentation.objectPosition,
+                    }
+                  : undefined
+              }
             />
           </div>
         )}
         <CardContent className="p-5">
-          <h3 className="font-display text-lg tracking-wider mb-2">
+          <h3 className="mb-2 break-words font-display text-lg leading-tight tracking-tight">
             {recipe.title}
           </h3>
           {recipe.description && (

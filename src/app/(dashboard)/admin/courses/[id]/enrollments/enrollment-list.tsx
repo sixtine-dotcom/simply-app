@@ -22,12 +22,23 @@ interface Enrollment {
   user: User;
 }
 
+interface EnrollmentProgressSummary {
+  overallPercent: number;
+  modules: {
+    moduleId: string;
+    title: string;
+    percent: number;
+  }[];
+}
+
 export function EnrollmentList({
   courseId,
   enrollments,
+  progressSummaryByEnrollment,
 }: {
   courseId: string;
   enrollments: Enrollment[];
+  progressSummaryByEnrollment: Record<string, EnrollmentProgressSummary>;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -92,26 +103,28 @@ export function EnrollmentList({
     <div className="space-y-3 max-h-[400px] overflow-y-auto">
       {enrollments.map((e) => {
         const expired = e.endDate && new Date(e.endDate) < now;
+        const progress = progressSummaryByEnrollment[e.id];
         return (
           <div
             key={e.id}
-            className="flex items-center justify-between gap-2 py-2 border-b last:border-0"
+            className="space-y-3 py-3 border-b last:border-0"
           >
-            <div className="min-w-0">
-              <p className="font-medium truncate">
-                {e.user.firstName} {e.user.lastName}
-              </p>
-              <p className="text-sm text-muted-foreground truncate">
-                {e.user.email}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Start: {formatDate(e.startDate)}
-                {e.endDate && (
-                  <> · Eind: {formatDate(e.endDate)} {expired && "(afgelopen)"}</>
-                )}
-              </p>
-            </div>
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-medium truncate">
+                  {e.user.firstName} {e.user.lastName}
+                </p>
+                <p className="text-sm text-muted-foreground truncate">
+                  {e.user.email}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Start: {formatDate(e.startDate)}
+                  {e.endDate && (
+                    <> · Eind: {formatDate(e.endDate)} {expired && "(afgelopen)"}</>
+                  )}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
               {editingId === e.id ? (
                 <div className="flex items-center gap-1">
                   <Input
@@ -162,7 +175,33 @@ export function EnrollmentList({
                   </Button>
                 </>
               )}
+              </div>
             </div>
+
+            {progress ? (
+              <div className="rounded-2xl bg-muted/30 p-3">
+                <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Effectief bekeken</span>
+                  <span className="font-medium text-foreground">{progress.overallPercent}%</span>
+                </div>
+                <div className="space-y-2">
+                  {progress.modules.map((module) => (
+                    <div key={module.moduleId}>
+                      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                        <span className="truncate text-muted-foreground">{module.title}</span>
+                        <span className="font-medium">{module.percent}%</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-background">
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{ width: `${module.percent}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         );
       })}

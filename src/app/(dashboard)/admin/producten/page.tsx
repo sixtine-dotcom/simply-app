@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
-import { ChevronLeft, Package, Heart, Loader2, Plus, Trash2 } from "lucide-react";
+import { ChevronLeft, ExternalLink, Package, Heart, Loader2, Plus, Trash2 } from "lucide-react";
 
 interface KnowledgeItem {
   id: string;
@@ -216,10 +216,18 @@ export default function AdminProductenPage() {
 
   return (
     <div className="p-6 md:p-8 lg:p-12">
-      <Link href="/admin" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6">
-        <ChevronLeft className="h-4 w-4 mr-1" />
-        Terug naar admin
-      </Link>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <Link href="/admin" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+          <ChevronLeft className="h-4 w-4 mr-1" />
+          Terug naar admin
+        </Link>
+        <Button asChild variant="outline">
+          <Link href="/producten">
+            <ExternalLink className="mr-2 h-4 w-4" />
+            Ga naar klantenomgeving
+          </Link>
+        </Button>
+      </div>
       <h1 className="font-display text-2xl md:text-3xl tracking-wider mb-2">PRODUCTEN & KENNISBANK</h1>
       <p className="text-muted-foreground mb-8">
         Categorieën (bv. Supplementen) met video’s · en favoriete producten met kortingscodes. Voor iedereen zichtbaar op /producten.

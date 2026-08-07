@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { createMagicLink, createAuditLog } from "@/lib/auth";
 import { sendMagicLinkEmail, sendWelcomeEmail } from "@/lib/email";
+import { isEmailAllowedDuringLaunch } from "@/lib/launch-lock";
 
 const requestSchema = z.object({
   email: z.string().email("Ongeldig email adres"),
@@ -13,10 +14,18 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { email, next: nextPath } = requestSchema.parse(body);
+    const normalizedEmail = email.toLowerCase();
+
+    if (!isEmailAllowedDuringLaunch(normalizedEmail)) {
+      return NextResponse.json({
+        success: true,
+        message: "Als dit email adres bij ons bekend is, ontvang je een inloglink.",
+      });
+    }
 
     // Check if user exists
     const user = await db.user.findUnique({
-      where: { email: email.toLowerCase() },
+      where: { email: normalizedEmail },
     });
 
     if (!user) {
@@ -29,16 +38,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Create magic link token
-    const token = await createMagicLink(email.toLowerCase());
+    const token = await createMagicLink(normalizedEmail);
 
     // Send email
-    const appUrl = process.env.APP_URL || "http://localhost:3000";
+    const appUrl = new URL(request.url).origin;
     const nextParam = nextPath ? `&next=${encodeURIComponent(nextPath)}` : "";
     const magicLinkUrl = `${appUrl}/verify?token=${token}${nextParam}`;
 
     const emailResult = user.lastLoginAt
-      ? await sendMagicLinkEmail(email, token, nextPath)
-      : await sendWelcomeEmail(email, user.firstName, token, { next: nextPath });
+      ? await sendMagicLinkEmail(email, token, nextPath, appUrl)
+      : await sendWelcomeEmail(email, user.firstName, token, { next: nextPath, appUrl });
 
     if (!emailResult.success) {
       // In development: return link so you can still log in (e.g. when Resend not configured)

@@ -1,5 +1,13 @@
 # Simply Platform - Integration Design
 
+Last reviewed: March 19, 2026
+
+This document started as a forward-looking design note.
+Parts of it are now implemented in code, while other parts remain aspirational.
+Treat the sections below as a mix of:
+- current implemented integrations
+- design direction where implementation is still partial
+
 ## 1. Shopify Integration
 
 ### 1.1 Overview
@@ -112,6 +120,14 @@ Admin interface to map Shopify products to courses:
 - Store `SHOPIFY_WEBHOOK_SECRET` in environment
 - Idempotency: Check if enrollment already exists before creating
 - Log all webhook events for debugging
+
+### 1.7 Current State in Repo
+- Shopify webhook handling exists at `src/app/api/webhooks/shopify/route.ts`.
+- Shopify-to-course mapping exists in admin course tooling.
+- The current product surface is no longer only "Shopify -> course enrollment":
+- landing pages can render Shopify product blocks
+- offers now exist as an internal access layer beside Shopify-driven provisioning
+- student payment handling is therefore split conceptually between legacy Shopify flows and newer platform billing/offers work
 
 ---
 
@@ -272,9 +288,103 @@ function VideoRoom({ roomUrl, token }) {
 }
 ```
 
+### 3.3 Current State in Repo
+- Daily room access, room tokens, and playback retrieval are implemented in app/API routes.
+- Recording-related flows exist in:
+  - `src/app/api/sessions/[id]/room/route.ts`
+  - `src/app/api/recordings/[id]/playback/route.ts`
+  - `src/app/api/webhooks/daily/route.ts`
+
 ---
 
-## 4. Calendar Integration (ICS)
+## 4. Stripe Platform Billing
+
+### 4.1 Overview
+The codebase now includes a second billing surface beyond Shopify:
+- tenant subscription billing for the platform itself
+- plan definitions for `STARTER`, `PRO`, and `ENTERPRISE`
+- Stripe checkout/portal/webhook plumbing
+- dunning state tracking for failed subscription payments
+
+This is platform billing for tenant accounts, not yet proven end-to-end marketplace payout infrastructure.
+
+### 4.2 Implemented Surfaces
+- Billing helpers and plan definitions:
+  - `src/lib/billing.ts`
+  - `src/lib/stripe.ts`
+- Admin tenant billing UI:
+  - `src/app/(dashboard)/admin/billing/page.tsx`
+- Billing APIs:
+  - `src/app/api/admin/billing/route.ts`
+  - `src/app/api/admin/billing/checkout/route.ts`
+  - `src/app/api/admin/billing/portal/route.ts`
+- Stripe webhook:
+  - `src/app/api/stripe/webhook/route.ts`
+- Dunning automation:
+  - `src/app/api/cron/billing-dunning/route.ts`
+
+### 4.3 What It Currently Covers
+- internal tenant subscription lifecycle state
+- plan-based price and platform-fee metadata
+- checkout completion audit logging
+- webhook syncing for subscription create/update/delete
+- payment failed / payment recovered transitions
+- suspension-risk signaling for platform operators
+
+### 4.4 What Is Still Not Proven
+- full Stripe Connect onboarding for coach payouts
+- end-to-end student payment -> connected account -> platform fee capture
+- complete marketplace money-flow coverage matching the original SPEC
+
+---
+
+## 5. Platform / Tenant Operations
+
+### 5.1 Overview
+The app now has an operational platform control plane for managing tenant environments.
+
+### 5.2 Implemented Surfaces
+- Platform dashboard and tenant management UI:
+  - `src/app/(platform)/platform/page.tsx`
+  - `src/app/(platform)/platform/tenants/page.tsx`
+  - `src/app/(platform)/platform/tenants/[id]/page.tsx`
+- Platform APIs:
+  - `src/app/api/platform/tenants/route.ts`
+  - `src/app/api/platform/tenants/[id]/route.ts`
+  - `src/app/api/platform/tenants/[id]/domains/route.ts`
+  - `src/app/api/platform/tenants/[id]/features/route.ts`
+  - `src/app/api/platform/tenants/[id]/impersonate/route.ts`
+  - `src/app/api/platform/tenants/[id]/follow-up/route.ts`
+
+### 5.3 Current Capabilities
+- create tenant records
+- manage tenant status and plan
+- manage domains
+- override tenant feature flags
+- start impersonation into a tenant admin/coach/staff account
+- inspect recent tenant audit events
+- surface onboarding and billing risk indicators
+
+### 5.4 Limitation
+This is not the same as full schema-based multi-tenant provisioning from the original architecture plan.
+Current tenant operations are app-level and data-model-level, not isolated-schema infrastructure.
+
+---
+
+## 6. Summary
+
+Implemented today:
+- Shopify provisioning
+- Daily.co session/video workflows
+- Stripe-backed tenant billing foundations
+- platform tenant operations and impersonation
+
+Still incomplete against the longer-term architecture:
+- Stripe Connect marketplace payouts
+- hard tenant isolation
+- some external provider callback/connection flows such as full Strava app routes
+
+## Appendix A. Calendar Integration (ICS)
 
 ### 4.1 ICS File Generation
 
@@ -356,7 +466,7 @@ async function addToGoogleCalendar(session: Session, accessToken: string) {
 
 ---
 
-## 5. WhatsApp Integration
+## Appendix B. WhatsApp Integration
 
 ### 5.1 Provider: Twilio
 
@@ -464,7 +574,7 @@ Log nu in: {{2}}
 
 ---
 
-## 6. AI Integration (SIX AI)
+## Appendix C. AI Integration (SIX AI)
 
 ### 6.1 Architecture
 
@@ -611,7 +721,7 @@ Raadpleeg altijd een arts of specialist voor medische vragen.
 
 ---
 
-## 7. Real-time Messaging (Chat/DMs)
+## Appendix D. Real-time Messaging (Chat/DMs)
 
 ### 7.1 Options
 
@@ -692,7 +802,7 @@ function useConversation(conversationId: string) {
 
 ---
 
-## 8. File Storage
+## Appendix E. File Storage
 
 ### 8.1 Provider: Cloudflare R2
 
@@ -745,7 +855,7 @@ async function getUploadUrl(filename: string, contentType: string) {
 
 ---
 
-## Environment Variables Summary
+## Appendix F. Environment Variables Summary
 
 ```env
 # Database

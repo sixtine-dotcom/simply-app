@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getCurrentUser, createAuditLog } from "@/lib/auth";
 
 const updateLessonSchema = z.object({
   title: z.string().min(1).optional(),
   content: z.string().optional(),
+  extraContent: z.string().nullable().optional(),
+  checklistTitle: z.string().nullable().optional(),
+  checklistItems: z.array(z.string()).nullable().optional(),
   position: z.number().min(0).optional(),
   videoUrl: z.string().nullable().optional(),
+  videoEmbedCode: z.string().nullable().optional(),
   videoProvider: z.string().nullable().optional(),
   videoDuration: z.number().nullable().optional(),
   unlockAfterDays: z.number().nullable().optional(),
@@ -21,7 +26,7 @@ export async function PATCH(
     const { id: courseId, moduleId, lessonId } = await params;
     const user = await getCurrentUser();
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 
@@ -33,8 +38,14 @@ export async function PATCH(
       data: {
         ...(data.title && { title: data.title }),
         ...(data.content !== undefined && { content: data.content }),
+        ...(data.extraContent !== undefined && { extraContent: data.extraContent }),
+        ...(data.checklistTitle !== undefined && { checklistTitle: data.checklistTitle }),
+        ...(data.checklistItems !== undefined && {
+          checklistItems: data.checklistItems === null ? Prisma.JsonNull : data.checklistItems,
+        }),
         ...(data.position !== undefined && { position: data.position }),
         ...(data.videoUrl !== undefined && { videoUrl: data.videoUrl }),
+        ...(data.videoEmbedCode !== undefined && { videoEmbedCode: data.videoEmbedCode }),
         ...(data.videoProvider !== undefined && { videoProvider: data.videoProvider }),
         ...(data.videoDuration !== undefined && { videoDuration: data.videoDuration }),
         ...(data.unlockAfterDays !== undefined && { unlockAfterDays: data.unlockAfterDays }),
@@ -73,7 +84,7 @@ export async function DELETE(
     const { id: courseId, moduleId, lessonId } = await params;
     const user = await getCurrentUser();
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 
@@ -105,7 +116,7 @@ export async function GET(
     const { lessonId } = await params;
     const user = await getCurrentUser();
 
-    if (!user || user.role !== "ADMIN") {
+    if (!user || user.role !== "ADMIN" && user.role !== "SUPERADMIN") {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
     }
 

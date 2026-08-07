@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { VideoPlayer } from "@/components/courses/video-player";
+import { useCurrentUserSummary } from "@/hooks/use-current-user";
+import { getDashboardHomeHref, isAdminRole } from "@/lib/current-user";
 import { ChevronLeft, Loader2, Package, Heart, PlayCircle } from "lucide-react";
 
 interface KnowledgeItem {
@@ -40,19 +42,27 @@ export default function ProductenPage() {
   const [favorites, setFavorites] = useState<FavoriteProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>("favorites");
+  const { user } = useCurrentUserSummary();
 
   useEffect(() => {
     fetch("/api/producten")
       .then((r) => r.json())
-      .then((d) => {
-        if (d.categories) setCategories(d.categories);
-        if (d.favorites) setFavorites(d.favorites);
-        if (d.categories?.length) setActiveTab(d.categories[0].slug);
+      .then((productenData) => {
+        if (productenData.categories) setCategories(productenData.categories);
+        if (productenData.favorites) setFavorites(productenData.favorites);
+        if (productenData.categories?.length) setActiveTab(productenData.categories[0].slug);
         else setActiveTab("favorites");
       })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  const isAdmin = isAdminRole(user?.role);
+  const backHref = getDashboardHomeHref(user?.role);
+  const pageKicker = isAdmin ? "Admin library" : "Knowledge hub";
+  const pageDescription = isAdmin
+    ? "Bekijk dezelfde kennisbank en favoriete producten vanuit je admin-context."
+    : "Video’s over supplementen, bloedtesten en meer · plus mijn favoriete producten met kortingscodes";
 
   const activeCategory = categories.find((c) => c.slug === activeTab);
 
@@ -65,21 +75,22 @@ export default function ProductenPage() {
   }
 
   return (
-    <div className="p-6 md:p-8 lg:p-12 max-w-4xl">
+    <div className="max-w-5xl p-4 md:p-6 lg:p-8">
       <Link
-        href="/"
+        href={backHref}
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
       >
         <ChevronLeft className="h-4 w-4 mr-1" />
         Terug
       </Link>
 
-      <div className="mb-8">
-        <h1 className="font-display text-2xl md:text-3xl tracking-wider">
-          PRODUCTEN &amp; KENNISBANK
+      <div className="app-panel app-halo mb-8 overflow-hidden">
+        <p className="app-kicker">{pageKicker}</p>
+        <h1 className="mt-3 font-display text-3xl tracking-tight text-slate-950 md:text-5xl">
+          Producten &amp; kennisbank
         </h1>
-        <p className="mt-2 text-muted-foreground">
-          Video’s over supplementen, bloedtesten en meer · plus mijn favoriete producten met kortingscodes
+        <p className="mt-3 max-w-3xl text-muted-foreground">
+          {pageDescription}
         </p>
       </div>
 
@@ -115,7 +126,7 @@ export default function ProductenPage() {
       {activeTab !== "favorites" && activeCategory && (
         <div className="space-y-6">
           {activeCategory.items.length === 0 ? (
-            <Card>
+            <Card className="app-halo">
               <CardContent className="py-12 text-center text-muted-foreground">
                 <Package className="h-12 w-12 mx-auto opacity-50 mb-4" />
                 Nog geen video’s in {activeCategory.title}.
@@ -123,7 +134,7 @@ export default function ProductenPage() {
             </Card>
           ) : (
             activeCategory.items.map((item) => (
-              <Card key={item.id}>
+              <Card key={item.id} className="app-halo">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
                     {item.videoUrl && <PlayCircle className="h-5 w-5 text-primary" />}
@@ -153,7 +164,7 @@ export default function ProductenPage() {
       {activeTab === "favorites" && (
         <div className="space-y-4">
           {favorites.length === 0 ? (
-            <Card>
+            <Card className="app-halo">
               <CardContent className="py-12 text-center text-muted-foreground">
                 <Heart className="h-12 w-12 mx-auto opacity-50 mb-4" />
                 Nog geen favoriete producten.
@@ -161,7 +172,7 @@ export default function ProductenPage() {
             </Card>
           ) : (
             favorites.map((p) => (
-              <Card key={p.id}>
+              <Card key={p.id} className="app-halo">
                 <CardHeader>
                   <CardTitle className="text-lg">{p.brand}: {p.name}</CardTitle>
                 </CardHeader>

@@ -1,0 +1,1 @@
+ALTER TABLE "Webinar" ADD COLUMN IF NOT EXISTS "bannerUrl" TEXT;

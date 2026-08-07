@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-const REMINDER_MINUTES_BEFORE = 75; // 1u15
-const WINDOW_MINUTES = 10; // run every 10 min, catch sessions in [75, 85] min from now
+const REMINDER_MINUTES_BEFORE = 15;
+const WINDOW_MINUTES = 5; // run every 5-10 min, catch sessions around 15 min from now
 
 export async function GET(request: NextRequest) {
   try {
@@ -52,8 +52,8 @@ export async function GET(request: NextRequest) {
         data: {
           userId: session.clientId,
           type: "session_reminder",
-          title: "Herinnering: coaching over 1 uur",
-          body: `Je groepscoaching start om ${timeStr}. Open de app om deel te nemen.`,
+          title: "Herinnering: coaching over 15 minuten",
+          body: `Je coaching start om ${timeStr}. Open de app om deel te nemen.`,
           link: `/coaching/${session.id}`,
           sessionId: session.id,
         },

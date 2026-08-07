@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
     const sessions = await getUserSessions(
       user.id,
       user.role as "CLIENT" | "COACH" | "ADMIN",
+      user.tenantId,
       {
         status: status || "all",
         limit,
