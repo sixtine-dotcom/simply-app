@@ -105,7 +105,6 @@ export default async function DashboardLayout({
 
           <main className="relative pt-20 md:ml-72 md:pt-6">
             <div className="min-h-screen pb-24 md:pb-6">
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.75),_transparent_72%)]" />
               {children}
             </div>
           </main>

@@ -21,7 +21,7 @@
 
 @layer base {
   :root {
-    --background: 36 33% 97%;
+    --background: 0 0% 100%;
     --foreground: 24 16% 11%;
     --card: 0 0% 100%;
     --card-foreground: 24 16% 11%;
@@ -29,16 +29,16 @@
     --popover-foreground: 24 16% 11%;
     --primary: 137 35% 27%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 35 45% 96%;
+    --secondary: 0 0% 97%;
     --secondary-foreground: 24 16% 11%;
-    --muted: 35 30% 95%;
+    --muted: 0 0% 96%;
     --muted-foreground: 24 10% 32%;
-    --accent: 41 52% 92%;
+    --accent: 0 0% 95%;
     --accent-foreground: 24 16% 11%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 32 25% 87%;
-    --input: 32 25% 87%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
     --ring: 137 35% 27%;
     --radius: 1.25rem;
   }
@@ -50,10 +50,7 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    background-image:
-      radial-gradient(circle at top left, rgba(225, 197, 155, 0.24), transparent 30%),
-      radial-gradient(circle at top right, rgba(143, 171, 134, 0.16), transparent 24%),
-      linear-gradient(180deg, #faf7f1 0%, #f7f3ed 45%, #ffffff 100%);
+    background: #ffffff;
   }
 }
 
@@ -72,10 +69,7 @@
     position: fixed;
     inset: 0;
     z-index: -2;
-    background:
-      radial-gradient(circle at 12% 12%, rgba(227, 195, 149, 0.22), transparent 22%),
-      radial-gradient(circle at 88% 8%, rgba(151, 176, 141, 0.18), transparent 18%),
-      linear-gradient(180deg, rgba(252, 248, 242, 0.92), rgba(255, 255, 255, 0.96));
+    background: #ffffff;
     pointer-events: none;
   }
 
@@ -85,23 +79,19 @@
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.5) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.35) 1px, transparent 1px);
-    background-size: 120px 120px;
-    mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.22), transparent 45%);
+    background: transparent;
   }
 
   .app-panel {
-    @apply rounded-[28px] border border-white/70 backdrop-blur-xl;
-    background: rgba(255, 255, 255, 0.82);
-    box-shadow: 0 24px 80px -32px rgba(50, 32, 14, 0.28);
+    @apply rounded-[28px] border border-slate-200;
+    background: #ffffff;
+    box-shadow: 0 12px 32px -28px rgba(15, 23, 42, 0.28);
   }
 
   .app-panel-muted {
-    @apply rounded-[24px] border border-white/60 backdrop-blur;
-    background: rgba(255, 251, 247, 0.84);
-    box-shadow: 0 18px 50px -30px rgba(50, 32, 14, 0.24);
+    @apply rounded-[24px] border border-slate-200;
+    background: #ffffff;
+    box-shadow: 0 10px 28px -26px rgba(15, 23, 42, 0.24);
   }
 
   .app-kicker {
@@ -109,9 +99,9 @@
   }
 
   .app-halo {
-    box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.72) inset,
-      0 24px 60px -36px rgba(33, 24, 18, 0.35);
+    background-color: #ffffff !important;
+    background-image: none !important;
+    box-shadow: 0 10px 28px -26px rgba(15, 23, 42, 0.3);
   }
 
   .app-panel.app-halo.overflow-hidden {
