@@ -42,7 +42,7 @@ export default async function ContentPlannerPage() {
           hasDriveReadScope={Boolean(connection?.scope?.includes("drive.readonly"))}
           canvaConfigured={Boolean(process.env.CANVA_CLIENT_ID && process.env.CANVA_CLIENT_SECRET)}
           canvaConnected={Boolean(canva)}
-          metaConfigured={Boolean(process.env.META_APP_ID && process.env.META_APP_SECRET)}
+          metaConfigured={Boolean(process.env.META_APP_ID && process.env.META_APP_SECRET && process.env.META_LOGIN_CONFIG_ID)}
           metaConnected={Boolean(meta)}
           metaAccountName={meta?.accountName || null}
           instagramConfigured={Boolean(process.env.INSTAGRAM_APP_ID && process.env.INSTAGRAM_APP_SECRET)}
