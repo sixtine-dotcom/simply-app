@@ -52,6 +52,7 @@ const adminNavItems = [
     title: "Sales",
     items: [
       { href: "/admin/content", label: "Contentplanner" },
+      { href: "/admin/email-campaigns", label: "E-mailcampagnes" },
       { href: "/admin/events", label: "Events" },
       { href: "/admin/trajecten", label: "Trajecten & omzet" },
       { href: "/admin/offers", label: "Offers" },

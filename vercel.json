@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/publish-community-posts",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/email-campaigns",
+      "schedule": "* * * * *"
     }
   ]
 }

@@ -78,7 +78,10 @@ export default async function DashboardLayout({
               targetEmail={user.impersonation.targetEmail}
             />
           ) : null}
-          <HealthProfileGate isRequired={user.role === "CLIENT" && !healthProfileStatus.isComplete} />
+          <HealthProfileGate
+            isRequired={user.role === "CLIENT" && !healthProfileStatus.isComplete}
+            isBlockedByRequiredForm={Boolean(pendingRequiredOnboardingForm)}
+          />
           <FormCompletionGate
             pendingFormHref={
               pendingRequiredOnboardingForm

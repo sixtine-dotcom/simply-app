@@ -268,7 +268,7 @@ model User {
   progressPhotos           ProgressPhoto[]
   fitnessConnections       FitnessConnection[]
   calendarConnections      CalendarConnection[]
-  integrationConnections  IntegrationConnection[]
+  integrationConnections   IntegrationConnection[]
   externalCalendarEvents   ExternalCalendarEvent[]
   syncedCalendarEvents     SyncedCalendarEvent[]
   hostedRecordings         CoachingRecording[]       @relation("CoachRecordings")
@@ -281,6 +281,7 @@ model User {
   formResponses            FormResponse[]
   healthProfile            UserHealthProfile?
   nutritionPlans           NutritionPlan[]
+  emailCampaigns           EmailCampaign[]           @relation("EmailCampaignCreator")
 
   @@index([tenantId])
   @@index([email])
@@ -1746,6 +1747,68 @@ model FeatureFlag {
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+enum EmailCampaignStatus {
+  DRAFT
+  QUEUED
+  SENDING
+  COMPLETED
+  PAUSED
+}
+
+enum EmailRecipientStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model EmailCampaign {
+  id          String                   @id @default(cuid())
+  tenantId    String?
+  createdById String
+  createdBy   User                     @relation("EmailCampaignCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  name        String
+  subject     String
+  previewText String?
+  htmlBody    String                   @db.Text
+  status      EmailCampaignStatus      @default(DRAFT)
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  recipients  EmailCampaignRecipient[]
+
+  @@index([tenantId, status])
+  @@index([createdById])
+}
+
+model EmailCampaignRecipient {
+  id         String               @id @default(cuid())
+  campaignId String
+  campaign   EmailCampaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  email      String
+  firstName  String?
+  status     EmailRecipientStatus @default(PENDING)
+  error      String?
+  externalId String?
+  sentAt     DateTime?
+  createdAt  DateTime             @default(now())
+
+  @@unique([campaignId, email])
+  @@index([campaignId, status])
+}
+
+model EmailSuppression {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  email     String
+  reason    String   @default("unsubscribed")
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, email])
+  @@index([email])
 }
 
 // ===========================================

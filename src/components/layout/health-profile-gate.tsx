@@ -1,28 +1,19 @@
 "use client";
 
-import { useEffect } from "react";
 import Link from "next/link";
-import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { Activity } from "lucide-react";
 
 export function HealthProfileGate({
   isRequired,
+  isBlockedByRequiredForm = false,
 }: {
   isRequired: boolean;
+  isBlockedByRequiredForm?: boolean;
 }) {
-  const [pathname, setPathname] = useState("/");
+  const pathname = usePathname();
 
-  useEffect(() => {
-    setPathname(window.location.pathname || "/");
-  }, []);
-
-  useEffect(() => {
-    if (!isRequired) return;
-    if (pathname.startsWith("/settings")) return;
-    window.location.replace("/settings?focus=health-profile");
-  }, [isRequired, pathname]);
-
-  if (!isRequired || !pathname.startsWith("/settings")) {
+  if (!isRequired || isBlockedByRequiredForm) {
     return null;
   }
 
@@ -35,8 +26,8 @@ export function HealthProfileGate({
             Vul eerst je <span className="font-medium">gezondheidsprofiel</span> in zodat het platform je kcal- en macrodoelen kan berekenen.
           </p>
         </div>
-        <Link className="font-medium underline underline-offset-4" href="/settings?focus=health-profile">
-          Open profiel
+        <Link className="shrink-0 font-medium underline underline-offset-4" href="/settings?focus=health-profile">
+          {pathname.startsWith("/settings") ? "Profiel invullen" : "Open profiel"}
         </Link>
       </div>
     </div>

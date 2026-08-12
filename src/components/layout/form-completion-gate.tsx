@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useRef } from "react";
 import { ClipboardList } from "lucide-react";
 
 export function FormCompletionGate({
@@ -12,18 +13,18 @@ export function FormCompletionGate({
   pendingFormHref: string | null;
   pendingFormTitle: string | null;
 }) {
-  const [pathname, setPathname] = useState("/");
-
-  useEffect(() => {
-    setPathname(window.location.pathname || "/");
-  }, []);
+  const pathname = usePathname();
+  const router = useRouter();
+  const hasRedirected = useRef(false);
 
   useEffect(() => {
     if (!pendingFormHref) return;
     if (pathname.startsWith("/settings")) return;
     if (pathname.startsWith("/forms")) return;
-    window.location.replace(pendingFormHref);
-  }, [pathname, pendingFormHref]);
+    if (hasRedirected.current) return;
+    hasRedirected.current = true;
+    router.replace(pendingFormHref);
+  }, [pathname, pendingFormHref, router]);
 
   if (!pendingFormHref || !pathname.startsWith("/forms")) {
     return null;
