@@ -15,6 +15,10 @@ async function unsubscribe(request: NextRequest) {
     if (existing) await db.emailSuppression.update({ where: { id: existing.id }, data: { reason: "unsubscribed" } });
     else await db.emailSuppression.create({ data: { tenantId: null, email } });
   }
+  await db.user.updateMany({
+    where: { email, ...(storedTenantId ? { tenantId: storedTenantId } : {}) },
+    data: { marketingConsent: false, marketingConsentAt: null },
+  });
   return new NextResponse("Je bent uitgeschreven voor marketingmails van Simply in Balance.", { headers: { "Content-Type": "text/plain; charset=utf-8" } });
 }
 

@@ -10,6 +10,12 @@ export async function POST(request: NextRequest) {
   if (body.consentConfirmed !== true) return NextResponse.json({ error: "Bevestig eerst de toestemming van de ontvangers" }, { status: 400 });
   const emails: string[] = Array.from(new Set<string>((Array.isArray(body.recipients) ? body.recipients : []).map((value: unknown) => String(value).trim().toLowerCase()).filter((value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))));
   if (!body.subject?.trim() || !body.message?.trim() || !emails.length) return NextResponse.json({ error: "Onderwerp, bericht en ontvangers zijn verplicht" }, { status: 400 });
+  const consentedCustomers = await db.user.findMany({
+    where: { tenantId: user.tenantId, role: "CLIENT", deletedAt: null, marketingConsent: true, email: { in: emails } },
+    select: { email: true },
+  });
+  const consentedEmails = new Set(consentedCustomers.map((customer) => customer.email.toLowerCase()));
+  if (consentedEmails.size !== emails.length) return NextResponse.json({ error: "Eén of meer ontvangers hebben geen geregistreerde marketingtoestemming" }, { status: 400 });
   const campaign = await db.emailCampaign.create({
     data: {
       tenantId: user.tenantId,

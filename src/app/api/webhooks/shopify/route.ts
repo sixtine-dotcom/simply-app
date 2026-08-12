@@ -27,6 +27,12 @@ interface ShopifyCustomer {
   first_name: string;
   last_name: string;
   phone?: string;
+  accepts_marketing?: boolean;
+  email_marketing_consent?: {
+    state?: string;
+    opt_in_level?: string;
+    consent_updated_at?: string;
+  };
 }
 
 interface ShopifyLineItem {
@@ -63,6 +69,11 @@ export async function POST(request: NextRequest) {
         await handleOrderPaid(payload as ShopifyOrder);
         break;
 
+      case "customers/create":
+      case "customers/update":
+        await syncShopifyCustomer(payload as ShopifyCustomer);
+        break;
+
       case "orders/cancelled":
       case "orders/refunded":
         await handleOrderCancelled(payload as ShopifyOrder);
@@ -82,6 +93,53 @@ export async function POST(request: NextRequest) {
   }
 }
 
+function marketingConsentValue(customer: ShopifyCustomer): boolean | null {
+  const state = customer.email_marketing_consent?.state?.toUpperCase();
+  if (state) return state === "SUBSCRIBED";
+  if (typeof customer.accepts_marketing === "boolean") return customer.accepts_marketing;
+  return null;
+}
+
+function marketingConsentDate(customer: ShopifyCustomer) {
+  if (marketingConsentValue(customer) !== true) return null;
+  const value = customer.email_marketing_consent?.consent_updated_at;
+  if (!value) return new Date();
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? new Date() : date;
+}
+
+async function getShopifyTenantId() {
+  const activeTenants = await db.tenant.findMany({
+    where: { status: "ACTIVE" },
+    orderBy: { createdAt: "asc" },
+    take: 2,
+    select: { id: true },
+  });
+  return activeTenants.length === 1 ? activeTenants[0].id : null;
+}
+
+async function syncShopifyCustomer(customer: ShopifyCustomer) {
+  if (!customer?.email) return null;
+  const email = customer.email.trim().toLowerCase();
+  const tenantId = await getShopifyTenantId();
+  const consent = marketingConsentValue(customer);
+  const existing = await db.user.findUnique({ where: { email } });
+  const data = {
+    firstName: customer.first_name || existing?.firstName || "Klant",
+    lastName: customer.last_name || existing?.lastName || "",
+    phone: customer.phone || existing?.phone || null,
+    shopifyCustomerId: customer.id.toString(),
+    ...(consent !== null ? {
+      marketingConsent: consent,
+      marketingSource: "shopify",
+      marketingConsentAt: marketingConsentDate(customer),
+    } : {}),
+    ...(!existing?.tenantId && tenantId ? { tenantId } : {}),
+  };
+  if (existing) return db.user.update({ where: { id: existing.id }, data });
+  return db.user.create({ data: { email, role: "CLIENT", tenantId, ...data } });
+}
+
 async function handleOrderPaid(order: ShopifyOrder) {
   const { customer, line_items } = order;
 
@@ -94,13 +152,7 @@ async function handleOrderPaid(order: ShopifyOrder) {
 
   // De Shopify-shop hoort in deze installatie bij één actieve organisatie.
   // Zonder tenantId kan de klant geen toegewezen intakeformulieren zien.
-  const activeTenants = await db.tenant.findMany({
-    where: { status: "ACTIVE" },
-    orderBy: { createdAt: "asc" },
-    take: 2,
-    select: { id: true },
-  });
-  const tenantId = activeTenants.length === 1 ? activeTenants[0].id : null;
+  const tenantId = await getShopifyTenantId();
 
   // Find or create user
   let user = await db.user.findUnique({ where: { email } });
@@ -115,6 +167,11 @@ async function handleOrderPaid(order: ShopifyOrder) {
         lastName: customer.last_name || "",
         phone: customer.phone || null,
         shopifyCustomerId: customer.id.toString(),
+        ...(marketingConsentValue(customer) !== null ? {
+          marketingConsent: marketingConsentValue(customer) === true,
+          marketingSource: "shopify",
+          marketingConsentAt: marketingConsentDate(customer),
+        } : {}),
         role: "CLIENT",
         tenantId,
       },
@@ -124,13 +181,18 @@ async function handleOrderPaid(order: ShopifyOrder) {
       source: "shopify",
       orderId: order.id,
     });
-  } else if (!user.shopifyCustomerId || (!user.tenantId && tenantId)) {
+  } else {
     // Link existing user to Shopify customer
     await db.user.update({
       where: { id: user.id },
       data: {
         ...(!user.shopifyCustomerId && { shopifyCustomerId: customer.id.toString() }),
         ...(!user.tenantId && tenantId && { tenantId }),
+        ...(marketingConsentValue(customer) !== null ? {
+          marketingConsent: marketingConsentValue(customer) === true,
+          marketingSource: "shopify",
+          marketingConsentAt: marketingConsentDate(customer),
+        } : {}),
       },
     });
   }

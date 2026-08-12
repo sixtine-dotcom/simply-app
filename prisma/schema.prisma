@@ -217,20 +217,23 @@ model TenantFeatureFlag {
 }
 
 model User {
-  id                String    @id @default(cuid())
-  tenantId          String?
-  tenant            Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
-  email             String    @unique
-  emailVerified     DateTime?
-  passwordHash      String?
-  firstName         String
-  lastName          String
-  avatarUrl         String?
-  bio               String?   @db.Text // korte beschrijving, niet verplicht
-  role              Role      @default(CLIENT)
-  preferredLanguage String    @default("nl")
-  phone             String?
-  shopifyCustomerId String?   @unique
+  id                 String    @id @default(cuid())
+  tenantId           String?
+  tenant             Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  email              String    @unique
+  emailVerified      DateTime?
+  passwordHash       String?
+  firstName          String
+  lastName           String
+  avatarUrl          String?
+  bio                String?   @db.Text // korte beschrijving, niet verplicht
+  role               Role      @default(CLIENT)
+  preferredLanguage  String    @default("nl")
+  phone              String?
+  shopifyCustomerId  String?   @unique
+  marketingConsent   Boolean   @default(false)
+  marketingSource    String?
+  marketingConsentAt DateTime?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -286,6 +289,7 @@ model User {
   @@index([tenantId])
   @@index([email])
   @@index([shopifyCustomerId])
+  @@index([tenantId, marketingConsent])
 }
 
 model UserHealthProfile {
