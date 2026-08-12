@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { Resend } from "resend";
 import { db } from "@/lib/db";
+import { sendGoogleMail } from "@/lib/google-mail";
 
 const APP_URL = process.env.APP_URL || "http://localhost:3000";
 const FROM = process.env.MARKETING_EMAIL_FROM || "Simply in Balance <sixtine@simplyinbalance.com>";
@@ -35,6 +36,7 @@ export async function sendCampaignBatch(limit = 4) {
   await db.emailCampaign.update({ where: { id: campaign.id }, data: { status: "SENDING", startedAt: campaign.startedAt || new Date() } });
   const recipients = await db.emailCampaignRecipient.findMany({ where: { campaignId: campaign.id, status: "PENDING" }, orderBy: { createdAt: "asc" }, take: Math.min(4, limit) });
   const resend = new Resend(resendKey);
+  const googleMail = await db.integrationConnection.findUnique({ where: { userId_provider: { userId: campaign.createdById, provider: "google_mail" } } });
   let sent = 0;
   let failed = 0;
   for (const recipient of recipients) {
@@ -44,14 +46,26 @@ export async function sendCampaignBatch(limit = 4) {
       continue;
     }
     const unsubscribe = unsubscribeUrl(recipient.email, campaign.tenantId);
-    const { data, error } = await resend.emails.send({
-      from: FROM,
-      reply_to: REPLY_TO,
-      to: recipient.email,
-      subject: campaign.subject,
-      html: campaignHtml(campaign.htmlBody, recipient.email, campaign.tenantId),
-      headers: { "List-Unsubscribe": `<${unsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
-    });
+    let data: { id?: string | null } | null = null;
+    let error: { message: string } | null = null;
+    if (googleMail) {
+      try {
+        data = await sendGoogleMail({ userId: campaign.createdById, to: recipient.email, subject: campaign.subject, html: campaignHtml(campaign.htmlBody, recipient.email, campaign.tenantId), fromEmail: googleMail.accountName || REPLY_TO });
+      } catch (sendError) {
+        error = { message: sendError instanceof Error ? sendError.message : "Google kon de mail niet verzenden" };
+      }
+    } else {
+      const result = await resend.emails.send({
+        from: FROM,
+        reply_to: REPLY_TO,
+        to: recipient.email,
+        subject: campaign.subject,
+        html: campaignHtml(campaign.htmlBody, recipient.email, campaign.tenantId),
+        headers: { "List-Unsubscribe": `<${unsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
+      });
+      data = result.data;
+      error = result.error;
+    }
     if (error) {
       failed += 1;
       await db.emailCampaignRecipient.update({ where: { id: recipient.id }, data: { status: "FAILED", error: error.message } });
