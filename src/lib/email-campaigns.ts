@@ -26,7 +26,7 @@ export function isValidUnsubscribe(email: string, tenantId: string | null, token
 export function campaignHtml(body: string, email: string, tenantId: string | null) {
   const escaped = body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const safeBody = escaped
-    .replace(/^### (.+)$/gm, '<h2 style="margin:30px 0 12px;font-family:\'The Seasons\',Georgia,serif;font-size:22px;line-height:1.3;font-weight:600;color:#274d2d">$1</h2>')
+    .replace(/^### (.+)$/gm, (_match, title: string) => `<h2 style="margin:30px 0 12px;font-family:'The Seasons',Georgia,serif;font-size:22px;line-height:1.3;font-style:normal;font-weight:400;color:#274d2d">${title.toUpperCase()}</h2>`)
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/^- (.+)$/gm, '<div style="margin:0 0 8px 18px">• $1</div>')
     .split(/\n{2,}/)
