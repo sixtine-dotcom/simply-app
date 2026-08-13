@@ -58,7 +58,7 @@ export async function sendCampaignBatch(limit = 4) {
     let error: { message: string } | null = null;
     if (googleMail) {
       try {
-        data = await sendGoogleMail({ userId: campaign.createdById, to: recipient.email, subject: campaign.subject, html: campaignHtml(campaign.htmlBody, recipient.email, campaign.tenantId), fromEmail: googleMail.accountName || REPLY_TO });
+        data = await sendGoogleMail({ userId: campaign.createdById, to: recipient.email, subject: campaign.subject, html: campaignHtml(campaign.htmlBody.replace(/\{\{firstName\}\}/g, recipient.firstName || ""), recipient.email, campaign.tenantId), fromEmail: googleMail.accountName || REPLY_TO });
       } catch (sendError) {
         error = { message: sendError instanceof Error ? sendError.message : "Google kon de mail niet verzenden" };
       }
@@ -68,7 +68,7 @@ export async function sendCampaignBatch(limit = 4) {
         reply_to: REPLY_TO,
         to: recipient.email,
         subject: campaign.subject,
-        html: campaignHtml(campaign.htmlBody, recipient.email, campaign.tenantId),
+        html: campaignHtml(campaign.htmlBody.replace(/\{\{firstName\}\}/g, recipient.firstName || ""), recipient.email, campaign.tenantId),
         headers: { "List-Unsubscribe": `<${unsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
       });
       data = result.data;
