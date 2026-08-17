@@ -41,7 +41,12 @@ export function InstallPanel() {
   }, [installPrompt, isIOS, isStandalone]);
 
   const handleInstall = async () => {
-    if (!installPrompt) return;
+    if (!installPrompt) {
+      if (isIOS) {
+        window.alert("Tik in Safari op de deelknop en kies daarna ‘Zet op beginscherm’. De app verschijnt vervolgens tussen je andere apps.");
+      }
+      return;
+    }
     await installPrompt.prompt();
     await installPrompt.userChoice;
     setInstallPrompt(null);
@@ -68,7 +73,7 @@ export function InstallPanel() {
                 type="button"
                 size="lg"
                 onClick={handleInstall}
-                disabled={isStandalone || !installPrompt}
+                disabled={isStandalone || (!installPrompt && !isIOS)}
                 className="h-12 rounded-2xl"
               >
                 {isStandalone ? (
