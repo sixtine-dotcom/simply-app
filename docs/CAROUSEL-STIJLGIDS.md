@@ -17,12 +17,10 @@ Vaste basis voor de carousel-tool: elke week worden carouselteksten gegenereerd 
 | Hooks / accentwoord | **Noto Serif Display ExtraCondensed *Italic*** | Eén woord of regel per titel cursief ("monthly / *business* / recap"), of als nummering ("*Habit 01*", ±73 px). Af en toe, niet op elke slide. |
 | Leestekst | **Montserrat** (regular) | 27–35 px, regelafstand 1,0–1,4 |
 | Labels | **Montserrat** (bold / extra bold) | Hoeklabels, handle, slidenummer: 20–27 px, soms in hoofdletters |
-| Alternatieve titel | **The Seasons** | Af en toe als titel, bv. in hoofdletters bovenaan de caption-slide |
 
 Beschikbaarheid in de app:
 - **Montserrat** staat al in de app (`next/font/google`).
 - **Noto Serif Display** is gratis via Google Fonts. ExtraCondensed is de breedte-as `wdth` = 62,5.
-- **The Seasons** is een betaald lettertype (geen Google Font). Om het in de app te renderen zijn de lettertypebestanden (`.otf`/`.woff2`) en een licentie voor web/app-gebruik nodig. Tot die er zijn, valt de app terug op Noto Serif Display.
 
 ## Vaste opbouw (uit de voorbeeldsjablonen)
 
@@ -72,7 +70,6 @@ Canva: `DAHXZ2p8NXA`
 
 ## Open vragen
 
-- Lettertypebestanden + licentie voor **The Seasons**.
 - Handgeschreven lettertype voor de krabbelwoorden (sjabloon 5): gebruiken of niet?
 - Eigen fotobibliotheek en/of stockfoto's.
 - Aantal carousels per week en vaste thema's.
