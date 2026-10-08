@@ -281,7 +281,6 @@ Korte vorm op de slide: *"Wil je weten hoe? Comment 'BASIS' en ik stuur je de vi
 | TRAJECT | video met het juiste stappenplan |
 | INSULINE | artikel/video over insulineresistentie |
 | STRESS | video over stressbelasting en cortisol |
-| RITME | video over ritme en herstel (vermoeidheid) |
 | KENNISMAKING | link naar de agenda voor een kennismakingsgesprek |
 | PLANTBASED | blog over plantaardige melk |
 | Recepten | FOREL, GEHAKTBROOD, KERVELSOEP, CHOCO, TIRAMISU, BOEKWEIT, CHOCPUDDING, TEFFBROOD, BOWL → recept op de Shopify-blog |
