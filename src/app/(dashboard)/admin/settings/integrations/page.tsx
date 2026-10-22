@@ -48,6 +48,12 @@ const integrations = [
     href: "/api/calendar/connect/calendly",
   },
   {
+    name: "TikTok",
+    description: "Video's rechtstreeks op TikTok publiceren vanuit de Content Planner.",
+    configured: Boolean(process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET),
+    href: "/admin/content",
+  },
+  {
     name: "Cloudflare R2",
     description: "Bestandsopslag voor uploads, media en bijlagen.",
     configured: Boolean(process.env.R2_ENDPOINT && process.env.R2_ACCESS_KEY_ID),

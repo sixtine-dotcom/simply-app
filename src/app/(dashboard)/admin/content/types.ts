@@ -1,4 +1,4 @@
-import { Facebook, Instagram } from "lucide-react";
+import { Facebook, Instagram, Music2 } from "lucide-react";
 
 export type DriveVideo = {
   id: string;
@@ -17,6 +17,8 @@ export type ContentPublication = {
   scheduledAt: string;
   platforms: string[];
   caption: string;
+  // Optional TikTok-specific caption; falls back to `caption` when empty.
+  tiktokCaption?: string;
   format?: "reel" | "post";
 };
 
@@ -30,6 +32,7 @@ export type ContentDraft = {
 export const PLATFORMS = [
   { id: "instagram", label: "Instagram", icon: Instagram, chip: "border-rose-200 bg-rose-50 text-rose-600" },
   { id: "facebook", label: "Facebook", icon: Facebook, chip: "border-sky-200 bg-sky-50 text-sky-600" },
+  { id: "tiktok", label: "TikTok", icon: Music2, chip: "border-slate-300 bg-slate-50 text-slate-900" },
 ] as const;
 
 export function platformMeta(id: string) {

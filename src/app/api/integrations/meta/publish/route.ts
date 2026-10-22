@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { metaGraphUrl } from "@/lib/content-integrations";
+import { getValidTikTokToken, publishTikTokVideo } from "@/lib/tiktok";
+
+// Video uploads to Instagram and TikTok can take longer than the default serverless timeout.
+export const maxDuration = 60;
 
 type MediaItem = { url: string; type: "image" | "video" };
 
@@ -78,31 +82,56 @@ export async function POST(request: Request) {
   if (!user || !["ADMIN", "SUPERADMIN"].includes(user.role)) return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
   const body = await request.json();
   const media = (Array.isArray(body.media) ? body.media : []).filter((item: MediaItem) => item?.url?.startsWith("https://") && ["image", "video"].includes(item.type));
-  if (!media.length) return NextResponse.json({ error: "Meta heeft minstens één publiek bereikbare foto of video nodig" }, { status: 400 });
-  const platforms = Array.isArray(body.platforms) ? body.platforms : ["instagram"];
+  if (!media.length) return NextResponse.json({ error: "Publiceren vereist minstens één publiek bereikbare foto of video" }, { status: 400 });
+  const platforms: string[] = Array.isArray(body.platforms) ? body.platforms : ["instagram"];
+  const caption: string = body.caption || "";
   const [facebookConnection, instagramConnection] = await Promise.all([
     platforms.includes("facebook") ? db.integrationConnection.findUnique({ where: { userId_provider: { userId: user.id, provider: "meta" } } }) : null,
     platforms.includes("instagram") ? db.integrationConnection.findUnique({ where: { userId_provider: { userId: user.id, provider: "instagram" } } }) : null,
   ]);
-  try {
-    const result: { instagramId?: string; facebookId?: string } = {};
-    if (platforms.includes("instagram")) {
-      if (!instagramConnection) throw new Error("Koppel eerst je Instagram-account");
-      const instagramMetadata = (instagramConnection.metadata || {}) as { instagramId?: string };
-      const instagramId = instagramMetadata.instagramId || instagramConnection.providerAccountId;
-      if (!instagramId) throw new Error("Instagram-accountnummer ontbreekt; koppel Instagram opnieuw");
-      result.instagramId = await publishInstagram(instagramId, instagramConnection.accessToken, media, body.caption || "", body.format || "post");
+
+  // Each platform is published independently, so one failing channel does not block the others.
+  const result: { instagramId?: string; facebookId?: string; tiktokPublishId?: string; tiktokStatus?: string; tiktokPrivacy?: string } = {};
+  const errors: Record<string, string> = {};
+  const attempt = async (platform: string, run: () => Promise<void>) => {
+    if (!platforms.includes(platform)) return;
+    try {
+      await run();
+    } catch (error) {
+      console.error(`${platform} publish failed`, error);
+      errors[platform] = error instanceof Error ? error.message : "Publiceren mislukt";
     }
-    if (platforms.includes("facebook")) {
-      if (!facebookConnection) throw new Error("Koppel eerst je Facebookpagina");
-      const facebookMetadata = (facebookConnection.metadata || {}) as { pageId?: string };
-      const pageId = facebookMetadata.pageId || facebookConnection.providerAccountId;
-      if (!pageId) throw new Error("Facebook-paginanummer ontbreekt; koppel Facebook opnieuw");
-      result.facebookId = await publishFacebook(pageId, facebookConnection.accessToken, media, body.caption || "");
-    }
-    return NextResponse.json({ ok: true, ...result });
-  } catch (error) {
-    console.error("Meta publish failed", error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Publiceren mislukt" }, { status: 502 });
+  };
+
+  await attempt("instagram", async () => {
+    if (!instagramConnection) throw new Error("Koppel eerst je Instagram-account");
+    const instagramMetadata = (instagramConnection.metadata || {}) as { instagramId?: string };
+    const instagramId = instagramMetadata.instagramId || instagramConnection.providerAccountId;
+    if (!instagramId) throw new Error("Instagram-accountnummer ontbreekt; koppel Instagram opnieuw");
+    result.instagramId = await publishInstagram(instagramId, instagramConnection.accessToken, media, caption, body.format || "post");
+  });
+  await attempt("facebook", async () => {
+    if (!facebookConnection) throw new Error("Koppel eerst je Facebookpagina");
+    const facebookMetadata = (facebookConnection.metadata || {}) as { pageId?: string };
+    const pageId = facebookMetadata.pageId || facebookConnection.providerAccountId;
+    if (!pageId) throw new Error("Facebook-paginanummer ontbreekt; koppel Facebook opnieuw");
+    result.facebookId = await publishFacebook(pageId, facebookConnection.accessToken, media, caption);
+  });
+  await attempt("tiktok", async () => {
+    const video = media.find((item: MediaItem) => item.type === "video");
+    if (!video) throw new Error("TikTok ondersteunt hier alleen video's");
+    const token = await getValidTikTokToken(user.id);
+    if (!token) throw new Error("Koppel eerst je TikTok-account");
+    const tiktokCaption: string = typeof body.tiktokCaption === "string" && body.tiktokCaption.trim() ? body.tiktokCaption : caption;
+    const published = await publishTikTokVideo(token, video.url, tiktokCaption);
+    result.tiktokPublishId = published.publishId;
+    result.tiktokStatus = published.status;
+    result.tiktokPrivacy = published.privacyLevel;
+  });
+
+  const failed = Object.keys(errors);
+  if (failed.length && failed.length === platforms.length) {
+    return NextResponse.json({ error: Object.entries(errors).map(([platform, message]) => `${platform}: ${message}`).join(" · "), errors }, { status: 502 });
   }
+  return NextResponse.json({ ok: true, ...result, errors });
 }

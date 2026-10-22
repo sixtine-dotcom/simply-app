@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { db } from "@/lib/db";
 
-export type ContentIntegrationProvider = "canva" | "meta" | "instagram";
+export type ContentIntegrationProvider = "canva" | "meta" | "instagram" | "tiktok";
 
 const appUrl = () => process.env.APP_URL || "http://localhost:3000";
 const secret = () => process.env.AUTH_SECRET || "simply-development-secret";

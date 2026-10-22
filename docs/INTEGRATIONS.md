@@ -906,3 +906,18 @@ OPENAI_API_KEY="..."
 # App
 APP_URL="https://app.simplyinbalance.com"
 ```
+
+## TikTok (Content Posting API)
+
+Video's kunnen vanuit de Content Planner rechtstreeks naar TikTok, naast Instagram en Facebook.
+
+1. Maak op [developers.tiktok.com](https://developers.tiktok.com) een app aan met **Login Kit** en **Content Posting API** (scopes `user.info.basic` en `video.publish`).
+2. Redirect URI: `{APP_URL}/api/integrations/tiktok/callback`.
+3. Zet `TIKTOK_CLIENT_KEY` en `TIKTOK_CLIENT_SECRET` in `.env`.
+4. Koppel TikTok in de Content Planner (knop **TikTok koppelen**).
+
+Uploaden gebeurt via `FILE_UPLOAD` (de app haalt de video op en uploadt hem in stukken), zodat er geen domeinverificatie voor `PULL_FROM_URL` nodig is.
+
+**Privacy:** zolang TikTok de app niet heeft geaudit, kan alleen `SELF_ONLY` (privé) gepost worden. De app valt daar automatisch op terug. Na goedkeuring post hij met `TIKTOK_PRIVACY_LEVEL` (standaard `PUBLIC_TO_EVERYONE`).
+
+Code: `src/lib/tiktok.ts`, `src/app/api/integrations/tiktok/*`, en de publicatieroute `src/app/api/integrations/meta/publish/route.ts` (platform `tiktok`).
