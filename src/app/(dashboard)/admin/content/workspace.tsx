@@ -24,11 +24,14 @@ type Props = {
   instagramConfigured: boolean;
   instagramConnected: boolean;
   instagramAccountName: string | null;
+  tiktokConfigured: boolean;
+  tiktokConnected: boolean;
+  tiktokAccountName: string | null;
 };
 
 type ViewMode = "day" | "week" | "month";
 
-export function ContentPlannerWorkspace({ googleConfigured, googleConnected, googleEmail, hasDriveReadScope, canvaConfigured, canvaConnected, metaConfigured, metaConnected, metaAccountName, instagramConfigured, instagramConnected, instagramAccountName }: Props) {
+export function ContentPlannerWorkspace({ googleConfigured, googleConnected, googleEmail, hasDriveReadScope, canvaConfigured, canvaConnected, metaConfigured, metaConnected, metaAccountName, instagramConfigured, instagramConnected, instagramAccountName, tiktokConfigured, tiktokConnected, tiktokAccountName }: Props) {
   const [drafts, setDrafts] = useState<ContentDraft[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [hiddenCategoryIds, setHiddenCategoryIds] = useState<Set<string>>(new Set());
@@ -144,7 +147,7 @@ export function ContentPlannerWorkspace({ googleConfigured, googleConnected, goo
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div className="flex items-center justify-between rounded-2xl border border-border bg-white p-4">
           <div><p className="font-semibold text-slate-900">Canva</p><p className="text-xs text-muted-foreground">{canvaConnected ? "Verbonden · designs rechtstreeks kiezen" : "Nog niet verbonden"}</p></div>
           {canvaConfigured ? (
@@ -167,6 +170,14 @@ export function ContentPlannerWorkspace({ googleConfigured, googleConnected, goo
             <Button asChild variant={metaConnected ? "outline" : "default"} size="sm"><a href="/api/integrations/meta/connect">{metaConnected ? "Opnieuw koppelen" : "Facebook koppelen"}</a></Button>
           ) : (
             <Button type="button" size="sm" onClick={() => setMetaSetupOpen(true)}>Configuratie nodig</Button>
+          )}
+        </div>
+        <div className="flex items-center justify-between rounded-2xl border border-border bg-white p-4">
+          <div><p className="font-semibold text-slate-900">TikTok</p><p className="text-xs text-muted-foreground">{tiktokConnected ? `Verbonden${tiktokAccountName ? ` · ${tiktokAccountName}` : ""}` : tiktokConfigured ? "Nog niet verbonden" : "TIKTOK_CLIENT_KEY en TIKTOK_CLIENT_SECRET ontbreken"}</p></div>
+          {tiktokConfigured ? (
+            <Button asChild variant={tiktokConnected ? "outline" : "default"} size="sm"><a href="/api/integrations/tiktok/connect">{tiktokConnected ? "Opnieuw koppelen" : "TikTok koppelen"}</a></Button>
+          ) : (
+            <Button type="button" size="sm" variant="outline" disabled>Configuratie nodig</Button>
           )}
         </div>
       </div>
@@ -244,6 +255,7 @@ export function ContentPlannerWorkspace({ googleConfigured, googleConnected, goo
         canvaConnected={canvaConnected}
         instagramConnected={instagramConnected}
         facebookConnected={metaConnected}
+        tiktokConnected={tiktokConnected}
         onSaved={refresh}
         onDeleted={refresh}
       />

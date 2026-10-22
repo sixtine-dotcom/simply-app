@@ -17,6 +17,7 @@ import {
   PLATFORMS,
   deleteDraftFromStorage,
   formatSize,
+  platformMeta,
   saveDraftToStorage,
 } from "./types";
 
@@ -33,6 +34,7 @@ type Props = {
   canvaConnected: boolean;
   instagramConnected: boolean;
   facebookConnected: boolean;
+  tiktokConnected: boolean;
   onSaved: (draft: ContentDraft) => void;
   onDeleted: (videoId: string) => void;
 };
@@ -66,6 +68,7 @@ export function ContentPlannerDialog({
   canvaConnected,
   instagramConnected,
   facebookConnected,
+  tiktokConnected,
   initialDate,
   onSaved,
   onDeleted,
@@ -335,15 +338,22 @@ export function ContentPlannerDialog({
         body: JSON.stringify({
           media: urls.map((url) => ({ url, type: selectedVideo.mimeType.startsWith("video/") ? "video" : "image" })),
           caption: occurrences[0].caption,
+          tiktokCaption: occurrences[0].tiktokCaption,
           format: occurrences[0].format,
           platforms: occurrences[0].platforms,
         }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Publiceren mislukt");
-      toast({ title: "Gepubliceerd", description: "De post is naar je geselecteerde Meta-kanalen verstuurd." });
+      const failed = Object.entries((data.errors || {}) as Record<string, string>);
+      if (failed.length) {
+        toast({ title: "Deels gepubliceerd", description: failed.map(([platform, message]) => `${platformMeta(platform).label}: ${message}`).join(" · ") });
+      } else {
+        const privateNote = data.tiktokPrivacy === "SELF_ONLY" ? " TikTok staat op privé zolang je TikTok-app niet goedgekeurd is." : "";
+        toast({ title: "Gepubliceerd", description: `De post is naar je geselecteerde kanalen verstuurd.${privateNote}` });
+      }
     } catch (err) {
-      toast({ title: "Publiceren mislukt", description: err instanceof Error ? err.message : "Controleer je Meta-koppeling." });
+      toast({ title: "Publiceren mislukt", description: err instanceof Error ? err.message : "Controleer je koppelingen." });
     } finally {
       setPublishing(false);
     }
@@ -512,7 +522,7 @@ export function ContentPlannerDialog({
                   </button>
                 );
               })}
-              <span className="ml-auto text-xs text-muted-foreground">Facebook en Instagram kunnen samen</span>
+              <span className="ml-auto text-xs text-muted-foreground">Instagram, Facebook en TikTok kunnen samen</span>
             </div>
             <div className="flex items-center gap-3 rounded-xl border border-border bg-white p-3">
               {selectedVideo.thumbnailLink ? (
@@ -699,6 +709,18 @@ export function ContentPlannerDialog({
                       className="min-h-44 resize-y border-slate-300"
                     />
                   </div>
+                  {occurrence.platforms.includes("tiktok") ? (
+                    <div className="grid gap-1.5">
+                      <Label>Caption voor TikTok (optioneel)</Label>
+                      <Textarea
+                        value={occurrence.tiktokCaption ?? ""}
+                        onChange={(e) => updateOccurrence(occurrence.id, { tiktokCaption: e.target.value })}
+                        placeholder="Leeg laten = dezelfde caption als hierboven. Max. 2.200 tekens."
+                        maxLength={2200}
+                        className="min-h-28 resize-y border-slate-300"
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ))}
               <Button type="button" variant="outline" onClick={addOccurrence} className="w-full">
@@ -774,7 +796,7 @@ export function ContentPlannerDialog({
                   ? new Date(occurrences[0].scheduledAt).toLocaleString("nl-BE", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
                   : "Kies datum en tijd"}
               </div>
-              {instagramConnected || facebookConnected ? <Button type="button" variant="outline" disabled={publishing} onClick={() => void publishNow()}>{publishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Nu publiceren</Button> : <Button asChild type="button" variant="outline"><a href="/api/integrations/instagram/connect">Instagram koppelen</a></Button>}
+              {instagramConnected || facebookConnected || tiktokConnected ? <Button type="button" variant="outline" disabled={publishing} onClick={() => void publishNow()}>{publishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Nu publiceren</Button> : <Button asChild type="button" variant="outline"><a href="/api/integrations/instagram/connect">Instagram koppelen</a></Button>}
               <Button type="button" onClick={handleSave}>
                 <Save className="mr-2 h-4 w-4" />
                 {initialDraft ? "Wijzigingen opslaan" : "Inplannen"}

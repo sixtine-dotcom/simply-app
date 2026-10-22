@@ -14,7 +14,7 @@ export default async function ContentPlannerPage() {
   let integrations: Array<{ provider: string; accountName: string | null }> = [];
   try {
     integrations = await db.integrationConnection.findMany({
-      where: { userId: user.id, provider: { in: ["canva", "meta", "instagram"] } },
+      where: { userId: user.id, provider: { in: ["canva", "meta", "instagram", "tiktok"] } },
       select: { provider: true, accountName: true },
     });
   } catch (error) {
@@ -24,6 +24,7 @@ export default async function ContentPlannerPage() {
   const canva = integrations.find((item) => item.provider === "canva");
   const meta = integrations.find((item) => item.provider === "meta");
   const instagram = integrations.find((item) => item.provider === "instagram");
+  const tiktok = integrations.find((item) => item.provider === "tiktok");
 
   return (
     <div className="p-4 md:p-6 lg:p-8">
@@ -48,6 +49,9 @@ export default async function ContentPlannerPage() {
           instagramConfigured={Boolean(process.env.INSTAGRAM_APP_ID && process.env.INSTAGRAM_APP_SECRET)}
           instagramConnected={Boolean(instagram)}
           instagramAccountName={instagram?.accountName || null}
+          tiktokConfigured={Boolean(process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET)}
+          tiktokConnected={Boolean(tiktok)}
+          tiktokAccountName={tiktok?.accountName || null}
         />
       </div>
     </div>
