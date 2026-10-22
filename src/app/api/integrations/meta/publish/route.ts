@@ -4,6 +4,9 @@ import { db } from "@/lib/db";
 import { metaGraphUrl } from "@/lib/content-integrations";
 import { getValidTikTokToken, publishTikTokVideo } from "@/lib/tiktok";
 
+// Video uploads to Instagram and TikTok can take longer than the default serverless timeout.
+export const maxDuration = 60;
+
 type MediaItem = { url: string; type: "image" | "video" };
 
 const instagramGraphUrl = (path: string) => `https://graph.instagram.com/${process.env.META_GRAPH_VERSION || "v23.0"}/${path.replace(/^\//, "")}`;

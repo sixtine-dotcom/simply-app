@@ -103,7 +103,8 @@ function chunkPlan(size: number) {
 }
 
 async function waitForTikTokPublish(token: string, publishId: string) {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
+  // Kept short so the request fits within a 60-second serverless limit.
+  for (let attempt = 0; attempt < 8; attempt += 1) {
     const status = await tiktokFetch<{ status?: string; fail_reason?: string }>("post/publish/status/fetch/", token, { publish_id: publishId });
     if (status.status === "PUBLISH_COMPLETE" || status.status === "SEND_TO_USER_INBOX") return status.status;
     if (status.status === "FAILED") throw new Error(`TikTok kon de video niet publiceren${status.fail_reason ? ` (${status.fail_reason})` : ""}`);
