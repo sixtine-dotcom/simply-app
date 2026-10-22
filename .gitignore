@@ -45,3 +45,62 @@ next-env.d.ts
 
 # prisma
 /prisma/migrations/**/migration_lock.toml
+
+# iCloud: technische mappen niet synchroniseren
+*.nosync
+
+# Private configuration and credentials (including templates)
+.env*
+**/.env*
+*.key
+*.p12
+*.pfx
+credentials*.json
+*service-account*.json
+
+# Local tools, caches, generated output and backups
+node_modules/
+.next*
+.tmp/
+.codex/
+.cursor/
+.agents/
+.impeccable/
+build/
+dist/
+out/
+coverage/
+*.log
+*.zip
+*.tar
+*.gz
+*.sqlite*
+*.db
+
+# Media remain local or in object storage, never in Git
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.avif
+*.heic
+*.ico
+*.svg
+*.mp4
+*.mov
+*.m4v
+*.webm
+*.avi
+*.mkv
+*.mp3
+*.wav
+*.m4a
+*.aac
+*.ogg
+*.pdf
+*.woff
+*.woff2
+*.ttf
+*.otf
+*.eot

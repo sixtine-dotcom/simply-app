@@ -82,15 +82,10 @@ export default async function TrackersPage() {
 
   return (
     <div className="p-4 md:p-6 lg:p-8">
-      <div className="app-panel app-halo mb-8 overflow-hidden">
-        <p className="app-kicker">Progress command</p>
-        <h1 className="mt-3 font-display text-3xl tracking-tight text-slate-950 md:text-5xl">
-          Mijn omgeving
-        </h1>
-        <p className="mt-3 max-w-2xl text-muted-foreground">
-          Track je voortgang en blijf gemotiveerd
-        </p>
-      </div>
+      <header className="mb-5 border-b border-slate-200 pb-4">
+        <h1 className="text-xl font-semibold text-slate-950">Mijn voortgang</h1>
+        <p className="mt-1 text-xs text-slate-500">Bekijk en registreer je dagelijkse gegevens.</p>
+      </header>
 
       {/* Quick Stats */}
       <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">

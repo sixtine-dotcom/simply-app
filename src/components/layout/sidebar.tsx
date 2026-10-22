@@ -17,7 +17,6 @@ import {
   Package,
   FileText,
   UtensilsCrossed,
-  Bot,
   Settings,
   LogOut,
   ChevronDown,
@@ -52,6 +51,9 @@ const adminNavItems = [
     title: "Sales",
     items: [
       { href: "/admin/content", label: "Contentplanner" },
+      { href: "/admin/content/video", label: "Video Studio" },
+      { href: "/admin/content/carousels", label: "Carousel Studio" },
+      { href: "/admin/content/scripts", label: "Reel Scripts" },
       { href: "/admin/email-campaigns", label: "E-mailcampagnes" },
       { href: "/admin/events", label: "Events" },
       { href: "/admin/trajecten", label: "Trajecten & omzet" },
@@ -91,6 +93,15 @@ export function Sidebar() {
   const { t } = useLocale();
   const [pathname, setPathname] = useState("/");
   const [trackersOpen, setTrackersOpen] = useState(false);
+  const [communityOpen, setCommunityOpen] = useState(false);
+  const [communitySpaces, setCommunitySpaces] = useState<Array<{
+    id: string;
+    name: string;
+    slug: string;
+    groupLabel: string | null;
+    isHostOnly: boolean;
+    postCount: number;
+  }>>([]);
 
   useEffect(() => {
     const nextPathname = window.location.pathname || "/";
@@ -98,6 +109,9 @@ export function Sidebar() {
 
     if (nextPathname.startsWith("/trackers")) {
       setTrackersOpen(true);
+    }
+    if (nextPathname.startsWith("/community")) {
+      setCommunityOpen(true);
     }
 
   }, []);
@@ -108,6 +122,14 @@ export function Sidebar() {
     }
 
   }, [pathname]);
+
+  useEffect(() => {
+    if (!user || isAdminRole(user.role)) return;
+    fetch("/api/community/spaces")
+      .then((response) => (response.ok ? response.json() : []))
+      .then((spaces) => setCommunitySpaces(Array.isArray(spaces) ? spaces : []))
+      .catch(() => setCommunitySpaces([]));
+  }, [user]);
 
   if (!user) {
     return null;
@@ -137,7 +159,6 @@ export function Sidebar() {
   const toolsNavItems = [
     { href: "/producten", label: t("sidebar_products_library"), icon: Package },
     { href: "/recipes", label: t("sidebar_recipes"), icon: UtensilsCrossed },
-    { href: "/six", label: "SIX AI", icon: Bot },
     { href: "/app", label: "App installeren", icon: Smartphone },
   ];
 
@@ -153,14 +174,14 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-72 px-4 py-4">
+    <aside className="fixed left-0 top-0 z-40 h-screen w-72 border-r border-black/10 bg-white">
       <div className="flex h-full flex-col">
-        <div className="app-panel flex h-full flex-col overflow-hidden">
-          <div className="border-b border-[rgba(131,104,79,0.12)] px-5 py-5">
+        <div className="flex h-full flex-col overflow-hidden bg-white">
+          <div className="border-b border-black/10 px-6 py-5">
             <div className="flex items-center justify-between gap-3">
               <Link
                 href={logoHref}
-                className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <Logo
                   variant="sidebar"
@@ -169,7 +190,7 @@ export function Sidebar() {
                   platformName={branding.platformName}
                 />
               </Link>
-              <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(131,104,79,0.12)] bg-white/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5 border-l border-black/15 pl-3 text-[9px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
                 {isAdmin ? (
                   <Shield className="h-3.5 w-3.5 text-primary" />
                 ) : (
@@ -182,15 +203,70 @@ export function Sidebar() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-3">
+          <nav className="flex-1 space-y-1 overflow-y-auto px-5 py-5">
             {/* Admin ziet alleen backend; klanten/coaches zien de klantomgeving */}
             {!isAdmin && (
               <>
-                <div className="mb-3 px-3 text-[11px] font-semibold uppercase tracking-[0.26em] text-muted-foreground">
+                <div className="mb-3 text-[9px] font-semibold uppercase tracking-[0.26em] text-[#7d847f]">
                   {t("sidebar_core")}
                 </div>
-                <div className="space-y-1.5">
-                  {mainNavItems.map((item) => (
+                <div className="space-y-0.5">
+                  {mainNavItems.map((item) => item.href === "/community" ? (
+                    <div key={item.href}>
+                      <button
+                        type="button"
+                        onClick={() => setCommunityOpen((open) => !open)}
+                        aria-expanded={communityOpen}
+                        className={cn(
+                          "flex w-full items-center gap-3 border-l-2 px-3 py-2.5 text-sm font-medium transition",
+                          pathname.startsWith("/community")
+                            ? "border-[#173622] bg-[#f7f8f5] text-[#173622]"
+                            : "border-transparent text-muted-foreground hover:border-black/15 hover:bg-[#fafaf8] hover:text-foreground"
+                        )}
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        <span className="flex-1 text-left">{item.label}</span>
+                        <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", communityOpen && "rotate-180")} />
+                      </button>
+                      {communityOpen ? (
+                        <div className="ml-5 mt-1 border-l border-black/10 pl-3">
+                          <Link
+                            href="/community"
+                            className={cn(
+                              "block border-b border-transparent px-1 py-2 text-xs transition hover:border-black/10 hover:text-foreground",
+                              pathname === "/community" ? "font-semibold text-primary" : "text-muted-foreground"
+                            )}
+                          >
+                            Alle activiteit
+                          </Link>
+                          {communitySpaces.map((space, index) => {
+                            const previousLabel = index > 0 ? communitySpaces[index - 1]?.groupLabel : null;
+                            const showLabel = Boolean(space.groupLabel && space.groupLabel !== previousLabel);
+                            return (
+                              <div key={space.id}>
+                                {showLabel ? (
+                                  <p className="mb-1 mt-3 px-2.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                                    {space.groupLabel}
+                                  </p>
+                                ) : null}
+                                <Link
+                                  href={`/community/${space.slug}`}
+                                  className={cn(
+                                    "flex items-center gap-2 border-b border-transparent px-1 py-2 text-xs transition hover:border-black/10 hover:text-foreground",
+                                    pathname === `/community/${space.slug}` ? "font-semibold text-[#173622]" : "text-muted-foreground"
+                                  )}
+                                >
+                                  <MessageSquare className="h-3 w-3 shrink-0" />
+                                  <span className="min-w-0 flex-1 truncate">{space.name}</span>
+                                  {space.postCount > 0 ? <span className="text-[9px] text-slate-400">{space.postCount}</span> : null}
+                                </Link>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
                     <NavLink
                       key={item.href}
                       href={item.href}
@@ -202,7 +278,7 @@ export function Sidebar() {
                   ))}
                 </div>
 
-                <div className="mx-3 my-5 h-px bg-[linear-gradient(90deg,transparent,rgba(131,104,79,0.18),transparent)]" />
+                <div className="my-6 h-px bg-black/10" />
 
                 <div>
                   <button
@@ -211,10 +287,10 @@ export function Sidebar() {
                     aria-expanded={trackersOpen}
                     aria-controls="sidebar-trackers-nav"
                     className={cn(
-                      "flex w-full items-center justify-between rounded-2xl px-3.5 py-3 text-sm font-medium transition-all",
+                      "flex w-full items-center justify-between border-l-2 px-3 py-2.5 text-sm font-medium transition",
                       pathname.startsWith("/trackers")
-                        ? "bg-[linear-gradient(135deg,rgba(31,74,41,0.12),rgba(31,74,41,0.04))] text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]"
-                        : "text-muted-foreground hover:bg-white/70 hover:text-foreground"
+                        ? "border-[#173622] bg-[#f7f8f5] text-[#173622]"
+                        : "border-transparent text-muted-foreground hover:border-black/15 hover:bg-[#fafaf8] hover:text-foreground"
                     )}
                   >
                     <span className="flex items-center gap-3">
@@ -231,7 +307,7 @@ export function Sidebar() {
                   {trackersOpen && (
                     <div
                       id="sidebar-trackers-nav"
-                      className="ml-4 mt-2 space-y-1 rounded-[22px] border border-white/60 bg-white/50 p-2"
+                      className="ml-5 mt-1 space-y-0.5 border-l border-black/10 pl-3"
                     >
                       {trackerNavItems.map((item) => (
                         <NavLink
@@ -248,10 +324,10 @@ export function Sidebar() {
                 </div>
 
                 <div className="mt-5">
-                  <div className="mb-3 px-3 text-[11px] font-semibold uppercase tracking-[0.26em] text-muted-foreground">
+                  <div className="mb-3 text-[9px] font-semibold uppercase tracking-[0.26em] text-[#7d847f]">
                     {t("sidebar_tools")}
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-0.5">
                     {toolsNavItems.map((item) => (
                       <NavLink
                         key={item.href}
@@ -268,10 +344,10 @@ export function Sidebar() {
             )}
 
             {isAdmin && (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {adminNavItems.map((group) => (
                   <div key={group.title}>
-                    <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+                    <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.24em] text-[#7d847f]">
                       {group.title}
                     </p>
                     <div className="space-y-0.5">
@@ -293,13 +369,13 @@ export function Sidebar() {
           </nav>
 
           {/* User Section */}
-          <div className="border-t border-[rgba(131,104,79,0.12)] p-2.5">
-            <div className="mb-2 grid grid-cols-2 gap-1.5">
+          <div className="border-t border-black/10 p-4">
+            <div className="mb-3 grid grid-cols-2 divide-x divide-black/10 border-b border-black/10 pb-3">
               <Link
                 href={settingsHref}
                 className={cn(
-                  "flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-medium transition hover:bg-white/70",
-                  isPathActive(pathname, settingsHref) ? "bg-primary/10 text-primary" : "text-muted-foreground"
+                  "flex items-center justify-center gap-1.5 px-2 py-2 text-[11px] font-medium transition hover:text-[#173622]",
+                  isPathActive(pathname, settingsHref) ? "text-[#173622]" : "text-muted-foreground"
                 )}
               >
                 <Settings className="h-3.5 w-3.5" />
@@ -307,14 +383,14 @@ export function Sidebar() {
               </Link>
               <Link
                 href="mailto:support@simplyinbalance.com"
-                className="flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-medium text-muted-foreground transition hover:bg-white/70 hover:text-foreground"
+                className="flex items-center justify-center gap-1.5 px-2 py-2 text-[11px] font-medium text-muted-foreground transition hover:text-[#173622]"
               >
                 <Bell className="h-3.5 w-3.5" />
                 Hulp
               </Link>
             </div>
-            <div className="flex items-center gap-2 rounded-2xl border border-white/65 bg-white/70 p-2 shadow-[0_14px_28px_-26px_rgba(33,24,18,0.45)]">
-                <Avatar className="h-8 w-8 border border-white/70 shadow-sm">
+            <div className="flex items-center gap-2 py-1">
+                <Avatar className="h-8 w-8 border border-black/10">
                   <AvatarImage src={user.avatarUrl || undefined} />
                   <AvatarFallback>
                     {getInitials(user.firstName, user.lastName)}
@@ -325,7 +401,7 @@ export function Sidebar() {
                     {user.firstName} {user.lastName}
                   </p>
                 </Link>
-                <Button variant="ghost" size="icon" asChild className="h-8 w-8 bg-white/60">
+                <Button variant="ghost" size="icon" asChild className="h-8 w-8 rounded-none">
                   <Link href={notificationsHref} title={t("sidebar_notifications")}>
                     <Bell className="h-3.5 w-3.5" />
                   </Link>
@@ -333,7 +409,7 @@ export function Sidebar() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 bg-white/60"
+                  className="h-8 w-8 rounded-none"
                   aria-label={t("sidebar_logout")}
                   onClick={handleLogout}
                 >
@@ -341,7 +417,7 @@ export function Sidebar() {
                 </Button>
             </div>
             {!branding.hidePoweredBy ? (
-              <p className="mt-2 flex items-center justify-center gap-1 text-[8px] uppercase tracking-[0.13em] text-muted-foreground/70">
+              <p className="mt-3 flex items-center justify-center gap-1 text-[8px] uppercase tracking-[0.13em] text-muted-foreground/60">
                 <Sparkles className="h-3 w-3 text-primary/70" />
                 Powered by Simply in Balance
               </p>
@@ -367,17 +443,17 @@ function NavLink({ href, icon: Icon, isActive, small, children }: NavLinkProps) 
       href={href}
       aria-current={isActive ? "page" : undefined}
       className={cn(
-        "flex items-center gap-3 transition-all duration-200",
-        small ? "rounded-xl px-3 py-2 text-sm" : "rounded-2xl px-3.5 py-3 text-sm font-medium",
+        "flex items-center gap-3 border-l-2 transition duration-200",
+        small ? "px-3 py-2 text-[13px]" : "px-3 py-2.5 text-sm font-medium",
         isActive
-          ? "bg-[linear-gradient(135deg,rgba(31,74,41,0.13),rgba(31,74,41,0.04))] text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]"
-          : "text-muted-foreground hover:bg-white/70 hover:text-foreground"
+          ? "border-[#173622] bg-[#f7f8f5] text-[#173622]"
+          : "border-transparent text-muted-foreground hover:border-black/15 hover:bg-[#fafaf8] hover:text-foreground"
       )}
     >
       {Icon && (
         <span className={cn(
-          "flex h-8 w-8 items-center justify-center rounded-full border border-white/60 bg-white/70",
-          isActive && "border-primary/15 bg-white"
+          "flex h-6 w-6 items-center justify-center",
+          isActive && "text-[#173622]"
         )}>
           <Icon className="h-4 w-4" />
         </span>

@@ -43,28 +43,13 @@ export default function NotificationsPage() {
   return (
     <div className="p-4 md:p-6 lg:p-8">
       <div className="mx-auto max-w-3xl space-y-8">
-      <Card className="overflow-hidden app-halo">
-        <CardContent className="p-8">
-          <Link
-            href={backHref}
-            className="mb-6 inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ChevronLeft className="mr-1 h-4 w-4" />
-            Terug
-          </Link>
-
-          <div>
-            <p className="app-kicker">Notification center</p>
-            <h1 className="mt-3 flex items-center gap-2 font-display text-3xl tracking-tight text-slate-950">
-              <Bell className="h-6 w-6" />
-              Meldingen
-            </h1>
-            <p className="mt-2 text-muted-foreground">
-              Herinneringen, security-signalen en updates op één rustige plek.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <header className="border-b border-slate-200 pb-4">
+        <Link href={backHref} className="inline-flex items-center text-xs text-slate-500 hover:text-slate-900">
+          <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Terug
+        </Link>
+        <h1 className="mt-3 text-xl font-semibold text-slate-950">Meldingen</h1>
+        <p className="mt-1 text-xs text-slate-500">Herinneringen en updates.</p>
+      </header>
 
       {loading ? (
         <p className="text-muted-foreground">Laden...</p>

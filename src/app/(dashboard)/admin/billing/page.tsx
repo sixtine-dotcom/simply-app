@@ -104,8 +104,6 @@ type BillingState = {
   billingProfile: BillingProfile;
   invoices: BillingInvoice[];
   plans: BillingPlan[];
-  stripeEnabled: boolean;
-  canOpenPortal: boolean;
 };
 
 function formatDate(value: string | null) {
@@ -135,31 +133,6 @@ export default function AdminBillingPage() {
   const [billingView, setBillingView] = useState<"subscription" | "invoicing">("subscription");
   const [editingBillingProfile, setEditingBillingProfile] = useState(false);
   const [billingProfileForm, setBillingProfileForm] = useState<BillingProfile | null>(null);
-
-  const redirectToUrl = async (endpoint: string, payload?: Record<string, unknown>) => {
-    setProcessing(endpoint);
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: payload ? { "Content-Type": "application/json" } : undefined,
-        body: payload ? JSON.stringify(payload) : undefined,
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || "Stripe actie mislukt.");
-      }
-      if (result.url) {
-        window.location.href = result.url;
-      }
-    } catch (error) {
-      toast({
-        title: "Fout",
-        description: error instanceof Error ? error.message : "Stripe actie mislukt.",
-        variant: "destructive",
-      });
-      setProcessing(null);
-    }
-  };
 
   const load = async () => {
     setLoading(true);
@@ -551,36 +524,7 @@ export default function AdminBillingPage() {
                       ))}
                     </div>
                     <div className="mt-auto flex flex-col gap-2 pt-5">
-                      {data.stripeEnabled ? (
-                        <>
-                          <Button
-                            size="sm"
-                            disabled={processing === "/api/admin/billing/checkout"}
-                            onClick={() =>
-                              void redirectToUrl("/api/admin/billing/checkout", {
-                                plan: plan.key,
-                                interval: "monthly",
-                              })
-                            }
-                          >
-                            Maandelijks upgraden
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={processing === "/api/admin/billing/checkout"}
-                            onClick={() =>
-                              void redirectToUrl("/api/admin/billing/checkout", {
-                                plan: plan.key,
-                                interval: "yearly",
-                              })
-                            }
-                          >
-                            Jaarlijks upgraden
-                          </Button>
-                        </>
-                      ) : (
-                        <>
+                      <>
                           <Button
                             size="sm"
                             disabled={processing === `start-${plan.key}-monthly`}
@@ -608,8 +552,7 @@ export default function AdminBillingPage() {
                           >
                             Jaarlijks upgraden
                           </Button>
-                        </>
-                      )}
+                      </>
                     </div>
                   </div>
                 ))}
@@ -715,18 +658,6 @@ export default function AdminBillingPage() {
 
               <div className="flex flex-wrap gap-3">
                 <Button onClick={() => setShowPlans(true)}>Upgrade plan</Button>
-                {data.stripeEnabled ? (
-                  <Button
-                    variant={data.dunning?.isPastDue ? "default" : "outline"}
-                    disabled={!data.canOpenPortal || processing === "/api/admin/billing/portal"}
-                    onClick={() => void redirectToUrl("/api/admin/billing/portal")}
-                  >
-                    {processing === "/api/admin/billing/portal" ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
-                    Open billing portal
-                  </Button>
-                ) : null}
                 {data.activeSubscription?.cancelAtPeriodEnd ? (
                   <Button
                     disabled={processing === "resume_subscription"}

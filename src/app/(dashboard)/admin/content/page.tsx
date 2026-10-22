@@ -26,15 +26,9 @@ export default async function ContentPlannerPage() {
   const instagram = integrations.find((item) => item.provider === "instagram");
 
   return (
-    <div className="p-4 md:p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <section className="app-halo overflow-hidden rounded-[34px] border border-white/70 bg-white/85 p-6 md:p-8">
-          <p className="app-kicker">Content Planner</p>
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">Agenda</h1>
-          <p className="mt-3 max-w-3xl text-muted-foreground">
-            Plan een video uit Google Drive in op een of meerdere data, geef elke post een hoek en kleur, en zie in één oogopslag wat er klaarstaat.
-          </p>
-        </section>
+    // Compact: the whole week fits on a small laptop screen without scrolling.
+    <div className="p-3 md:p-4">
+      <div className="mx-auto max-w-7xl space-y-3">
         <ContentPlannerWorkspace
           googleConfigured={configured}
           googleConnected={Boolean(connection)}

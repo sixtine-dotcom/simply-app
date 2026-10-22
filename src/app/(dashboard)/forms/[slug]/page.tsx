@@ -107,6 +107,7 @@ export default async function AssignedFormPage({
         })),
       }}
       initialAnswers={initialAnswers}
+      userFirstName={user.firstName}
     />
   );
 }

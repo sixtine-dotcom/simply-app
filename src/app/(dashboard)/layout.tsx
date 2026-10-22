@@ -15,6 +15,7 @@ import { LocaleProvider } from "@/components/layout/locale-provider";
 import { getAssignedFormsForUser } from "@/lib/forms";
 import { getHealthProfileStatus } from "@/lib/health-profile";
 import { Button } from "@/components/ui/button";
+import { SixChatWidget } from "@/components/ai/six-chat-widget";
 
 export default async function DashboardLayout({
   children,
@@ -67,7 +68,10 @@ export default async function DashboardLayout({
     >
       <LocaleProvider language={user.preferredLanguage === "en" ? "en" : "nl"}>
         <BrandingProvider branding={branding}>
-          <div className="app-shell min-h-screen" style={getBrandingCssVariables(branding)}>
+          <div
+            className={`app-shell min-h-screen ${user.role === "ADMIN" || user.role === "SUPERADMIN" ? "" : "client-compact client-botanical-shell"}`}
+            style={getBrandingCssVariables(branding)}
+          >
           {user.role === "SUPERADMIN" ? (
             <EnvironmentSwitcher canAccessPlatform canAccessTenant={Boolean(user.tenantId)} />
           ) : null}
@@ -97,7 +101,8 @@ export default async function DashboardLayout({
           {user.role === "ADMIN" ? (
             <Button
               asChild
-              className="fixed right-6 top-5 z-30 rounded-2xl shadow-[0_16px_36px_-22px_rgba(31,74,41,0.65)]"
+              // Bottom right: at the top it covered the page buttons (e.g. in Carousel Studio).
+              className="fixed bottom-6 right-6 z-30 rounded-2xl shadow-[0_16px_36px_-22px_rgba(31,74,41,0.65)]"
             >
               <Link href="/community">
                 Open klantenomgeving
@@ -106,13 +111,14 @@ export default async function DashboardLayout({
             </Button>
           ) : null}
 
-          <main className="relative pt-20 md:ml-72 md:pt-6">
+          <main className="relative bg-white pt-20 md:ml-72 md:pt-0">
             <div className="min-h-screen pb-24 md:pb-6">
               {children}
             </div>
           </main>
 
           <MobileNav />
+          {user.role === "CLIENT" || user.role === "STUDENT" ? <SixChatWidget /> : null}
           </div>
         </BrandingProvider>
       </LocaleProvider>

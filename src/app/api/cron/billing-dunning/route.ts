@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processBillingDunning } from "@/lib/billing";
-import { createStripeBillingPortalSession, isStripeConfigured } from "@/lib/stripe";
 import { db } from "@/lib/db";
 import { sendBillingReminderEmail } from "@/lib/email";
 
@@ -42,16 +41,6 @@ export async function GET(request: NextRequest) {
 
       if (!reminderDay) continue;
 
-      let portalUrl: string | undefined;
-      if (isStripeConfigured() && subscription.stripeCustomerId) {
-        try {
-          const session = await createStripeBillingPortalSession(subscription.stripeCustomerId);
-          portalUrl = session.url;
-        } catch (error) {
-          console.error("Billing portal creation failed:", error);
-        }
-      }
-
       const admins = await db.user.findMany({
         where: {
           tenantId: subscription.tenantId,
@@ -70,7 +59,6 @@ export async function GET(request: NextRequest) {
           firstName: admin.firstName,
           tenantName: subscription.tenant.name,
           day: reminderDay as 1 | 4 | 7,
-          portalUrl,
         });
       }
     }

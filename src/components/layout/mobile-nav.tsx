@@ -13,7 +13,6 @@ import {
   BookOpen,
   Users,
   LineChart,
-  Bot,
   Smartphone,
   LayoutDashboard,
   CreditCard,
@@ -44,7 +43,6 @@ export function MobileNav() {
     { href: "/community", label: t("sidebar_community"), icon: Users },
     { href: "/forms", label: t("sidebar_forms"), icon: FileText },
     { href: "/trackers", label: t("mobile_environment"), icon: LineChart },
-    { href: "/six", label: "SIX AI", icon: Bot },
     { href: "/app", label: "App", icon: Smartphone },
   ];
 

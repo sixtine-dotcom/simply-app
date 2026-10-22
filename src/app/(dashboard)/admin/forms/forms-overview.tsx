@@ -3,13 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { FileText, LayoutTemplate, Loader2, Plus, Sparkles, Tag, Users, Workflow } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Archive, ArrowUpRight, Copy, Loader2, PlayCircle, RotateCcw, Users } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { RemindPendingFormsButton } from "./remind-pending-forms-button";
-import { AdminHubCard } from "@/components/admin/hub-card";
 
 type FormOverview = {
   id: string;
@@ -26,19 +22,16 @@ type FormOverview = {
   };
   pendingRequired: number;
   overdueRequired: number;
+  participantProgress: {
+    total: number;
+    completed: number;
+    pending: number;
+    completionRate: number;
+  };
   assignments: Array<{
     id: string;
     targetLabel: string;
     isRequired: boolean;
-  }>;
-  responses: Array<{
-    id: string;
-    status: string;
-    user: {
-      firstName: string;
-      lastName: string;
-      email: string;
-    };
   }>;
 };
 
@@ -47,6 +40,13 @@ export function FormsOverview({ initialForms }: { initialForms: FormOverview[] }
   const { toast } = useToast();
   const [title, setTitle] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [actionKey, setActionKey] = useState<string | null>(null);
+
+  const active = initialForms.filter((form) => form.status === "PUBLISHED");
+  const drafts = initialForms.filter((form) => form.status === "DRAFT");
+  const archived = initialForms.filter((form) => form.status === "ARCHIVED");
+  const totalPending = initialForms.reduce((count, form) => count + form.pendingRequired, 0);
+  const totalOverdue = initialForms.reduce((count, form) => count + form.overdueRequired, 0);
 
   const createForm = async () => {
     if (!title.trim()) return;
@@ -62,7 +62,7 @@ export function FormsOverview({ initialForms }: { initialForms: FormOverview[] }
         throw new Error(result.error || "Kon formulier niet aanmaken");
       }
       setTitle("");
-      router.push(`/admin/forms/${result.form.id}`);
+      window.open(`/admin/forms/${result.form.id}?tab=builder`, "_blank", "noopener");
       router.refresh();
     } catch (error) {
       toast({
@@ -75,285 +75,313 @@ export function FormsOverview({ initialForms }: { initialForms: FormOverview[] }
     }
   };
 
+  const runAction = async (
+    form: FormOverview,
+    action: "publish" | "archive" | "restore" | "duplicate"
+  ) => {
+    const key = `${form.id}:${action}`;
+    setActionKey(key);
+    try {
+      const response = await fetch(`/api/admin/forms/${form.id}/actions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "De actie is niet gelukt");
+
+      if (action === "duplicate") {
+        toast({ title: "Formulier gedupliceerd", description: "De kopie staat klaar als concept. Kies de nieuwe challenge als doelgroep." });
+        router.push(`/admin/forms/${result.form.id}?tab=assignments`);
+        return;
+      }
+      toast({
+        title: action === "archive" ? "Formulier gearchiveerd" : "Formulier staat live",
+        description:
+          action === "archive"
+            ? "Je vindt het terug onder Archief en kunt het altijd opnieuw activeren."
+            : "Deelnemers met een actieve toewijzing kunnen het formulier nu invullen.",
+      });
+      router.refresh();
+    } catch (error) {
+      toast({
+        title: "Actie mislukt",
+        description: error instanceof Error ? error.message : "Probeer het opnieuw.",
+        variant: "destructive",
+      });
+    } finally {
+      setActionKey(null);
+    }
+  };
+
   return (
-    <div className="min-h-screen p-4 md:p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl space-y-8">
-        <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-          <Card className="overflow-hidden app-halo">
-            <CardContent className="p-8">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background/80 px-3 py-1 text-xs uppercase tracking-[0.28em] text-muted-foreground">
-                <Sparkles className="h-3.5 w-3.5" />
-                Forms
-              </div>
-              <h1 className="mt-4 font-display text-4xl tracking-tight text-slate-900 md:text-5xl">
-                Bouw je intake, onboarding en check-ins zoals een Typeform-flow.
-              </h1>
-              <p className="mt-4 max-w-3xl text-base text-muted-foreground md:text-lg">
-                Maak formulieren met meerdere vraagtypes, wijs ze toe per groep of ruimte en bepaal wanneer ze zichtbaar of verplicht zijn.
-              </p>
-            </CardContent>
-          </Card>
+    <div className="min-h-screen bg-white text-[#171b18]">
+      <div className="mx-auto max-w-[1320px] px-5 py-6 sm:px-8 lg:px-12 lg:py-10">
+        <header className="border-b border-black/10 pb-5 pr-40 sm:pr-52">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#667069]">
+            Coach omgeving
+          </p>
+          <h1 className="mt-2 text-[1.1rem] font-medium tracking-[-0.02em]">Formulieren</h1>
+          <p className="mt-1 text-xs text-[#6f756f]">
+            {active.length} actief · {initialForms.length} totaal
+          </p>
+        </header>
 
-          <Card className="app-halo">
-            <CardHeader>
-              <CardTitle>Nieuw formulier</CardTitle>
-              <CardDescription>
-                Start met een titel en bouw daarna verder in de builder.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Input
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="Bijv. Intake hormonale balans"
-              />
-              <Button onClick={() => void createForm()} disabled={isCreating || !title.trim()} className="w-full">
-                {isCreating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                Builder openen
-              </Button>
-            </CardContent>
-          </Card>
-        </section>
-
-        <section className="grid gap-4 md:grid-cols-5">
-          <SummaryCard label="Formulieren" value={String(initialForms.length)} href="/admin/forms" />
-          <SummaryCard
-            label="Live"
-            value={String(initialForms.filter((form) => form.status === "PUBLISHED").length)}
-            href="/admin/forms"
-          />
-          <SummaryCard
-            label="Onboarding"
-            value={String(initialForms.filter((form) => form.isOnboardingForm).length)}
-            href="/admin/onboarding"
-          />
-          <SummaryCard
-            label="Responses"
-            value={String(initialForms.reduce((count, form) => count + form._count.responses, 0))}
-            href="/admin/forms"
-          />
-          <SummaryCard
-            label="Open verplicht"
-            value={String(initialForms.reduce((count, form) => count + form.pendingRequired, 0))}
-            href="/admin/users"
-          />
-        </section>
-
-        <section className="grid gap-4 lg:grid-cols-4">
-          <AdminHubCard
-            icon={<FileText className="h-5 w-5" />}
-            title="Forms"
-            description="Deze hub stuurt intake, onboarding, check-ins en required follow-up."
-            href="/admin/forms"
-            cta="Open forms"
-            active
-          />
-          <AdminHubCard
-            icon={<Users className="h-5 w-5" />}
-            title="People"
-            description="Gebruik people ops voor activatie, toewijzing en opvolging per gebruiker."
-            href="/admin/users"
-            cta="Open people"
-          />
-          <AdminHubCard
-            icon={<Tag className="h-5 w-5" />}
-            title="Offers"
-            description="Verbind formulieren later met offers, intake flows en fulfilment."
-            href="/admin/offers"
-            cta="Open offers"
-          />
-          <AdminHubCard
-            icon={<LayoutTemplate className="h-5 w-5" />}
-            title="Website"
-            description="Gebruik formulieren als conversion- en onboardinglaag achter publieke pages."
-            href="/admin/landing-pages"
-            cta="Open website"
-          />
-        </section>
-
-        <section className="app-panel flex flex-wrap items-center justify-between gap-3 p-4">
-          <div>
-            <p className="text-sm font-medium text-slate-900">Open formulier follow-up</p>
-            <p className="text-sm text-muted-foreground">
-              Verstuur in bulk herinneringen voor open verplichte formulieren met directe user-toewijzing.
+        <section className="mt-7 grid items-start gap-10 border-b border-black/10 pb-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(300px,0.78fr)]">
+          <div className="max-w-xl">
+            <p className="[font-family:'The_Seasons',Georgia,serif] text-[clamp(1.85rem,3vw,2.9rem)] font-normal leading-[1.04] tracking-[-0.035em] text-[#191c19] [hyphens:none]">
+              Bouw je intake, onboarding en check-ins als één flow.
+            </p>
+            <p className="mt-5 text-sm leading-6 text-[#676e69]">
+              Elke vraag, toewijzing en herinnering rond een formulier op één plek. De builder opent
+              in een apart tabblad, zodat je vragen bouwt zonder dit overzicht te verliezen.
             </p>
           </div>
-          <RemindPendingFormsButton />
+
+          <div className="border-t border-black/10 pt-6 lg:border-t-0 lg:pt-1">
+            <label
+              htmlFor="new-form-title"
+              className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#667069]"
+            >
+              Nieuw formulier
+            </label>
+            <input
+              id="new-form-title"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !isCreating && title.trim()) {
+                  void createForm();
+                }
+              }}
+              placeholder="Bijv. Intake hormonale balans"
+              className="mt-3 w-full border-0 border-b border-black/20 bg-transparent px-0 py-2 text-sm text-[#171b18] outline-none transition placeholder:text-[#6f756f] focus:border-[#173622]"
+            />
+            <button
+              type="button"
+              onClick={() => void createForm()}
+              disabled={isCreating || !title.trim()}
+              className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 bg-[#173622] px-5 text-sm font-semibold text-white transition hover:bg-[#21492e] disabled:cursor-not-allowed disabled:bg-black/10 disabled:text-black/40 sm:w-auto"
+            >
+              {isCreating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  Builder openen in nieuw tabblad
+                  <ArrowUpRight className="h-4 w-4" />
+                </>
+              )}
+            </button>
+          </div>
         </section>
 
-        <section className="grid gap-4">
-          {initialForms.length === 0 ? (
-            <Card className="app-halo border-dashed">
-              <CardContent className="py-16 text-center">
-                <FileText className="mx-auto h-12 w-12 text-muted-foreground/50" />
-                <h2 className="mt-4 text-lg font-semibold">Nog geen formulieren</h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Maak je eerste intake of onboarding en wijs hem daarna toe per doelgroep.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            initialForms.map((form) => (
-              <Card key={form.id} className="app-halo">
-                <CardContent className="flex flex-col gap-5 p-6 lg:flex-row lg:items-start lg:justify-between">
-                  <Link href={`/admin/forms/${form.id}`} className="block min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-lg font-semibold">{form.title}</h2>
-                      <StatusBadge status={form.status} />
-                      {form.isOnboardingForm ? (
-                        <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
-                          Onboarding
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground">/forms/{form.slug}</p>
-                    {form.description ? (
-                      <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-                        {form.description}
-                      </p>
-                    ) : null}
+        {totalPending > 0 ? (
+          <section className="flex flex-wrap items-center justify-between gap-3 border-b border-black/10 py-4">
+            <p className="text-sm text-[#676e69]">
+              <span className="font-medium text-[#171b18]">
+                {totalPending} open verplichte {totalPending === 1 ? "inzending" : "inzendingen"}
+              </span>
+              {totalOverdue > 0 ? ` · ${totalOverdue} over tijd` : ""}
+            </p>
+            <RemindPendingFormsButton />
+          </section>
+        ) : null}
 
-                    <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      <span className="rounded-full bg-muted px-3 py-1.5">
-                        {form._count.questions} vragen
-                      </span>
-                      <span className="rounded-full bg-muted px-3 py-1.5">
-                        {form._count.assignments} toewijzingen
-                      </span>
-                      <span className="rounded-full bg-muted px-3 py-1.5">
-                        {form._count.responses} antwoorden
-                      </span>
-                      {form.pendingRequired > 0 ? (
-                        <span className="rounded-full bg-amber-100 px-3 py-1.5 font-medium text-amber-800">
-                          {form.pendingRequired} open verplicht
-                        </span>
-                      ) : null}
-                      {form.overdueRequired > 0 ? (
-                        <span className="rounded-full bg-red-100 px-3 py-1.5 font-medium text-red-700">
-                          {form.overdueRequired} overdue
-                        </span>
-                      ) : null}
-                    </div>
+        <FormGroup
+          label="Actieve formulieren"
+          description="Live voor deelnemers met een actieve toewijzing."
+          empty="Er staat nog geen formulier live. Activeer hieronder een concept."
+          forms={active}
+          actionKey={actionKey}
+          onAction={runAction}
+        />
 
-                    {form.assignments.length > 0 ? (
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {form.assignments.slice(0, 4).map((assignment) => (
-                          <span
-                            key={assignment.id}
-                            className="rounded-full border border-border/70 px-3 py-1 text-xs text-muted-foreground"
-                          >
-                            {assignment.targetLabel}
-                            {assignment.isRequired ? " · verplicht" : ""}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                  </Link>
+        {drafts.length > 0 ? (
+          <FormGroup
+            label="Concepten"
+            description="Nog niet zichtbaar voor deelnemers. Controleer het formulier en zet het daarna live."
+            forms={drafts}
+            actionKey={actionKey}
+            onAction={runAction}
+          />
+        ) : null}
 
-                  <div className="flex w-full flex-col gap-3 lg:w-[280px]">
-                    <Button asChild>
-                      <Link href={`/admin/forms/${form.id}`}>Open builder</Link>
-                    </Button>
-                    <Button variant="outline" asChild>
-                      <Link href={`/forms/${form.slug}`}>Preview invulflow</Link>
-                    </Button>
-                    {form.responses[0] ? (
-                      <div className="rounded-2xl border bg-muted/30 p-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-2 font-medium text-foreground">
-                          <Users className="h-4 w-4" />
-                          Laatste respons
-                        </div>
-                        <p className="mt-2">
-                          {form.responses[0].user.firstName} {form.responses[0].user.lastName}
-                        </p>
-                        <p className="text-xs">{form.responses[0].user.email}</p>
-                      </div>
-                    ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </section>
+        {archived.length > 0 ? (
+          <FormGroup
+            label="Archief"
+            description="Niet meer actief, maar veilig bewaard. Je kunt elk formulier opnieuw activeren of dupliceren."
+            forms={archived}
+            actionKey={actionKey}
+            onAction={runAction}
+          />
+        ) : null}
 
-        <section className="grid gap-6 xl:grid-cols-2">
-          <Card className="app-halo">
-            <CardHeader>
-              <CardTitle>Form operating model</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm text-muted-foreground">
-              <div className="rounded-2xl bg-muted/50 p-4">
-                <p className="font-medium text-foreground">1. Intake als workflow</p>
-                <p className="mt-1">
-                  Behandel een formulier niet als losse vragenlijst, maar als startpunt van een klantflow.
-                </p>
-              </div>
-              <div className="rounded-2xl bg-muted/50 p-4">
-                <p className="font-medium text-foreground">2. Required assignment</p>
-                <p className="mt-1">
-                  Gebruik verplichte toewijzingen om onboarding, check-ins en nazorg voorspelbaar te maken.
-                </p>
-              </div>
-              <div className="rounded-2xl bg-muted/50 p-4">
-                <p className="font-medium text-foreground">3. Follow-up centraal</p>
-                <p className="mt-1">
-                  Herinner open formulieren vanuit één plek in plaats van losse handmatige opvolging.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="app-halo">
-            <CardHeader>
-              <CardTitle>Snelle routes</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button className="w-full justify-between" variant="outline" asChild>
-                <Link href="/admin/users">
-                  Open people
-                  <Users className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button className="w-full justify-between" variant="outline" asChild>
-                <Link href="/admin/onboarding">
-                  Open setup
-                  <Workflow className="h-4 w-4" />
-                </Link>
-              </Button>
-              <Button className="w-full justify-between" variant="outline" asChild>
-                <Link href="/admin/landing-pages">
-                  Open website
-                  <LayoutTemplate className="h-4 w-4" />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </section>
+        {initialForms.length === 0 ? (
+          <p className="py-10 text-sm text-[#757c77]">
+            Nog geen formulieren. Geef hierboven een titel op om je eerste intake te bouwen.
+          </p>
+        ) : null}
       </div>
     </div>
   );
 }
 
-function SummaryCard({ label, value, href }: { label: string; value: string; href?: string }) {
-  const card = (
-    <Card className={href ? "hover:border-primary/30 transition-colors cursor-pointer" : undefined}>
-      <CardContent className="p-6">
-        <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">{label}</p>
-        <p className="mt-3 text-3xl font-semibold">{value}</p>
-      </CardContent>
-    </Card>
+function FormGroup({
+  label,
+  description,
+  forms,
+  empty,
+  actionKey,
+  onAction,
+}: {
+  label: string;
+  description?: string;
+  forms: FormOverview[];
+  empty?: string;
+  actionKey: string | null;
+  onAction: (form: FormOverview, action: "publish" | "archive" | "restore" | "duplicate") => void;
+}) {
+  if (forms.length === 0 && !empty) return null;
+
+  return (
+    <section className="py-10">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <h2 className="text-lg font-medium tracking-[-0.02em] text-[#171b18]">{label}</h2>
+        {description ? <p className="max-w-xl text-xs leading-5 text-[#676e69]">{description}</p> : null}
+      </div>
+      {forms.length === 0 ? (
+        <p className="mt-5 text-sm text-[#757c77]">{empty}</p>
+      ) : (
+        <div className="mt-5 divide-y divide-black/10 border-y border-black/10">
+          {forms.map((form) => (
+            <FormRow key={form.id} form={form} actionKey={actionKey} onAction={onAction} />
+          ))}
+        </div>
+      )}
+    </section>
   );
-  if (href) return <Link href={href} className="block">{card}</Link>;
-  return card;
 }
 
-function StatusBadge({ status }: { status: FormOverview["status"] }) {
-  const className =
-    status === "PUBLISHED"
-      ? "bg-emerald-50 text-emerald-700"
-      : status === "ARCHIVED"
-        ? "bg-slate-100 text-slate-700"
-        : "bg-amber-100 text-amber-800";
+function FormRow({
+  form,
+  actionKey,
+  onAction,
+}: {
+  form: FormOverview;
+  actionKey: string | null;
+  onAction: (form: FormOverview, action: "publish" | "archive" | "restore" | "duplicate") => void;
+}) {
+  const meta = [
+    `${form._count.questions} ${form._count.questions === 1 ? "vraag" : "vragen"}`,
+    `${form._count.assignments} ${form._count.assignments === 1 ? "toewijzing" : "toewijzingen"}`,
+    `${form._count.responses} ${form._count.responses === 1 ? "antwoord" : "antwoorden"}`,
+  ].join(" · ");
 
-  return <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${className}`}>{status}</span>;
+  return (
+    <div className="grid gap-3 py-5 sm:grid-cols-[1fr_auto] sm:items-center">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          {form.status === "PUBLISHED" ? (
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#3f7d4e]" aria-hidden />
+          ) : null}
+          <Link
+            href={`/admin/forms/${form.id}`}
+            className="text-sm font-medium text-[#171b18] transition hover:text-[#173622]"
+          >
+            {form.title}
+          </Link>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#77807a]">
+            {form.status === "PUBLISHED" ? "Live" : form.status === "ARCHIVED" ? "Gearchiveerd" : "Concept"}
+          </span>
+          {form.isOnboardingForm ? (
+            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#41614b]">
+              Onboarding
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-1.5 text-xs leading-5 text-[#676e69]">
+          <span className="text-[#828983]">/forms/{form.slug}</span> · {meta}
+          {form.pendingRequired > 0 ? (
+            <span className="font-medium text-[#9a5713]"> · {form.pendingRequired} open verplicht</span>
+          ) : null}
+          {form.overdueRequired > 0 ? (
+            <span className="font-medium text-[#a32b23]"> · {form.overdueRequired} over tijd</span>
+          ) : null}
+        </p>
+        {form.participantProgress.total > 0 ? (
+          <Link
+            href={`/admin/forms/${form.id}?tab=participants&filter=${form.participantProgress.pending > 0 ? "pending" : "all"}`}
+            className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-[#173622] underline decoration-[#173622]/25 underline-offset-4 hover:decoration-[#173622]"
+          >
+            <Users className="h-3.5 w-3.5" />
+            {form.participantProgress.completed} van {form.participantProgress.total} ingevuld
+            {form.participantProgress.pending > 0
+              ? ` · Bekijk ${form.participantProgress.pending} ${form.participantProgress.pending === 1 ? "persoon" : "personen"}`
+              : " · Iedereen is klaar"}
+          </Link>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-xs sm:justify-end">
+        <Link
+          href={`/forms/${form.slug}`}
+          target="_blank"
+          rel="noopener"
+          className="inline-flex h-9 items-center gap-1 px-2 text-[#707772] transition hover:text-[#173622]"
+        >
+          Preview
+          <ArrowUpRight className="h-3 w-3" />
+        </Link>
+        <Link
+          href={`/admin/forms/${form.id}?tab=builder`}
+          target="_blank"
+          rel="noopener"
+          className="group inline-flex h-9 items-center gap-1.5 px-2 font-semibold text-[#173622]"
+        >
+          Builder
+          <ArrowUpRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+        </Link>
+        <button
+          type="button"
+          onClick={() => onAction(form, "duplicate")}
+          disabled={actionKey !== null}
+          className="inline-flex h-9 items-center gap-1.5 px-2 font-medium text-[#4f5751] transition hover:bg-[#f4f6f1] hover:text-[#173622] disabled:opacity-50"
+        >
+          {actionKey === `${form.id}:duplicate` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Copy className="h-3.5 w-3.5" />}
+          Dupliceren
+        </button>
+        {form.status === "DRAFT" ? (
+          <button
+            type="button"
+            onClick={() => onAction(form, "publish")}
+            disabled={actionKey !== null}
+            className="inline-flex h-9 items-center gap-1.5 bg-[#173622] px-3 font-semibold text-white transition hover:bg-[#21492e] disabled:opacity-50"
+          >
+            {actionKey === `${form.id}:publish` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
+            Activeren
+          </button>
+        ) : form.status === "ARCHIVED" ? (
+          <button
+            type="button"
+            onClick={() => onAction(form, "restore")}
+            disabled={actionKey !== null}
+            className="inline-flex h-9 items-center gap-1.5 bg-[#173622] px-3 font-semibold text-white transition hover:bg-[#21492e] disabled:opacity-50"
+          >
+            {actionKey === `${form.id}:restore` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+            Opnieuw activeren
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onAction(form, "archive")}
+            disabled={actionKey !== null}
+            className="inline-flex h-9 items-center gap-1.5 px-2 text-[#707772] transition hover:bg-[#f4f6f1] hover:text-[#173622] disabled:opacity-50"
+          >
+            {actionKey === `${form.id}:archive` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
+            Archiveren
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }

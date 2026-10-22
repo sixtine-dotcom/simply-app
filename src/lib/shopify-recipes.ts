@@ -3,6 +3,7 @@
  * Feed URL: https://simplyinbalance.com/blogs/recepten.atom
  */
 import { normalizeRecipeTags } from "@/lib/recipe-tags";
+import recipeSlugAliases from "@/lib/recipe-slug-aliases.json";
 
 const FEED_URL =
   process.env.RECIPES_SOURCE_URL
@@ -243,10 +244,12 @@ export async function syncRecipesFromWebsite(): Promise<{
         }),
       };
 
-      const existing = await db.recipe.findUnique({ where: { slug: entry.slug } });
+      const alias = (recipeSlugAliases as Record<string, string>)[entry.slug];
+      const slug = typeof alias === "string" ? alias : entry.slug;
+      const existing = await db.recipe.findUnique({ where: { slug } });
       if (existing) {
         await db.recipe.update({
-          where: { slug: entry.slug },
+          where: { slug },
           data: {
             ...data,
             imageUrl: imageUrl ?? existing.imageUrl,
@@ -254,7 +257,7 @@ export async function syncRecipesFromWebsite(): Promise<{
         });
         updatedTitles.push(entry.title);
       } else {
-        await db.recipe.create({ data: { ...data, slug: entry.slug } });
+        await db.recipe.create({ data: { ...data, slug } });
         importedTitles.push(entry.title);
       }
     } catch (err) {

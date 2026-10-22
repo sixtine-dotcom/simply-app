@@ -110,7 +110,7 @@ export function MonthGrid({
                   : undefined
               }
               className={cn(
-                "group relative min-h-[190px] border-b border-r border-slate-200 bg-white p-1.5 transition-colors last:border-r-0 hover:bg-slate-50/60",
+                "group relative min-h-[92px] border-b border-r border-slate-200 bg-white p-1 transition-colors last:border-r-0 hover:bg-slate-50/60",
                 (index + 1) % 7 === 0 && "border-r-0",
                 !day && "bg-slate-50/40",
                 dragOverKey === dateKey && "bg-primary/5 ring-1 ring-inset ring-primary/30"
@@ -237,46 +237,97 @@ export function WeekBoard({
     return d;
   });
   const categoryById = new Map(categories.map((category) => [category.id, category]));
-  const slots = Array.from({ length: 16 }, (_, index) => ({ hour: 6 + index }));
+  const slots = Array.from({ length: 16 }, (_, index) => ({ hour: 7 + index }));
   const pad = (value: number) => String(value).padStart(2, "0");
 
+  // Compact: one row per hour (07:00-22:00) so the whole week fits on a small laptop screen.
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-      <div className="min-w-[1240px]">
-        <div className="sticky top-0 z-10 grid grid-cols-[72px_repeat(7,minmax(0,1fr))] bg-white">
+    <div className="rounded-2xl border border-slate-200 bg-white">
+      <div>
+        <div className="sticky top-0 z-10 grid grid-cols-[44px_repeat(7,minmax(0,1fr))] bg-white">
           <div className="border-b border-r border-slate-200 bg-slate-50" />
           {days.map((date) => {
             const isToday = isoDate(today) === isoDate(date);
-            return <div key={isoDate(date)} className={cn("border-b border-r border-slate-200 px-2 py-3 text-center last:border-r-0", isToday && "bg-primary text-white")}><p className={cn("text-[10px] font-semibold uppercase tracking-wide", isToday ? "text-white/75" : "text-slate-400")}>{date.toLocaleDateString("nl-BE", { weekday: "long" })}</p><p className="mt-0.5 text-sm font-semibold">{date.getDate()} {date.toLocaleDateString("nl-BE", { month: "short" })}</p></div>;
+            return (
+              <div key={isoDate(date)} className={cn("border-b border-r border-slate-200 px-1 py-1 text-center last:border-r-0", isToday && "bg-primary text-white")}>
+                <p className="text-[11px] font-semibold">
+                  <span className={cn("uppercase", isToday ? "text-white/75" : "text-slate-400")}>{date.toLocaleDateString("nl-BE", { weekday: "short" })}</span>{" "}
+                  {date.getDate()}/{date.getMonth() + 1}
+                </p>
+              </div>
+            );
           })}
         </div>
 
         {slots.map((slot) => {
           const label = `${pad(slot.hour)}:00`;
-          return <div key={label} className="grid grid-cols-[72px_repeat(7,minmax(0,1fr))]">
-            <div className="border-b border-r border-slate-200 bg-slate-50/80 px-2 pt-1 text-right text-[10px] font-medium text-slate-400">{label}</div>
-            {days.map((date) => {
-              const dateKey = isoDate(date);
-              return <div key={`${dateKey}-${slot.hour}`} className="border-b border-r border-slate-200 last:border-r-0">{[0, 30].map((minute) => {
-                const halfLabel = `${pad(slot.hour)}:${pad(minute)}`;
-                const dateTimeKey = `${dateKey}T${halfLabel}`;
+          return (
+            <div key={label} className="grid grid-cols-[44px_repeat(7,minmax(0,1fr))]">
+              <div className="border-b border-r border-slate-200 bg-slate-50/80 px-1 pt-0.5 text-right text-[10px] font-medium leading-none text-slate-400">{pad(slot.hour)}u</div>
+              {days.map((date) => {
+                const dateKey = isoDate(date);
+                const dateTimeKey = `${dateKey}T${label}`;
                 const cellItems = scheduled.filter(({ publication }) => {
                   const value = new Date(publication.scheduledAt);
-                  return isoDate(value) === dateKey && value.getHours() === slot.hour && (value.getMinutes() < 30 ? 0 : 30) === minute;
+                  return isoDate(value) === dateKey && value.getHours() === slot.hour;
                 });
-                return <div key={dateTimeKey} onDragOver={(event) => { event.preventDefault(); setDragOverKey(dateTimeKey); }} onDragLeave={() => setDragOverKey((current) => current === dateTimeKey ? null : current)} onDrop={(event) => { event.preventDefault(); setDragOverKey(null); const payload = readDragPayload(event); if (payload) onReschedule(payload.videoId, payload.publicationId, dateTimeKey); }} className={cn("group relative min-h-8 p-1 transition-colors hover:bg-primary/[0.03]", minute === 0 && "border-b border-dashed border-slate-200", dragOverKey === dateTimeKey && "bg-primary/10 ring-1 ring-inset ring-primary/30")}>
-                  <button type="button" onClick={() => onQuickAdd(dateTimeKey)} className="absolute inset-0 z-0 opacity-0 group-hover:opacity-100" aria-label={`Post toevoegen op ${dateTimeKey}`}><Plus className="absolute right-1 top-1 h-3 w-3 text-primary/50" /></button>
-                  <div className="pointer-events-none relative z-[1] space-y-1">{cellItems.map(({ draft, publication }) => {
-                    const category = categoryById.get(draft.categoryId);
-                    const swatch = swatchFor(category?.color ?? "slate");
-                    return <button key={publication.id} type="button" draggable onDragStart={(event) => { event.dataTransfer.setData("application/json", dragPayload(draft.video.id, publication.id)); event.dataTransfer.effectAllowed = "move"; }} onClick={() => onSelect(draft)} className={cn("pointer-events-auto flex w-full cursor-grab items-center gap-1 rounded-md border px-1.5 py-0.5 text-left text-[10px] shadow-sm active:cursor-grabbing", swatch.bg, swatch.border, swatch.text)}><span className="shrink-0 font-semibold">{halfLabel}</span><span className="truncate font-semibold">{displayMediaName(draft.video.name)}</span><span className="ml-auto shrink-0">{publication.platforms.map((item) => item === "instagram" ? "IG" : "FB").join("+")}</span></button>;
-                  })}</div>
-                </div>;
-              })}</div>;
-            })}
-          </div>;
+                return (
+                  <div
+                    key={dateTimeKey}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      setDragOverKey(dateTimeKey);
+                    }}
+                    onDragLeave={() => setDragOverKey((current) => (current === dateTimeKey ? null : current))}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      setDragOverKey(null);
+                      const payload = readDragPayload(event);
+                      if (payload) onReschedule(payload.videoId, payload.publicationId, dateTimeKey);
+                    }}
+                    className={cn(
+                      "group relative min-h-[26px] border-b border-r border-slate-200 p-0.5 transition-colors last:border-r-0 hover:bg-primary/[0.03]",
+                      dragOverKey === dateTimeKey && "bg-primary/10 ring-1 ring-inset ring-primary/30"
+                    )}
+                  >
+                    <button type="button" onClick={() => onQuickAdd(dateTimeKey)} className="absolute inset-0 z-0 opacity-0 group-hover:opacity-100" aria-label={`Post toevoegen op ${dateTimeKey}`}>
+                      <Plus className="absolute right-0.5 top-0.5 h-3 w-3 text-primary/50" />
+                    </button>
+                    <div className="pointer-events-none relative z-[1] space-y-0.5">
+                      {cellItems.map(({ draft, publication }) => {
+                        const category = categoryById.get(draft.categoryId);
+                        const swatch = swatchFor(category?.color ?? "slate");
+                        const time = new Date(publication.scheduledAt).toLocaleTimeString("nl-BE", { hour: "2-digit", minute: "2-digit" });
+                        return (
+                          <button
+                            key={publication.id}
+                            type="button"
+                            draggable
+                            title={`${time} · ${displayMediaName(draft.video.name)}`}
+                            onDragStart={(event) => {
+                              event.dataTransfer.setData("application/json", dragPayload(draft.video.id, publication.id));
+                              event.dataTransfer.effectAllowed = "move";
+                            }}
+                            onClick={() => onSelect(draft)}
+                            className={cn(
+                              "pointer-events-auto flex w-full cursor-grab items-center gap-1 rounded border px-1 py-px text-left text-[10px] leading-tight shadow-sm active:cursor-grabbing",
+                              swatch.bg,
+                              swatch.border,
+                              swatch.text
+                            )}
+                          >
+                            <span className="shrink-0 font-semibold">{time}</span>
+                            <span className="truncate font-medium">{displayMediaName(draft.video.name)}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
         })}
-        <div className="grid grid-cols-[72px_1fr] bg-slate-50/70"><div className="border-r border-slate-200 px-2 py-1 text-right text-[10px] font-medium text-slate-400">22:00</div><div /></div>
       </div>
     </div>
   );

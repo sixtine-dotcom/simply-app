@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser, createAuditLog } from "@/lib/auth";
+import { brusselsDateTime } from "@/lib/recurring-schedule";
 import { createRecurringGroupSessions } from "@/lib/coaching";
 import { syncCoachingSessionsToConnectedCalendars } from "@/lib/calendar-sync";
 
@@ -10,7 +11,7 @@ const schema = z.object({
   description: z.string().optional(),
   scheduleMode: z.enum(["weekly", "biweekly", "monthly", "custom"]).default("weekly"),
   dayOfWeek: z.number().int().min(0).max(6).optional(), // 0 = zondag, 1 = maandag
-  startTime: z.string().regex(/^\d{1,2}:\d{2}$/, "Tijd formaat: HH:MM"),
+  startTime: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/, "Tijd formaat: HH:MM"),
   duration: z.number().int().min(5).max(1440).default(60),
   startDate: z.string().min(1),
   endDate: z.string().min(1),
@@ -42,8 +43,8 @@ export async function POST(request: NextRequest) {
 
     const data = parsed.data;
     // Parse as local date (YYYY-MM-DD)
-    const startDate = new Date(data.startDate + "T00:00:00");
-    const endDate = new Date(data.endDate + "T23:59:59");
+    const startDate = brusselsDateTime(data.startDate);
+    const endDate = brusselsDateTime(data.endDate, "23:59");
 
     if (endDate < startDate) {
       return NextResponse.json(
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     const customDates = data.customDates
-      .map((date) => new Date(date + "T00:00:00"))
+      .map((date) => brusselsDateTime(date))
       .filter((date) => !Number.isNaN(date.getTime()));
 
     if (data.scheduleMode === "custom" && customDates.length === 0) {
@@ -85,16 +86,21 @@ export async function POST(request: NextRequest) {
       created: result.created,
     });
 
-    if ("sessionIds" in result && Array.isArray(result.sessionIds)) {
-      await syncCoachingSessionsToConnectedCalendars(result.sessionIds);
-    }
+    const calendarSync = "sessionIds" in result && Array.isArray(result.sessionIds)
+      ? await syncCoachingSessionsToConnectedCalendars(result.sessionIds)
+      : null;
+    const invitationMessage = result.hasParticipants
+      ? calendarSync?.failed
+        ? " Niet alle agenda-uitnodigingen konden worden verstuurd. Controleer je agendakoppeling."
+        : !calendarSync?.connectedCalendars
+          ? " Er is geen agenda gekoppeld: deelnemers zien de sessies in de app, maar er zijn geen externe agenda-uitnodigingen verstuurd."
+          : " De sessies zijn naar je gekoppelde agenda verstuurd met de deelnemers als genodigden."
+      : " Er zijn nog geen agenda-uitnodigingen verstuurd.";
 
     return NextResponse.json({
       created: result.created,
-      message:
-        "message" in result && result.message
-          ? result.message
-          : `${result.created} groepsessies ingepland.`,
+      calendarSync,
+      message: (result.message || `${result.created} groepsessies ingepland.`) + invitationMessage,
     });
   } catch (error) {
     console.error("Recurring group sessions error:", error);

@@ -150,6 +150,9 @@ function VimeoEmbed({ url }: { url: string }) {
   );
 }
 
+const PLAYBACK_RATES = [1, 1.2, 1.4, 1.7, 2];
+const PLAYBACK_RATE_KEY = "simply-video-playback-rate";
+
 interface NativeVideoPlayerProps {
   url: string;
   onProgress?: (seconds: number, duration?: number) => void;
@@ -167,6 +170,7 @@ function NativeVideoPlayer({ url, onProgress, onDuration, onComplete, initialPro
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [showControls, setShowControls] = useState(true);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
   const lastProgressReportRef = useRef(0);
   const completedRef = useRef(false);
@@ -254,6 +258,33 @@ function NativeVideoPlayer({ url, onProgress, onDuration, onComplete, initialPro
 
     video.muted = !video.muted;
     setIsMuted(!isMuted);
+  };
+
+  // Remember the viewer's preferred speed across lessons.
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem(PLAYBACK_RATE_KEY));
+      if (PLAYBACK_RATES.includes(saved)) setPlaybackRate(saved);
+    } catch {
+      // storage unavailable: keep 1×
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!videoRef.current) return;
+    // defaultPlaybackRate keeps the speed when the video (re)loads.
+    videoRef.current.defaultPlaybackRate = playbackRate;
+    videoRef.current.playbackRate = playbackRate;
+  }, [playbackRate]);
+
+  const cyclePlaybackRate = () => {
+    const next = PLAYBACK_RATES[(PLAYBACK_RATES.indexOf(playbackRate) + 1) % PLAYBACK_RATES.length];
+    setPlaybackRate(next);
+    try {
+      localStorage.setItem(PLAYBACK_RATE_KEY, String(next));
+    } catch {
+      // ignore
+    }
   };
 
   const toggleFullscreen = () => {
@@ -369,9 +400,19 @@ function NativeVideoPlayer({ url, onProgress, onDuration, onComplete, initialPro
             </span>
           </div>
 
-          <button onClick={toggleFullscreen} className="text-white hover:text-white/80">
-            <Maximize className="h-6 w-6" />
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={cyclePlaybackRate}
+              className="min-w-[3.25rem] rounded-full border border-white/40 px-2 py-0.5 font-mono text-sm text-white hover:bg-white/15"
+              aria-label={`Afspeelsnelheid ${playbackRate}×, klik om te wijzigen`}
+              title="Afspeelsnelheid"
+            >
+              {String(playbackRate).replace(".", ",")}×
+            </button>
+            <button onClick={toggleFullscreen} className="text-white hover:text-white/80">
+              <Maximize className="h-6 w-6" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

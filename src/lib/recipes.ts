@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { Prisma } from "@prisma/client";
+import recipeSlugAliases from "./recipe-slug-aliases.json";
 
 export interface RecipeWithDetails {
   id: string;
@@ -86,7 +87,7 @@ export async function getRecipes(options: {
 export async function getRecipesForAdmin(options: { limit?: number } = {}): Promise<RecipeWithDetails[]> {
   const recipes = await db.recipe.findMany({
     orderBy: { title: "asc" },
-    take: options.limit ?? 500,
+    take: options.limit,
   });
   return recipes as RecipeWithDetails[];
 }
@@ -95,8 +96,10 @@ export async function getRecipesForAdmin(options: { limit?: number } = {}): Prom
  * Get a single recipe by slug
  */
 export async function getRecipeBySlug(slug: string): Promise<RecipeWithDetails | null> {
+  const alias = (recipeSlugAliases as Record<string, string>)[slug];
+  const canonicalSlug = typeof alias === "string" ? alias : slug;
   const recipe = await db.recipe.findUnique({
-    where: { slug },
+    where: { slug: canonicalSlug },
   });
 
   if (!recipe || !recipe.isPublished) {

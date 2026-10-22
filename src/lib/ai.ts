@@ -19,19 +19,63 @@ function getChatModel() {
   return process.env.OPENAI_MODEL?.trim() || "gpt-4o-mini";
 }
 
-const SYSTEM_PROMPT = `Je bent SIX, een vriendelijke en deskundige AI-assistent voor het Simply platform.
-Je helpt leden met vragen over voeding, gezondheid, beweging, hormonen, cyclusTracking en het Simply programma.
+const SYSTEM_PROMPT = `Je bent SIX, de vriendelijke FAQ-assistent van Simply in Balance.
+Je voert een natuurlijk gesprek, maar je inhoudelijke kennis is strikt beperkt tot de meegegeven, door Sixtine goedgekeurde kennisbronnen.
 
 Richtlijnen:
 - Antwoord altijd in het Nederlands (tenzij de gebruiker een andere taal gebruikt)
-- Wees warm, aanmoedigend en persoonlijk
-- Baseer je antwoorden op de kennisbronnen die je hebt gekregen
-- Bij medische vragen: verwijs altijd door naar een arts of zorgverlener
+- Wees warm, persoonlijk en beknopt; gebruik de voornaam van de klant op een natuurlijke manier
+- Herformuleer de bron zodat het antwoord past bij de vraag, maar voeg geen nieuw feit, advies, diagnose of conclusie toe
+- Gebruik uitsluitend informatie die letterlijk of ondubbelzinnig in de kennisbronnen staat
+- Noem de bronnen, brontitels of het bestaan van een kennisbank niet aan de klant
+- Combineer bronnen alleen wanneer ze elkaar niet tegenspreken
+- Bij twijfel: geef geen inhoudelijk antwoord en verwijs naar Sixtine en de community
+- Bij medische vragen: verwijs altijd door naar Sixtine en indien passend naar een arts of zorgverlener
 - Geef geen medische diagnoses
 - Geef geen behandelplan voor ziektebeelden, medicatie, zwangerschap of eetstoornissen; verwijs dan naar de coach of arts
-- Houd antwoorden beknopt maar volledig (max 300 woorden tenzij nodig)
+- Houd antwoorden beknopt maar volledig (maximaal 180 woorden)
 - Gebruik af en toe een emoji voor warmte 😊
-- Als je iets niet weet, zeg dat eerlijk en verwijs door naar de coach`;
+- Doe nooit alsof Sixtine de vraag persoonlijk heeft gelezen wanneer dat niet zo is`;
+
+const STOP_WORDS = new Set([
+  "aan", "als", "bij", "dat", "deze", "die", "dit", "een", "en", "heb", "het", "hoe",
+  "ik", "in", "is", "kan", "maar", "met", "mijn", "nog", "of", "om", "ook", "op", "te",
+  "van", "voor", "waar", "wat", "wel", "wil", "zijn", "zou", "jij", "jullie", "er", "dan",
+]);
+
+function normalizeText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function meaningfulWords(value: string) {
+  return normalizeText(value)
+    .split(" ")
+    .filter((word) => word.length >= 3 && !STOP_WORDS.has(word));
+}
+
+export type QuestionRisk = "medical" | "personal" | null;
+
+export function classifyQuestionRisk(question: string): QuestionRisk {
+  const normalized = normalizeText(question);
+  const medicalPatterns = [
+    /\b(zwanger|zwangerschap|medicatie|medicijn|diagnose|eetstoornis|anorexia|boulimia)\b/,
+    /\b(bloedverlies|flauwvallen|benauwd|borstpijn|hevige pijn|spoed|urgent)\b/,
+    /\b(insuline|schildkliermedicatie|antidepressiva|antibiotica)\b/,
+  ];
+  if (medicalPatterns.some((pattern) => pattern.test(normalized))) return "medical";
+
+  const personalPatterns = [
+    /\b(mijn bloedwaarden|mijn uitslag|mijn arts|mijn medicatie|mijn diagnose)\b/,
+    /\b(hoeveel moet ik persoonlijk|specifiek voor mij|persoonlijk schema)\b/,
+  ];
+  return personalPatterns.some((pattern) => pattern.test(normalized)) ? "personal" : null;
+}
 
 export async function getRelevantSources(query: string, tenantId?: string | null) {
   try {
@@ -46,22 +90,28 @@ export async function getRelevantSources(query: string, tenantId?: string | null
 
     if (sources.length === 0) return [];
 
-    // Simple keyword matching for relevance (no vector DB needed for MVP)
-    const queryLower = query.toLowerCase();
-    const queryWords = queryLower.split(/\s+/).filter((w) => w.length > 3);
+    // Bewust deterministische matching: zonder voldoende overeenkomst krijgt de AI geen bron.
+    const normalizedQuery = normalizeText(query);
+    const queryWords = meaningfulWords(query);
+    if (queryWords.length === 0) return [];
 
     const scored = sources.map((source) => {
-      const text = `${source.title} ${source.content}`.toLowerCase();
+      const title = normalizeText(source.title);
+      const text = normalizeText(`${source.title} ${source.content} ${source.tags.join(" ")}`);
+      const sourceWords = new Set(meaningfulWords(text));
       let score = 0;
       for (const word of queryWords) {
-        if (text.includes(word)) score++;
+        if (sourceWords.has(word)) score += title.includes(word) ? 2 : 1;
       }
-      return { source, score };
+      if (normalizedQuery.length >= 8 && text.includes(normalizedQuery)) score += 6;
+      const possibleScore = Math.max(queryWords.length * 2, 2);
+      const confidence = Math.min(1, score / possibleScore);
+      return { source, score, confidence };
     });
 
     return scored
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score)
+      .filter((item) => item.score >= 2 && item.confidence >= 0.34)
+      .sort((a, b) => b.confidence - a.confidence || b.score - a.score)
       .slice(0, 5)
       .map((item) => item.source);
   } catch {
@@ -164,6 +214,7 @@ export async function syncCourseKnowledgeSources(tenantId?: string | null) {
 export async function streamAiChat(params: {
   conversationId: string;
   userMessage: string;
+  firstName: string;
   tenantId?: string | null;
 }) {
   if (!isAiConfigured()) {
@@ -171,7 +222,7 @@ export async function streamAiChat(params: {
   }
 
   const openai = getClient();
-  const { conversationId, userMessage, tenantId } = params;
+  const { conversationId, userMessage, firstName, tenantId } = params;
 
   // Get conversation history
   const history = await db.aiMessage.findMany({
@@ -183,12 +234,11 @@ export async function streamAiChat(params: {
   // Get relevant knowledge sources
   const sources = await getRelevantSources(userMessage, tenantId);
 
-  const systemWithContext =
-    sources.length > 0
-      ? `${SYSTEM_PROMPT}\n\n=== KENNISBRONNEN ===\n${sources
-          .map((s) => `[${s.title}]\n${s.content}`)
-          .join("\n\n")}`
-      : SYSTEM_PROMPT;
+  if (sources.length === 0) throw new Error("AI_NO_SOURCE");
+
+  const systemWithContext = `${SYSTEM_PROMPT}\n\nDe voornaam van de klant is: ${firstName}.\n\n=== INTERN GOEDGEKEURDE KENNIS ===\n${sources
+    .map((s) => `[${s.title}]\n${s.content}`)
+    .join("\n\n")}`;
 
   const input = [
     ...history.map((msg) => ({
@@ -200,7 +250,7 @@ export async function streamAiChat(params: {
 
   const stream = openai.responses.stream({
     model: getChatModel(),
-    max_output_tokens: 1024,
+    max_output_tokens: 450,
     instructions: systemWithContext,
     input,
   });

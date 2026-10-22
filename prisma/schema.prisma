@@ -266,6 +266,7 @@ model User {
   customRecipes            UserCustomRecipe[]
   favoriteRecipes          UserFavoriteRecipe[]
   aiConversations          AiConversation[]
+  aiEscalations            AiEscalation[]
   whatsappMessages         WhatsappMessage[]
   notifications            Notification[]
   progressPhotos           ProgressPhoto[]
@@ -1592,10 +1593,32 @@ model AiConversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  messages AiMessage[]
+  messages    AiMessage[]
+  escalations AiEscalation[]
 
   @@index([userId])
   @@index([tenantId])
+}
+
+model AiEscalation {
+  id             String          @id @default(cuid())
+  tenantId       String?
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversationId String?
+  conversation   AiConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  question       String          @db.Text
+  reason         String // "no_source" | "medical" | "personal" | "negative_feedback"
+  priority       String          @default("normal") // "normal" | "high" | "urgent"
+  status         String          @default("open") // "open" | "resolved" | "dismissed"
+  resolution     String?         @db.Text
+  resolvedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([tenantId, status])
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model AiMessage {
@@ -1839,4 +1862,261 @@ model LandingPage {
 
   @@index([slug])
   @@index([isPublished])
+}
+
+// ─── Video Studio ─────────────────────────────────────────────
+// Raw footage is edited locally by the Simply Video Pipeline (on the admin's Mac).
+// The app shows proxies, transcripts, versions and collects review feedback.
+
+model VideoProject {
+  id                  String    @id @default(cuid())
+  tenantId            String?
+  slug                String    @unique // folder name in the local pipeline
+  title               String
+  mode                String    @default("SOCIAL") // SOCIAL (captions, pops, zooms) | COURSE (cuts only)
+  // Notes for the editor before/after upload ("6 shots of ±2 s, text per step…"); Claude follows them.
+  briefing            String?   @db.Text
+  // Cut on what is seen (shots) instead of what is said, e.g. cooking videos without talking.
+  cutByVisuals        Boolean   @default(false)
+  // Colour match to the brand look (from the Instagram reference): null = off, 0..1 = strength.
+  colorMatch          Float?
+  // WAITING_FOR_FOOTAGE | PROCESSING | READY_FOR_REVIEW | APPLYING_FEEDBACK | APPROVED | FAILED
+  status              String    @default("WAITING_FOR_FOOTAGE")
+  steps               Json? // [{ key, label, status: pending|running|done|failed, message?, updatedAt }]
+  aspectRatio         String?
+  errorMessage        String?   @db.Text
+  feedbackRequestedAt DateTime?
+  approvedAt          DateTime?
+  // The full, uncut recording for the manual cut editor (light proxy + transcript + waveform)
+  sourceProxyUrl      String?
+  sourceDurationSec   Float?
+  sourceTranscript    Json? // [[text, start, end, isEvent]] on the raw timeline
+  sourceWaveform      Json? // { perSecond, peaks: number[] } 0..1
+  // Cuts made by hand in the editor, waiting for the pipeline to render: { segments: [{ start, end }], basedOnVersion }
+  manualEdit          Json?
+  // Instagram: AI caption (written by the pipeline on approval) and scheduled publishing
+  caption             String?   @db.Text
+  captionRequestedAt  DateTime? // "Genereer opnieuw" pressed; the pipeline picks it up
+  captionGeneratedAt  DateTime?
+  scheduledAt         DateTime?
+  // Instagram cover: moment (seconds) in the final video to use as thumbnail; null = Instagram's default.
+  thumbnailSec        Float?
+  publishStatus       String? // SCHEDULED | PUBLISHING | PUBLISHED | FAILED
+  publishContainerId  String?
+  publishError        String?   @db.Text
+  publishedAt         DateTime?
+  instagramMediaId    String?
+  publishHistory      Json? // earlier posts of this reel: [{ publishedAt, instagramMediaId, caption }]
+  // Final export, uploaded by the pipeline after approval (usable in courses and elsewhere)
+  finalUrl            String?
+  finalVersion        Int?
+  finalDurationSec    Float?
+  workerSeenAt        DateTime?
+  // Text corrections made directly in the transcript, on the source timeline, so they survive new cuts.
+  transcriptOverrides Json? // [{ sourceStart, sourceEnd, text }]
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  versions VideoVersion[]
+  comments VideoComment[]
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+model VideoVersion {
+  id            String       @id @default(cuid())
+  projectId     String
+  project       VideoProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  number        Int
+  proxyUrl      String?
+  posterUrl     String?
+  durationSec   Float?
+  width         Int?
+  height        Int?
+  transcript    Json? // [{ text, start, end, speaker? }] on the edited timeline
+  edl           Json? // edit decision list used to render this version
+  changeSummary String?      @db.Text
+  createdAt     DateTime     @default(now())
+
+  comments VideoComment[]
+
+  @@unique([projectId, number])
+}
+
+model VideoComment {
+  id           String        @id @default(cuid())
+  projectId    String
+  project      VideoProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionId    String?
+  version      VideoVersion? @relation(fields: [versionId], references: [id], onDelete: SetNull)
+  kind         String        @default("COMMENT") // COMMENT | REMOVE | CAPTION_FIX
+  status       String        @default("OPEN") // OPEN | QUEUED | APPLIED | DISMISSED
+  startSec     Float
+  endSec       Float?
+  selectedText String?       @db.Text
+  body         String        @db.Text
+  markers      Json? // [{ label: "A", x: 0..1, y: 0..1 }]
+  authorId     String?
+  authorName   String?
+  resolution   String?       @db.Text // what the pipeline did with it
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([projectId, status])
+}
+
+// Per-tenant Video Studio settings: examples of the brand's captions so the AI writes in the same voice.
+model VideoStudioSettings {
+  id                String   @id @default(cuid())
+  tenantId          String?  @unique
+  captionExamples   String?  @db.Text
+  captionGuidelines String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Video Studio animation library: Lottie animations (e.g. from LottieFiles) and own uploads (Canva exports).
+// Google's animated emoji are built in and not stored here.
+model VideoAnimation {
+  id         String   @id @default(cuid())
+  tenantId   String?
+  name       String
+  kind       String // lottie | video | image
+  src        String
+  previewUrl String?
+  source     String // lottiefiles | upload
+  tags       String[] @default([])
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+// Video Studio audio library: background music and sound effects (uploaded mp3/m4a, royalty-free).
+model VideoAudio {
+  id          String   @id @default(cuid())
+  tenantId    String?
+  name        String
+  kind        String // music | sfx
+  src         String
+  durationSec Float?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+// Carousel Studio: AI writes Instagram carousels in the brand's tone of voice, the Mac renders the slides,
+// the app schedules and publishes them (one a day at the chosen time).
+model Carousel {
+  id                 String    @id @default(cuid())
+  tenantId           String?
+  title              String
+  topic              String?
+  // [{ type: hook|body|cta|proof, title?, kicker?, text?, keyword? }]
+  slides             Json
+  caption            String?   @db.Text
+  // Background photo for the slides (URL), and what was searched for it.
+  photoUrl           String?
+  photoQuery         String?
+  // Rendered slides (JPEG URLs, in order) and when they were made.
+  imageUrls          Json?
+  renderedAt         DateTime?
+  // Set when the text or photo changed: the Mac renders the slides again.
+  renderRequestedAt  DateTime?
+  // AI = text by Claude, designed in the Canva template · UPLOAD = existing carousel uploaded as images
+  source             String    @default("AI")
+  // The filled Canva design (AI carousels).
+  canvaDesignId      String?
+  // "Schrijf een caption": the Mac writes one from the slides.
+  captionRequestedAt DateTime?
+  // Feedback for "Opnieuw laten schrijven": the Mac rewrites the current caption with it.
+  captionFeedback    String?   @db.Text
+  // "Carousel uit eigen tekst": Sixtine's own text/topic and briefing; the Mac writes the slides from it.
+  brief              String?   @db.Text
+  // DRAFT (waiting for Canva) | READY (to review) | APPROVED | FAILED
+  status             String    @default("DRAFT")
+  errorMessage       String?   @db.Text
+  scheduledAt        DateTime?
+  // SCHEDULED | PUBLISHING | PUBLISHED | FAILED (Instagram)
+  publishStatus      String?
+  publishContainerId String?
+  publishError       String?   @db.Text
+  publishedAt        DateTime?
+  instagramMediaId   String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([tenantId, scheduledAt])
+}
+
+model CarouselSettings {
+  id             String   @id @default(cuid())
+  tenantId       String?  @unique
+  // Tone of voice and carousel rules (the approved briefing).
+  briefing       String?  @db.Text
+  // Topics to write about, one per line (optional: otherwise Claude picks from the briefing).
+  topics         String?  @db.Text
+  // Look of the slides: { background: photo|plain, backgroundColor, textColor, accentColor, shade }
+  theme          Json?
+  perWeek        Int      @default(7)
+  // Local time (Europe/Brussels) the carousel goes out, "07:00".
+  postTime       String   @default("07:00")
+  // false = new carousels wait for "Goedkeuren"; true = they are scheduled straight away.
+  autoPublish    Boolean  @default(false)
+  // Pause the weekly generation.
+  enabled        Boolean  @default(true)
+  // "Maak nu een week": the Mac generates the next batch right away.
+  generateRequestedAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// Reel Scripts: talking-to-camera scripts (hook, credibility, value, call-to-action) to record, 7 a week.
+model ReelScript {
+  id          String    @id @default(cuid())
+  tenantId    String?
+  // Text on screen above her head: what is this reel about, who is it for.
+  headline    String
+  topic       String?
+  // Spoken hook (built on a proven viral hook structure).
+  hook        String    @db.Text
+  credibility String    @db.Text
+  // The value part: steps / points / perspective, with her own story woven in.
+  value       String    @db.Text
+  cta         String    @db.Text
+  // Which hook structure was used, and the personal story angle (for her reference).
+  hookFormat  String?
+  storyNote   String?   @db.Text
+  // WRITING (AI busy) | DRAFT (to review) | READY (ready to record) | RECORDED
+  status      String    @default("DRAFT")
+  recordedAt  DateTime?
+  // "Herschrijf met feedback": the Mac rewrites the script with this feedback.
+  feedback    String?   @db.Text
+  // The week (Monday) this script belongs to.
+  weekStart   DateTime?
+  errorMessage String?  @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([tenantId, weekStart])
+}
+
+model ScriptSettings {
+  id                  String    @id @default(cuid())
+  tenantId            String?   @unique
+  // Script structure and rules (her briefing).
+  briefing            String?   @db.Text
+  // Who she makes content for.
+  idealClient         String?   @db.Text
+  // Her own story, experiences and vision: used for storytelling in every script.
+  myStory             String?   @db.Text
+  // Library of proven viral hook structures (refreshed monthly by research, editable).
+  hooks               String?   @db.Text
+  hooksUpdatedAt      DateTime?
+  perWeek             Int       @default(7)
+  enabled             Boolean   @default(true)
+  generateRequestedAt DateTime?
+  hooksRequestedAt    DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }

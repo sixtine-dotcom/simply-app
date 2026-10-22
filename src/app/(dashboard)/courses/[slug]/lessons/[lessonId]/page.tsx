@@ -43,11 +43,11 @@ export default async function LessonPage({ params }: LessonPageProps) {
   if (lesson.isLocked) {
     const formGate = "accessGate" in lesson && lesson.accessGate ? lesson.accessGate : null;
     return (
-      <div className="min-h-screen bg-[linear-gradient(180deg,#f7f4ec_0%,#fcfbf7_40%,#ffffff_100%)] p-6 md:p-8">
+      <div className="min-h-screen bg-white p-6 md:p-8">
         <div className="mx-auto max-w-xl pt-20">
-          <Card className="rounded-[2rem] border-stone-200 bg-white shadow-[0_30px_80px_-50px_rgba(0,0,0,0.35)]">
+          <Card className="border-black/10 bg-white shadow-none">
             <CardContent className="pt-8 text-center">
-              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-stone-100">
+              <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center border border-black/10 bg-stone-50">
                 <Lock className="h-8 w-8 text-stone-500" />
               </div>
               <h1 className="font-display text-xl tracking-[0.08em] text-stone-900">
@@ -58,7 +58,7 @@ export default async function LessonPage({ params }: LessonPageProps) {
                   ? "Vul eerst je voedingsvragenlijst volledig in. Daarna worden je cursus en lessen automatisch beschikbaar."
                   : `Deze les wordt beschikbaar op ${formatDate(lesson.unlocksAt!)}. Tot dan kun je je eerdere lessen opnieuw bekijken.`}
               </p>
-              <Button asChild className="mt-6 rounded-full px-6">
+              <Button asChild className="mt-6 bg-[#173622] px-6 text-white hover:bg-[#21492e]">
                 <Link href={formGate ? `/forms/${formGate.formSlug}` : `/courses/${slug}`}>
                   <ChevronLeft className="mr-2 h-4 w-4" />
                   {formGate ? "Voedingsvragenlijst invullen" : "Terug naar cursus"}
@@ -84,7 +84,7 @@ export default async function LessonPage({ params }: LessonPageProps) {
   return (
     <div className="min-h-screen pb-24">
       <div className="mx-auto max-w-7xl px-4 pt-4 md:px-6 md:pt-6 lg:px-8 lg:pt-8">
-        <div className="overflow-hidden rounded-[34px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(248,242,233,0.82))] shadow-[0_24px_80px_-34px_rgba(50,32,14,0.28)]">
+        <div className="overflow-hidden border-y border-black/10 bg-white">
         <div className="px-6 py-5 md:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -100,14 +100,14 @@ export default async function LessonPage({ params }: LessonPageProps) {
               </p>
               <h1 className="mt-1 text-2xl font-semibold text-stone-900 md:text-3xl">{lesson.title}</h1>
               <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-stone-600">
-                <span className="rounded-full bg-white/80 px-3 py-1">
+                <span className="border-l border-black/15 pl-3">
                   Module: {lesson.module.title}
                 </span>
-                <span className="rounded-full bg-white/80 px-3 py-1">
+                <span className="border-l border-black/15 pl-3">
                   Les {lessonNumber}/{totalModuleLessons}
                 </span>
                 {moduleWatchedPercentage !== null ? (
-                  <span className="rounded-full bg-white/80 px-3 py-1">
+                  <span className="border-l border-black/15 pl-3">
                     {moduleWatchedPercentage}% van deze module bekeken
                   </span>
                 ) : null}
@@ -116,7 +116,7 @@ export default async function LessonPage({ params }: LessonPageProps) {
 
             <div className="flex flex-wrap items-center gap-2">
               {lesson.previousLesson ? (
-                <Button variant="ghost" size="sm" asChild className="rounded-full">
+                <Button variant="ghost" size="sm" asChild>
                   <Link href={`/courses/${slug}/lessons/${lesson.previousLesson.id}`}>
                     <ChevronLeft className="h-4 w-4" />
                     <span className="ml-1">Vorige</span>
@@ -124,7 +124,7 @@ export default async function LessonPage({ params }: LessonPageProps) {
                 </Button>
               ) : null}
               {lesson.nextLesson ? (
-                <Button variant="ghost" size="sm" asChild className="rounded-full">
+                <Button variant="ghost" size="sm" asChild>
                   <Link href={`/courses/${slug}/lessons/${lesson.nextLesson.id}`}>
                     <span className="mr-1">Volgende</span>
                     <ChevronRight className="h-4 w-4" />
@@ -139,7 +139,7 @@ export default async function LessonPage({ params }: LessonPageProps) {
 
       <div className="mx-auto grid max-w-7xl gap-8 px-4 pt-8 md:px-6 lg:px-8 xl:grid-cols-[minmax(0,1fr)_320px]">
         <main className="space-y-8">
-          <Card className="app-halo rounded-[2rem] border-stone-200 bg-white">
+          <Card className="border-black/10 bg-white shadow-none">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl text-stone-900">Lesinhoud</CardTitle>
             </CardHeader>
@@ -149,14 +149,14 @@ export default async function LessonPage({ params }: LessonPageProps) {
                   <LessonContent content={lesson.content} />
                 </div>
               ) : (
-                <div className="rounded-2xl bg-stone-50 p-5 text-sm leading-6 text-stone-600">
+                <div className="border-y border-black/10 bg-stone-50 p-5 text-sm leading-6 text-stone-600">
                   Voor deze les is nog geen lesinhoud toegevoegd.
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden rounded-[2rem] border-stone-200 bg-white shadow-[0_30px_80px_-55px_rgba(0,0,0,0.35)]">
+          <Card className="overflow-hidden border-black/10 bg-white shadow-none">
             <CardContent className="p-0">
               {lesson.videoEmbedCode ? (
                 <EmbeddedVideo embedCode={lesson.videoEmbedCode} />
@@ -180,7 +180,7 @@ export default async function LessonPage({ params }: LessonPageProps) {
           </Card>
 
           {lesson.extraContent ? (
-            <Card className="app-halo rounded-[2rem] border-stone-200 bg-white">
+            <Card className="border-black/10 bg-white shadow-none">
               <CardHeader className="px-8 pb-2 pt-8 md:px-10 md:pt-10">
                 <CardTitle className="text-xl text-stone-900">Aanvullende informatie</CardTitle>
               </CardHeader>
@@ -202,7 +202,7 @@ export default async function LessonPage({ params }: LessonPageProps) {
           ) : null}
 
           {lesson.attachments && lesson.attachments.length > 0 ? (
-            <Card className="app-halo rounded-[2rem] border-stone-200 bg-white">
+            <Card className="border-black/10 bg-white shadow-none">
               <CardHeader className="pb-4">
                 <CardTitle className="text-xl text-stone-900">Downloads & werkbladen</CardTitle>
               </CardHeader>
@@ -214,9 +214,9 @@ export default async function LessonPage({ params }: LessonPageProps) {
                     target="_blank"
                     rel="noopener noreferrer"
                     download={attachment.type === "pdf" || attachment.type === "file" ? attachment.name : undefined}
-                    className="flex items-center gap-3 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 transition hover:border-primary/30 hover:bg-white"
+                    className="flex items-center gap-3 border-b border-stone-200 bg-stone-50 px-4 py-4 transition last:border-b-0 hover:bg-white"
                   >
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white">
+                    <div className="flex h-10 w-10 items-center justify-center border border-black/10 bg-white">
                       <FileText className="h-5 w-5 text-stone-500" />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -232,7 +232,7 @@ export default async function LessonPage({ params }: LessonPageProps) {
         </main>
 
         <aside className="space-y-5 xl:sticky xl:top-6 xl:self-start">
-          <Card className="rounded-[2rem] border-stone-200 bg-stone-950 text-stone-100 shadow-[0_30px_80px_-55px_rgba(0,0,0,0.6)]">
+          <Card className="border-0 bg-[#173622] text-stone-100 shadow-none">
             <CardHeader className="pb-4">
               <CardTitle className="text-lg text-white">Jouw voortgang</CardTitle>
             </CardHeader>
@@ -245,7 +245,7 @@ export default async function LessonPage({ params }: LessonPageProps) {
                 <Progress value={lesson.isCompleted ? 100 : navigationProgress} className="h-2" />
               </div>
 
-              <div className="rounded-2xl bg-white/5 p-4">
+              <div className="border-y border-white/10 py-4">
                 <div className="flex items-center gap-2 text-sm text-stone-300">
                   <Clock3 className="h-4 w-4" />
                   Videovoortgang opgeslagen
@@ -258,7 +258,7 @@ export default async function LessonPage({ params }: LessonPageProps) {
               <LessonCompleteButton lessonId={lessonId} isCompleted={lesson.isCompleted} />
 
               {lesson.isCompleted ? (
-                <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-2 text-sm text-emerald-300">
+                <div className="inline-flex items-center gap-2 border-l border-emerald-300/40 pl-3 text-sm text-emerald-300">
                   <CheckCircle2 className="h-4 w-4" />
                   Deze les is voltooid
                 </div>
@@ -266,7 +266,7 @@ export default async function LessonPage({ params }: LessonPageProps) {
             </CardContent>
           </Card>
 
-          <Card className="app-halo rounded-[2rem] border-stone-200 bg-white">
+          <Card className="border-black/10 bg-white shadow-none">
             <CardHeader className="pb-4">
               <CardTitle className="text-lg text-stone-900">Navigatie</CardTitle>
             </CardHeader>
@@ -274,7 +274,7 @@ export default async function LessonPage({ params }: LessonPageProps) {
               {lesson.previousLesson ? (
                 <Link
                   href={`/courses/${slug}/lessons/${lesson.previousLesson.id}`}
-                  className="block rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 transition hover:border-primary/30 hover:bg-white"
+                  className="block border-b border-stone-200 bg-stone-50 px-4 py-4 transition hover:bg-white"
                 >
                   <p className="text-xs uppercase tracking-[0.16em] text-stone-500">Vorige les</p>
                   <p className="mt-1 font-medium text-stone-900">{lesson.previousLesson.title}</p>
@@ -283,19 +283,19 @@ export default async function LessonPage({ params }: LessonPageProps) {
               {lesson.nextLesson ? (
                 <Link
                   href={`/courses/${slug}/lessons/${lesson.nextLesson.id}`}
-                  className="block rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4 transition hover:border-primary/30 hover:bg-white"
+                  className="block border-b border-stone-200 bg-stone-50 px-4 py-4 transition hover:bg-white"
                 >
                   <p className="text-xs uppercase tracking-[0.16em] text-stone-500">Volgende les</p>
                   <p className="mt-1 font-medium text-stone-900">{lesson.nextLesson.title}</p>
                 </Link>
               ) : (
-                <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-4">
+                <div className="border-b border-stone-200 bg-stone-50 px-4 py-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-stone-500">Einde van module</p>
                   <p className="mt-1 font-medium text-stone-900">Je hebt de laatste les van dit blok bereikt.</p>
                 </div>
               )}
 
-              <Button asChild variant="outline" className="w-full rounded-full">
+              <Button asChild variant="outline" className="w-full">
                 <Link href={`/courses/${slug}`}>Terug naar het cursusoverzicht</Link>
               </Button>
             </CardContent>
@@ -319,7 +319,7 @@ function LessonContent({ content }: { content: string }) {
 
     return (
       <div
-        className="[&_img]:rounded-2xl [&_img]:max-w-full [&_img]:h-auto [&_font[face='The\ Seasons']]:font-display"
+        className="[&_img]:max-w-full [&_img]:h-auto [&_font[face='The\ Seasons']]:font-display"
         dangerouslySetInnerHTML={{ __html: sanitized }}
       />
     );

@@ -85,7 +85,7 @@ export function normalizeQuestionPayload(
 
 export async function getAdminFormOverview(tenantId: string) {
   const now = new Date();
-  const [forms, requiredUserAssignments] = await Promise.all([
+  const [forms, audienceProgress] = await Promise.all([
     db.form.findMany({
       where: { tenantId },
       orderBy: { updatedAt: "desc" },
@@ -99,7 +99,6 @@ export async function getAdminFormOverview(tenantId: string) {
         },
         assignments: {
           orderBy: { createdAt: "desc" },
-          take: 5,
           include: {
             course: {
               select: { id: true, title: true },
@@ -112,61 +111,16 @@ export async function getAdminFormOverview(tenantId: string) {
             },
           },
         },
-        responses: {
-          orderBy: { updatedAt: "desc" },
-          take: 5,
-          include: {
-            user: {
-              select: { id: true, firstName: true, lastName: true, email: true },
-            },
-          },
-        },
       },
     }),
-    db.formAssignment.findMany({
-      where: {
-        tenantId,
-        isActive: true,
-        isRequired: true,
-        audienceType: FormAssignmentAudienceType.USER,
-        userId: { not: null },
-        OR: [{ startsAt: null }, { startsAt: { lte: now } }],
-        form: {
-          status: FormStatus.PUBLISHED,
-        },
-      },
-      select: {
-        formId: true,
-        dueAt: true,
-        responses: {
-          where: {
-            status: FormResponseStatus.SUBMITTED,
-          },
-          select: { id: true },
-          take: 1,
-        },
-      },
-    }),
+    getFormAudienceProgress(tenantId),
   ]);
-
-  const pendingByForm = new Map<string, { pendingRequired: number; overdueRequired: number }>();
-  for (const assignment of requiredUserAssignments) {
-    if (assignment.responses.length > 0) continue;
-    const current = pendingByForm.get(assignment.formId) ?? {
-      pendingRequired: 0,
-      overdueRequired: 0,
-    };
-    current.pendingRequired += 1;
-    if (assignment.dueAt && assignment.dueAt.getTime() < now.getTime()) {
-      current.overdueRequired += 1;
-    }
-    pendingByForm.set(assignment.formId, current);
-  }
 
   return forms.map((form) => ({
     ...form,
-    pendingRequired: pendingByForm.get(form.id)?.pendingRequired ?? 0,
-    overdueRequired: pendingByForm.get(form.id)?.overdueRequired ?? 0,
+    participantProgress: audienceProgress.get(form.id) ?? emptyAudienceProgress(),
+    pendingRequired: audienceProgress.get(form.id)?.pendingRequired ?? 0,
+    overdueRequired: audienceProgress.get(form.id)?.overdueRequired ?? 0,
     assignments: form.assignments.map((assignment) => ({
       ...assignment,
       targetLabel:
@@ -184,8 +138,172 @@ export async function getAdminFormOverview(tenantId: string) {
   }));
 }
 
+type AudienceMember = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+};
+
+function emptyAudienceProgress() {
+  return {
+    total: 0,
+    completed: 0,
+    pending: 0,
+    completionRate: 0,
+    pendingRequired: 0,
+    overdueRequired: 0,
+    participants: [] as Array<AudienceMember & { submitted: boolean; overdue: boolean }>,
+  };
+}
+
+export async function getFormAudienceProgress(tenantId: string, formIds?: string[]) {
+  const now = new Date();
+  const assignments = await db.formAssignment.findMany({
+    where: {
+      tenantId,
+      isActive: true,
+      ...(formIds?.length ? { formId: { in: formIds } } : {}),
+      OR: [{ startsAt: null }, { startsAt: { lte: now } }],
+    },
+    select: {
+      formId: true,
+      audienceType: true,
+      audienceRole: true,
+      courseId: true,
+      spaceId: true,
+      userId: true,
+      isRequired: true,
+      dueAt: true,
+    },
+  });
+
+  const courseIds = Array.from(new Set(assignments.flatMap((item) => (item.courseId ? [item.courseId] : []))));
+  const spaceIds = Array.from(new Set(assignments.flatMap((item) => (item.spaceId ? [item.spaceId] : []))));
+  const directUserIds = Array.from(new Set(assignments.flatMap((item) => (item.userId ? [item.userId] : []))));
+  const roles = Array.from(new Set(assignments.flatMap((item) => (item.audienceRole ? [item.audienceRole] : []))));
+
+  const [enrollments, memberships, users, responses] = await Promise.all([
+    courseIds.length
+      ? db.enrollment.findMany({
+          where: { courseId: { in: courseIds }, user: { tenantId, deletedAt: null } },
+          select: {
+            courseId: true,
+            user: { select: { id: true, firstName: true, lastName: true, email: true } },
+          },
+        })
+      : [],
+    spaceIds.length
+      ? db.spaceMember.findMany({
+          where: { spaceId: { in: spaceIds }, user: { tenantId, deletedAt: null } },
+          select: {
+            spaceId: true,
+            user: { select: { id: true, firstName: true, lastName: true, email: true } },
+          },
+        })
+      : [],
+    directUserIds.length || roles.length
+      ? db.user.findMany({
+          where: {
+            tenantId,
+            deletedAt: null,
+            OR: [
+              ...(directUserIds.length ? [{ id: { in: directUserIds } }] : []),
+              ...(roles.length ? [{ role: { in: roles } }] : []),
+            ],
+          },
+          select: { id: true, firstName: true, lastName: true, email: true, role: true },
+        })
+      : [],
+    db.formResponse.findMany({
+      where: {
+        tenantId,
+        status: FormResponseStatus.SUBMITTED,
+        ...(formIds?.length ? { formId: { in: formIds } } : {}),
+      },
+      select: { formId: true, userId: true },
+    }),
+  ]);
+
+  const courseMembers = new Map<string, AudienceMember[]>();
+  for (const item of enrollments) {
+    courseMembers.set(item.courseId, [...(courseMembers.get(item.courseId) ?? []), item.user]);
+  }
+  const spaceMembers = new Map<string, AudienceMember[]>();
+  for (const item of memberships) {
+    spaceMembers.set(item.spaceId, [...(spaceMembers.get(item.spaceId) ?? []), item.user]);
+  }
+  const usersById = new Map(users.map((user) => [user.id, user]));
+  const usersByRole = new Map<Role, AudienceMember[]>();
+  for (const user of users) {
+    usersByRole.set(user.role, [...(usersByRole.get(user.role) ?? []), user]);
+  }
+  const submitted = new Set(responses.map((response) => `${response.formId}:${response.userId}`));
+  const membersByForm = new Map<string, Map<string, AudienceMember & { required: boolean; dueAt: Date | null }>>();
+
+  for (const assignment of assignments) {
+    const members =
+      assignment.audienceType === FormAssignmentAudienceType.COURSE && assignment.courseId
+        ? courseMembers.get(assignment.courseId) ?? []
+        : assignment.audienceType === FormAssignmentAudienceType.SPACE && assignment.spaceId
+          ? spaceMembers.get(assignment.spaceId) ?? []
+          : assignment.audienceType === FormAssignmentAudienceType.USER && assignment.userId
+            ? usersById.get(assignment.userId)
+              ? [usersById.get(assignment.userId)!]
+              : []
+            : assignment.audienceType === FormAssignmentAudienceType.ROLE && assignment.audienceRole
+              ? usersByRole.get(assignment.audienceRole) ?? []
+              : [];
+    const formMembers = membersByForm.get(assignment.formId) ?? new Map();
+    for (const member of members) {
+      const current = formMembers.get(member.id);
+      formMembers.set(member.id, {
+        id: member.id,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        email: member.email,
+        required: Boolean(current?.required || assignment.isRequired),
+        dueAt:
+          !current?.dueAt || (assignment.dueAt && assignment.dueAt < current.dueAt)
+            ? assignment.dueAt
+            : current.dueAt,
+      });
+    }
+    membersByForm.set(assignment.formId, formMembers);
+  }
+
+  const result = new Map<string, ReturnType<typeof emptyAudienceProgress>>();
+  for (const [formId, members] of Array.from(membersByForm.entries())) {
+    const participants = Array.from(members.values())
+      .map((member) => {
+        const isSubmitted = submitted.has(`${formId}:${member.id}`);
+        return {
+          id: member.id,
+          firstName: member.firstName,
+          lastName: member.lastName,
+          email: member.email,
+          submitted: isSubmitted,
+          overdue: Boolean(member.required && !isSubmitted && member.dueAt && member.dueAt < now),
+          required: member.required,
+        };
+      })
+      .sort((a, b) => Number(a.submitted) - Number(b.submitted) || a.firstName.localeCompare(b.firstName));
+    const completed = participants.filter((participant) => participant.submitted).length;
+    result.set(formId, {
+      total: participants.length,
+      completed,
+      pending: participants.length - completed,
+      completionRate: participants.length ? Math.round((completed / participants.length) * 100) : 0,
+      pendingRequired: participants.filter((participant) => participant.required && !participant.submitted).length,
+      overdueRequired: participants.filter((participant) => participant.overdue).length,
+      participants,
+    });
+  }
+  return result;
+}
+
 export async function getAdminFormBuilderData(formId: string, tenantId: string) {
-  const [form, courses, spaces, users] = await Promise.all([
+  const [form, courses, spaces, users, audienceProgress] = await Promise.all([
     db.form.findFirst({
       where: {
         id: formId,
@@ -267,6 +385,7 @@ export async function getAdminFormBuilderData(formId: string, tenantId: string) 
         role: true,
       },
     }),
+    getFormAudienceProgress(tenantId, [formId]),
   ]);
 
   if (!form) {
@@ -282,11 +401,10 @@ export async function getAdminFormBuilderData(formId: string, tenantId: string) 
       })),
       responseStats: {
         totalResponses: form._count.responses,
-        totalAssignments: form._count.assignments,
-        submittedResponses: form.responses.filter(
-          (response) => response.status === FormResponseStatus.SUBMITTED
-        ).length,
+        totalAssignments: audienceProgress.get(formId)?.total ?? 0,
+        submittedResponses: audienceProgress.get(formId)?.completed ?? 0,
       },
+      participantProgress: audienceProgress.get(formId) ?? emptyAudienceProgress(),
       responses: form.responses.map((response) => ({
         ...response,
         answerPreview: response.answers.slice(0, 3).map((answer) => ({

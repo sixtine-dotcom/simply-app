@@ -275,6 +275,21 @@ export async function getPosts(
           optionIndex: true,
         },
       },
+      comments: {
+        orderBy: { createdAt: "asc" },
+        include: {
+          author: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              avatarUrl: true,
+              role: true,
+            },
+          },
+          attachments: true,
+        },
+      },
       _count: {
         select: {
           comments: true,
@@ -301,7 +316,6 @@ export async function getPosts(
   return {
     posts: postsToReturn.map((post) => ({
       ...post,
-      comments: [],
       poll: buildPoll(post, userId),
       pollOptions: parsePollOptions(post.pollOptions),
       isLiked: likedPostIds.has(post.id),

@@ -1,6 +1,7 @@
 import { requireAdminOrCoachUser } from "@/lib/auth";
-import { getUserSessions } from "@/lib/coaching";
+import { getUserSessions, getPlannedGroupOccurrences } from "@/lib/coaching";
 import { db } from "@/lib/db";
+import { brusselsDateTime } from "@/lib/recurring-schedule";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { SessionScheduleDialog } from "@/components/coaching/session-schedule-dialog";
@@ -27,6 +28,7 @@ type CalendarItem = {
   startsAt: Date;
   endsAt: Date;
   href?: string | null;
+  isPlannedGroup?: boolean;
 };
 
 const VIEW_LABELS: Array<{ value: CalendarView; label: string }> = [
@@ -45,12 +47,15 @@ export default async function AdminSessionsPage({
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const view = normalizeView(resolvedSearchParams?.view);
   const anchorDate = parseDateParam(resolvedSearchParams?.date) ?? new Date();
-  const range = getViewRange(view, anchorDate);
+  const calendarRange = getViewRange(view, anchorDate);
+  const range = {
+    start: brusselsDateTime(toDateParam(calendarRange.start)),
+    end: new Date(brusselsDateTime(toDateParam(calendarRange.end), "23:59").getTime() + 59999),
+  };
 
-  const [allSessions, calendarConnections, externalEvents] = await Promise.all([
-    getUserSessions(user.id, user.role as "COACH" | "ADMIN", user.tenantId, {
+  const [allSessions, calendarConnections, externalEvents, plannedOccurrences] = await Promise.all([
+    getUserSessions(user.id, user.role === "COACH" ? "COACH" : "ADMIN", user.tenantId, {
       status: "all",
-      limit: 500,
     }),
     db.calendarConnection.findMany({
       where: { userId: user.id, syncEnabled: true },
@@ -64,33 +69,35 @@ export default async function AdminSessionsPage({
       orderBy: { startsAt: "asc" },
       take: 200,
     }),
+    getPlannedGroupOccurrences({ coachId: user.id, tenantId: user.tenantId, includeTenantPlans: user.role !== "COACH", start: range.start, end: range.end }),
   ]);
 
-  const simplyItems: CalendarItem[] = allSessions
-    .filter((session) => session.status === "scheduled")
-    .map((session) => {
-      const startsAt = new Date(session.scheduledAt);
-      return {
-        id: session.id,
-        type: "simply" as const,
-        title: session.title || "Coaching sessie",
-        subtitle:
-          session.externalAttendeeEmails.length > 0 && session.client.id === session.coach.id
-            ? `${session.externalAttendeeEmails.length} externe deelnemer${session.externalAttendeeEmails.length === 1 ? "" : "s"}`
-            : [
-                `${session.client.firstName} ${session.client.lastName}`.trim(),
-                session.externalAttendeeEmails.length > 0
-                  ? `+ ${session.externalAttendeeEmails.length} extern`
-                  : null,
-              ]
-                .filter(Boolean)
-                .join(" "),
-        startsAt,
-        endsAt: new Date(startsAt.getTime() + session.duration * 60000),
-        href: `/admin/sessions/${session.id}`,
-      };
-    })
-    .filter((item) => item.endsAt >= range.start && item.startsAt <= range.end);
+  const sessionGroups = new Map<string, typeof allSessions>();
+  for (const session of allSessions.filter(session => session.status === "scheduled")) {
+    const key = session.recurrenceOccurrenceKey ? `${session.coach.id}:${session.recurrenceOccurrenceKey}` : session.id;
+    sessionGroups.set(key, [...(sessionGroups.get(key) ?? []), session]);
+  }
+  const simplyItems: CalendarItem[] = Array.from(sessionGroups.values()).map((group) => {
+    const session = group[0];
+    const startsAt = new Date(session.scheduledAt);
+    return {
+      id: session.id,
+      type: "simply" as const,
+      title: session.title || "Coaching sessie",
+      subtitle: session.recurrenceOccurrenceKey
+        ? `${group.length} deelnemer${group.length === 1 ? "" : "s"}`
+        : session.externalAttendeeEmails.length > 0 && session.client.id === session.coach.id
+          ? `${session.externalAttendeeEmails.length} externe deelnemers`
+          : `${session.client.firstName} ${session.client.lastName}`.trim(),
+      startsAt,
+      endsAt: new Date(startsAt.getTime() + session.duration * 60000),
+      href: `/admin/sessions/${session.id}`,
+    };
+  }).filter(item => item.endsAt >= range.start && item.startsAt <= range.end);
+  for (const occurrence of plannedOccurrences) {
+    if (sessionGroups.has(occurrence.id)) continue;
+    simplyItems.push({ ...occurrence, type: "simply", subtitle: "Groepsreeks · nog geen deelnemers", isPlannedGroup: true, href: buildAgendaHref({ view: "day", date: occurrence.startsAt }) });
+  }
 
   const externalItems: CalendarItem[] = externalEvents.map((event) => ({
     id: event.id,
@@ -162,8 +169,8 @@ export default async function AdminSessionsPage({
         </aside>
 
         <main className="min-w-0">
-          <div className="flex h-16 items-center justify-between border-b bg-white px-4">
-            <div className="flex items-center gap-2">
+          <div className="flex h-16 items-center justify-between gap-4 overflow-x-auto border-b bg-white px-4">
+            <div className="flex shrink-0 items-center gap-2">
               <Button variant="ghost" size="sm" asChild>
                 <Link href={buildAgendaHref({ view, date: addDays(anchorDate, getPreviousStep(view)) })}>
                   <ChevronLeft className="h-4 w-4" />
@@ -180,7 +187,7 @@ export default async function AdminSessionsPage({
               <h2 className="ml-4 text-lg font-semibold">{formatRangeLabel(view, anchorDate)}</h2>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               <div className="hidden items-center gap-1 md:flex">
                 {VIEW_LABELS.filter((option) => option.value !== "hidden").map((option) => (
                   <Link
@@ -243,7 +250,7 @@ function buildNewEventHref(input: { view: CalendarView; date: Date; time: string
 }
 
 function DayCalendar({ date, items }: { date: Date; items: CalendarItem[] }) {
-  const dayItems = items.filter((item) => isSameDay(item.startsAt, date));
+  const dayItems = items.filter((item) => isEventOnDay(item.startsAt, date));
 
   return (
     <div className="rounded-lg border bg-background">
@@ -252,7 +259,7 @@ function DayCalendar({ date, items }: { date: Date; items: CalendarItem[] }) {
       </div>
       <div className="divide-y">
         {Array.from({ length: 14 }, (_, index) => index + 7).map((hour) => {
-          const hourItems = dayItems.filter((item) => item.startsAt.getHours() === hour);
+          const hourItems = dayItems.filter((item) => Number(formatTime(item.startsAt).split(":")[0]) === hour);
           return (
             <div key={hour} className="grid min-h-20 grid-cols-[70px_1fr]">
               <div className="border-r px-3 py-3 text-xs text-muted-foreground">
@@ -382,7 +389,7 @@ function WeekCalendar({ startDate, items }: { startDate: Date; items: CalendarIt
             </div>
             {days.map((day) => {
               const hourItems = items.filter(
-                (item) => isSameDay(item.startsAt, day) && item.startsAt.getHours() === hour
+                (item) => isEventOnDay(item.startsAt, day) && Number(formatTime(item.startsAt).split(":")[0]) === hour
               );
               return (
                 <div
@@ -420,22 +427,22 @@ function MonthCalendar({ anchorDate, items }: { anchorDate: Date; items: Calenda
   const days = Array.from({ length: 42 }, (_, index) => addDays(gridStart, index));
 
   return (
-    <div className="rounded-lg border bg-background">
+    <div className="overflow-x-auto rounded-lg border bg-background">
       <div className="border-b px-4 py-3">
         <p className="font-medium">
           {anchorDate.toLocaleDateString("nl-NL", { month: "long", year: "numeric" })}
         </p>
       </div>
-      <div className="grid grid-cols-7 border-b text-xs font-medium text-muted-foreground">
+      <div className="grid min-w-[840px] grid-cols-7 border-b text-xs font-medium text-muted-foreground">
         {["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"].map((day) => (
           <div key={day} className="border-r px-2 py-2 last:border-r-0">
             {day}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7">
+      <div className="grid min-w-[840px] grid-cols-7">
         {days.map((day) => {
-          const dayItems = items.filter((item) => isSameDay(item.startsAt, day)).slice(0, 3);
+          const dayItems = items.filter((item) => isEventOnDay(item.startsAt, day)).slice(0, 3);
           const isCurrentMonth = day.getMonth() === anchorDate.getMonth();
           return (
             <div
@@ -462,6 +469,7 @@ function MonthCalendar({ anchorDate, items }: { anchorDate: Date; items: Calenda
 function CalendarEvent({ item, compact = false }: { item: CalendarItem; compact?: boolean }) {
   const content = (
     <div
+      title={`${item.title} · ${item.subtitle}`}
       className={cn(
         "rounded-sm border-l-4 px-2 py-2 text-sm shadow-sm",
         item.type === "simply"
@@ -473,6 +481,7 @@ function CalendarEvent({ item, compact = false }: { item: CalendarItem; compact?
       <p className={cn("font-medium", compact && "truncate")}>
         {compact ? `${formatTime(item.startsAt)} ${item.title}` : item.title}
       </p>
+      {compact && item.isPlannedGroup ? <p className="mt-1 truncate text-xs opacity-80">Nog geen deelnemers</p> : null}
       {!compact ? (
         <p className="mt-1 text-xs opacity-80">
           {formatTime(item.startsAt)} - {formatTime(item.endsAt)} · {item.subtitle}
@@ -518,7 +527,7 @@ function getViewRange(view: CalendarView, date: Date) {
   }
   if (view === "workweek") {
     const start = startOfWorkweek(date);
-    return { start, end: endOfDay(addDays(start, 4)) };
+    return { start, end: endOfDay(addDays(start, 6)) };
   }
   return { start: startOfDay(date), end: endOfDay(date) };
 }
@@ -573,7 +582,7 @@ function isSameDay(a: Date, b: Date) {
 }
 
 function toDateParam(date: Date) {
-  return date.toISOString().slice(0, 10);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function formatFullDate(date: Date) {
@@ -609,8 +618,13 @@ function formatRangeLabel(view: CalendarView, date: Date) {
   return formatFullDate(date);
 }
 
+function isEventOnDay(date: Date, day: Date) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Brussels", year: "numeric", month: "2-digit", day: "2-digit" }).format(date) === toDateParam(day);
+}
+
 function formatTime(date: Date) {
   return date.toLocaleTimeString("nl-NL", {
+    timeZone: "Europe/Brussels",
     hour: "2-digit",
     minute: "2-digit",
   });

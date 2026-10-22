@@ -23,6 +23,8 @@ if (process.env.R2_PUBLIC_URL) {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Gebruik lokaal een aparte cache zodat `next build` een draaiende dev-server niet beschadigt.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   images: {
     remotePatterns,
   },

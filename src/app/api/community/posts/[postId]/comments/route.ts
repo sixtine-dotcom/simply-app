@@ -3,10 +3,13 @@ import { z } from "zod";
 import { getCurrentUser, createAuditLog } from "@/lib/auth";
 import { addComment, canUserAccessSpace } from "@/lib/community";
 import { db } from "@/lib/db";
+import { syncCommunityCommentToKnowledge } from "@/lib/ai-knowledge";
+import { createMentionNotifications } from "@/lib/community-mentions";
 
 const createCommentSchema = z.object({
   content: z.string().min(1, "Reactie is verplicht").max(5000),
   parentId: z.string().optional(),
+  mentions: z.array(z.string()).max(20).optional(),
   attachments: z
     .array(
       z.object({
@@ -17,8 +20,6 @@ const createCommentSchema = z.object({
     )
     .optional(),
 });
-
-const voiceRoles = new Set(["ADMIN", "SUPERADMIN", "COACH"]);
 
 export async function POST(
   request: NextRequest,
@@ -35,12 +36,13 @@ export async function POST(
     const body = await request.json();
     const data = createCommentSchema.parse(body);
 
-    // Verify post exists and check if it's a host-only space
+    // Controleer of het bericht bestaat en de gebruiker toegang heeft.
+    // Host-only bepaalt wie nieuwe berichten mag plaatsen; leden mogen wel reageren.
     const post = await db.post.findUnique({
       where: { id: postId },
       include: {
         space: {
-          select: { isHostOnly: true },
+          select: { isHostOnly: true, slug: true },
         },
       },
     });
@@ -54,22 +56,14 @@ export async function POST(
       return NextResponse.json({ error: "Geen toegang tot deze space" }, { status: 403 });
     }
 
-    // Host-only spaces don't allow comments from non-admins
-    if (post.space.isHostOnly && user.role !== "ADMIN") {
-      return NextResponse.json(
-        { error: "Je kunt niet reageren op aankondigingen" },
-        { status: 403 }
-      );
-    }
-
-    if (
-      data.attachments?.some((attachment) => attachment.type === "voice_memo") &&
-      !voiceRoles.has(user.role)
-    ) {
-      return NextResponse.json(
-        { error: "Voice messages are only available for coaches and admins." },
-        { status: 403 }
-      );
+    const parentComment = data.parentId
+      ? await db.comment.findFirst({
+          where: { id: data.parentId, postId },
+          select: { id: true, authorId: true },
+        })
+      : null;
+    if (data.parentId && !parentComment) {
+      return NextResponse.json({ error: "De reactie waarop je antwoordt bestaat niet meer" }, { status: 400 });
     }
 
     const comment = await addComment(postId, user.id, data.content, data.parentId, data.attachments);
@@ -78,6 +72,36 @@ export async function POST(
       postId,
       commentId: comment.id,
     });
+
+    await createMentionNotifications({
+      mentionedUserIds: data.mentions || [],
+      spaceId: post.spaceId,
+      tenantId: user.tenantId,
+      actorId: user.id,
+      actorName: `${user.firstName} ${user.lastName}`,
+      link: `/community/${post.space.slug}`,
+    });
+
+    if (parentComment && parentComment.authorId !== user.id) {
+      await db.notification.create({
+        data: {
+          userId: parentComment.authorId,
+          type: "community_reply",
+          title: `${user.firstName} ${user.lastName} reageerde op jou`,
+          body: data.content,
+          link: `/community/${post.space.slug}`,
+        },
+      });
+    }
+
+    // Antwoorden van Sixtine/admins worden automatisch herbruikbare FAQ-kennis.
+    // Een fout hierin mag het plaatsen van de communityreactie nooit blokkeren.
+    await syncCommunityCommentToKnowledge({
+      commentId: comment.id,
+      postId,
+      authorRole: user.role,
+      tenantId: user.tenantId,
+    }).catch((error) => console.error("Community knowledge sync failed:", error));
 
     return NextResponse.json(comment);
   } catch (error) {

@@ -1,10 +1,16 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowUp,
+  Check,
+  ChevronLeft,
+  Loader2,
+} from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { cn } from "@/lib/utils";
 
 type Question = {
   id: string;
@@ -42,50 +48,87 @@ type FormRunnerProps = {
     questions: Question[];
   };
   initialAnswers: Record<string, unknown>;
+  userFirstName?: string;
 };
 
-export function FormRunner({ form, initialAnswers }: FormRunnerProps) {
+type Phase = "welcome" | "question" | "success";
+
+const AUTO_ADVANCE_DELAY_MS = 320;
+const CHOICE_TYPES = new Set(["MULTIPLE_CHOICE", "DROPDOWN", "YES_NO"]);
+
+function splitParagraphs(text: string | null | undefined) {
+  if (!text?.trim()) return [];
+  return text
+    .split(/\n{2,}/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function hasAnswer(value: unknown) {
+  if (Array.isArray(value)) return value.length > 0;
+  return value !== null && value !== undefined && String(value).trim() !== "";
+}
+
+function isQuestionAnswered(question: Question, value: unknown) {
+  if (!question.isRequired) return true;
+  return hasAnswer(value);
+}
+
+export function FormRunner({ form, initialAnswers, userFirstName }: FormRunnerProps) {
   const { toast } = useToast();
-  const [step, setStep] = useState(0);
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const [phase, setPhase] = useState<Phase>(
+    form.response?.status === "SUBMITTED" ? "success" : "welcome"
+  );
+  const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, unknown>>(initialAnswers);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(form.response?.status === "SUBMITTED");
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [showValidation, setShowValidation] = useState(false);
 
-  const currentQuestion = form.questions[step];
-  const progress = useMemo(
-    () => Math.round(((step + 1) / Math.max(form.questions.length, 1)) * 100),
-    [form.questions.length, step]
+  const currentQuestion = form.questions[questionIndex];
+  const totalQuestions = form.questions.length;
+  const hasStarted = Object.keys(initialAnswers).some((key) => hasAnswer(initialAnswers[key]));
+  const introParagraphs = splitParagraphs(form.introDescription || form.description);
+  const successParagraphs = splitParagraphs(form.successDescription);
+
+  const progress = useMemo(() => {
+    if (phase === "welcome") return 0;
+    if (phase === "success") return 100;
+    if (!totalQuestions) return 100;
+    return Math.round(((questionIndex + 1) / totalQuestions) * 100);
+  }, [phase, questionIndex, totalQuestions]);
+
+  const updateAnswer = useCallback((questionId: string, value: unknown) => {
+    setAnswers((current) => ({ ...current, [questionId]: value }));
+    setShowValidation(false);
+  }, []);
+
+  const validateCurrentStep = useCallback(() => {
+    if (phase !== "question" || !currentQuestion) return true;
+    return isQuestionAnswered(currentQuestion, answers[currentQuestion.id]);
+  }, [answers, currentQuestion, phase]);
+
+  const goToQuestion = useCallback(
+    (nextIndex: number) => {
+      if (isAnimating) return;
+      setIsAnimating(true);
+      window.setTimeout(() => {
+        setQuestionIndex(nextIndex);
+        setShowValidation(false);
+        setIsAnimating(false);
+      }, 180);
+    },
+    [isAnimating]
   );
 
-  const updateAnswer = (questionId: string, value: unknown) => {
-    setAnswers((current) => ({ ...current, [questionId]: value }));
-  };
+  const submitForm = useCallback(async (answersOverride?: Record<string, unknown>) => {
+    if (form.isPreview) return;
 
-  const validateCurrentStep = () => {
-    if (!currentQuestion?.isRequired) return true;
-    const value = answers[currentQuestion.id];
-    if (Array.isArray(value)) return value.length > 0;
-    return value !== null && value !== undefined && String(value).trim() !== "";
-  };
-
-  const next = () => {
-    if (!validateCurrentStep()) {
-      toast({
-        title: "Nog niet compleet",
-        description: "Beantwoord eerst deze vraag voordat je verdergaat.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setStep((current) => Math.min(current + 1, form.questions.length - 1));
-  };
-
-  const submit = async () => {
+    const payload = answersOverride ?? answers;
     const requiredMissing = form.questions.some((question) => {
       if (!question.isRequired) return false;
-      const value = answers[question.id];
-      if (Array.isArray(value)) return value.length === 0;
-      return value === null || value === undefined || String(value).trim() === "";
+      return !isQuestionAnswered(question, payload[question.id]);
     });
 
     if (requiredMissing) {
@@ -105,7 +148,7 @@ export function FormRunner({ form, initialAnswers }: FormRunnerProps) {
           submit: true,
           answers: form.questions.map((question) => ({
             questionId: question.id,
-            value: answers[question.id] ?? "",
+            value: payload[question.id] ?? "",
           })),
         }),
       });
@@ -113,10 +156,7 @@ export function FormRunner({ form, initialAnswers }: FormRunnerProps) {
       if (!response.ok) {
         throw new Error(result.error || "Versturen mislukt");
       }
-      setIsSubmitted(true);
-      toast({
-        title: "Formulier verzonden",
-      });
+      setPhase("success");
     } catch (error) {
       toast({
         title: "Fout",
@@ -126,92 +166,347 @@ export function FormRunner({ form, initialAnswers }: FormRunnerProps) {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [answers, form.isPreview, form.questions, form.slug, toast]);
 
-  if (isSubmitted) {
-    return (
-      <div className="min-h-screen p-4 md:p-6 lg:p-8">
-        <div className="mx-auto max-w-3xl app-panel p-10 text-center">
-          <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
-          <h1 className="mt-6 text-3xl font-semibold">{form.successTitle || "Bedankt"}</h1>
-          <p className="mt-3 text-muted-foreground">
-            {form.successDescription || "Je antwoorden zijn opgeslagen."}
-          </p>
-          <Button className="mt-8" asChild>
-            <Link href="/forms">Terug naar formulieren</Link>
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const goNext = useCallback(() => {
+    if (phase === "welcome") {
+      if (!totalQuestions) {
+        setPhase("success");
+        return;
+      }
+      setPhase("question");
+      return;
+    }
+
+    if (!validateCurrentStep()) {
+      setShowValidation(true);
+      toast({
+        title: "Nog even invullen",
+        description: "Beantwoord deze vraag om verder te gaan.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (questionIndex < totalQuestions - 1) {
+      goToQuestion(questionIndex + 1);
+      return;
+    }
+
+    void submitForm();
+  }, [goToQuestion, phase, questionIndex, submitForm, toast, totalQuestions, validateCurrentStep]);
+
+  const goBack = useCallback(() => {
+    if (phase === "question" && questionIndex === 0) {
+      setPhase("welcome");
+      return;
+    }
+    if (phase === "question" && questionIndex > 0) {
+      goToQuestion(questionIndex - 1);
+    }
+  }, [goToQuestion, phase, questionIndex]);
+
+  const selectChoice = useCallback(
+    (question: Question, value: unknown) => {
+      const nextAnswers = { ...answers, [question.id]: value };
+      updateAnswer(question.id, value);
+      if (CHOICE_TYPES.has(question.type) && question.type !== "CHECKBOXES") {
+        window.setTimeout(() => {
+          if (questionIndex < totalQuestions - 1) {
+            goToQuestion(questionIndex + 1);
+          } else if (!form.isPreview) {
+            void submitForm(nextAnswers);
+          }
+        }, AUTO_ADVANCE_DELAY_MS);
+      }
+    },
+    [answers, form.isPreview, goToQuestion, questionIndex, submitForm, totalQuestions, updateAnswer]
+  );
+
+  useEffect(() => {
+    if (phase !== "question") return;
+    const timer = window.setTimeout(() => inputRef.current?.focus(), 220);
+    return () => window.clearTimeout(timer);
+  }, [phase, questionIndex]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter") return;
+      const target = event.target as HTMLElement | null;
+      const isTextarea = target?.tagName === "TEXTAREA";
+      if (isTextarea && event.shiftKey) return;
+      if (target?.tagName === "BUTTON") return;
+
+      event.preventDefault();
+      goNext();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [goNext]);
+
+  const primaryActionLabel =
+    phase === "welcome"
+      ? hasStarted
+        ? "Ga verder"
+        : "Start"
+      : questionIndex < totalQuestions - 1
+        ? "OK"
+        : form.isPreview
+          ? "Preview"
+          : form.submitButtonLabel || "Versturen";
 
   return (
-    <div className="min-h-screen p-4 md:p-6 lg:p-8">
-      <div className="mx-auto max-w-4xl space-y-6">
-        <Link href="/forms" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Terug naar formulieren
-        </Link>
-
-        <div className="rounded-[2.4rem] border border-stone-900 bg-stone-950 px-8 py-10 text-white shadow-[0_30px_90px_-55px_rgba(0,0,0,0.65)]">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/60">Typeform-style intake</p>
-          <h1 className="mt-5 font-display text-4xl tracking-tight">
-            {form.introTitle || form.title}
-          </h1>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-white/75">
-            {form.introDescription || form.description || "Beantwoord de vragen hieronder stap voor stap."}
-          </p>
-          <div className="mt-8 h-2 overflow-hidden rounded-full bg-white/10">
-            <div className="h-full rounded-full bg-white transition-all" style={{ width: `${progress}%` }} />
-          </div>
-          <p className="mt-3 text-sm text-white/65">
-            Stap {step + 1} van {form.questions.length}
-            {form.assignment.isRequired ? " · verplicht formulier" : ""}
-            {form.assignment.dueAt
-              ? ` · deadline ${new Date(form.assignment.dueAt).toLocaleDateString("nl-BE")}`
-              : ""}
-          </p>
-        </div>
-
-        {currentQuestion ? (
-          <div className="app-panel p-8">
-            <p className="text-sm uppercase tracking-[0.24em] text-muted-foreground">Vraag {step + 1}</p>
-            <h2 className="mt-4 text-3xl font-semibold leading-tight">{currentQuestion.title}</h2>
-            {currentQuestion.description ? (
-              <p className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground">
-                {currentQuestion.description}
-              </p>
-            ) : null}
-
-            <div className="mt-8">{renderField(currentQuestion, answers[currentQuestion.id], updateAnswer)}</div>
-
-            {currentQuestion.helperText ? (
-              <p className="mt-3 text-sm text-muted-foreground">{currentQuestion.helperText}</p>
-            ) : null}
-
-            <div className="mt-10 flex flex-wrap gap-3">
-              <Button type="button" variant="outline" disabled={step === 0} onClick={() => setStep((current) => Math.max(current - 1, 0))}>
-                Vorige
-              </Button>
-              {step < form.questions.length - 1 ? (
-                <Button type="button" onClick={next}>
-                  Volgende
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              ) : form.isPreview ? (
-                  <Button type="button" disabled>
-                    Preview modus
-                  </Button>
-                ) : (
-                  <Button type="button" onClick={() => void submit()} disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {form.submitButtonLabel || "Versturen"}
-                  </Button>
-                )}
+    <div className="fixed inset-0 z-40 flex flex-col bg-[#f3f3f1] text-[#191919] md:left-72">
+      <div className="border-b border-black/[0.06] bg-white/80 px-4 py-3 backdrop-blur-md sm:px-6">
+        <div className="mx-auto flex max-w-3xl items-center gap-3">
+          <Link
+            href="/forms"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#666] transition hover:bg-black/[0.04] hover:text-[#173622]"
+            aria-label="Terug naar formulieren"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Link>
+          <div className="min-w-0 flex-1">
+            <div className="h-1.5 overflow-hidden rounded-full bg-black/[0.08]">
+              <div
+                className="h-full rounded-full bg-[#173622] transition-all duration-500 ease-out"
+                style={{ width: `${progress}%` }}
+              />
             </div>
           </div>
+          {phase === "question" && totalQuestions > 0 ? (
+            <span className="shrink-0 text-[11px] font-medium tabular-nums text-[#888]">
+              {questionIndex + 1}/{totalQuestions}
+            </span>
+          ) : (
+            <span className="shrink-0 text-[11px] font-medium text-[#888]">{form.title}</span>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col overflow-y-auto">
+        <div className="flex flex-1 items-center justify-center px-5 py-10 sm:px-8">
+          <div
+            key={`${phase}-${questionIndex}`}
+            className={cn(
+              "w-full max-w-[680px]",
+              isAnimating ? "opacity-0" : "form-step-enter"
+            )}
+          >
+            {phase === "welcome" ? (
+              <WelcomeScreen
+                title={form.introTitle || form.title}
+                paragraphs={introParagraphs.length ? introParagraphs : ["Beantwoord een paar korte vragen. Het duurt maar een minuutje."]}
+                isRequired={form.assignment.isRequired}
+                dueAt={form.assignment.dueAt}
+                questionCount={totalQuestions}
+              />
+            ) : null}
+
+            {phase === "question" && currentQuestion ? (
+              <QuestionScreen
+                question={currentQuestion}
+                index={questionIndex}
+                value={answers[currentQuestion.id]}
+                userFirstName={userFirstName}
+                showValidation={showValidation}
+                inputRef={inputRef}
+                onChange={(value) => updateAnswer(currentQuestion.id, value)}
+                onSelectChoice={(value) => selectChoice(currentQuestion, value)}
+              />
+            ) : null}
+
+            {phase === "success" ? (
+              <SuccessScreen
+                title={form.successTitle || "Bedankt!"}
+                paragraphs={
+                  successParagraphs.length
+                    ? successParagraphs
+                    : ["Je antwoorden zijn veilig opgeslagen.", "We nemen het van hier verder."]
+                }
+                userFirstName={userFirstName}
+              />
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {phase !== "success" ? (
+        <div className="border-t border-black/[0.06] bg-white/90 px-5 py-4 backdrop-blur-md sm:px-8">
+          <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
+            <button
+              type="button"
+              onClick={goBack}
+              disabled={phase === "welcome"}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/10 text-[#666] transition hover:border-[#173622]/30 hover:text-[#173622] disabled:invisible"
+              aria-label="Vorige stap"
+            >
+              <ArrowUp className="h-4 w-4" />
+            </button>
+
+            <div className="flex flex-col items-center gap-1">
+              <button
+                type="button"
+                onClick={() => void goNext()}
+                disabled={isSubmitting || (phase === "question" && form.isPreview && questionIndex === totalQuestions - 1)}
+                className="inline-flex h-12 min-w-[132px] items-center justify-center gap-2 rounded-full bg-[#173622] px-7 text-sm font-semibold text-white shadow-[0_10px_30px_-16px_rgba(23,54,34,0.85)] transition hover:bg-[#21492e] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {primaryActionLabel}
+                {!isSubmitting ? <Check className="h-4 w-4" /> : null}
+              </button>
+              <span className="text-[10px] text-[#999]">
+                druk op <kbd className="rounded border border-black/10 bg-white px-1.5 py-0.5 font-sans">Enter ↵</kbd>
+              </span>
+            </div>
+
+            <div className="h-11 w-11" aria-hidden="true" />
+          </div>
+        </div>
+      ) : (
+        <div className="border-t border-black/[0.06] bg-white/90 px-5 py-5 backdrop-blur-md sm:px-8">
+          <div className="mx-auto flex max-w-3xl justify-center">
+            <Link
+              href="/forms"
+              className="inline-flex h-12 items-center gap-2 rounded-full bg-[#173622] px-7 text-sm font-semibold text-white transition hover:bg-[#21492e]"
+            >
+              Terug naar formulieren
+            </Link>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WelcomeScreen({
+  title,
+  paragraphs,
+  isRequired,
+  dueAt,
+  questionCount,
+}: {
+  title: string;
+  paragraphs: string[];
+  isRequired: boolean;
+  dueAt: string | null;
+  questionCount: number;
+}) {
+  return (
+    <div className="text-center">
+      <div className="relative mx-auto h-28 w-28 overflow-hidden rounded-full border-4 border-white shadow-[0_20px_50px_-30px_rgba(17,28,20,0.55)] sm:h-32 sm:w-32">
+        <Image
+          src="/simply-dashboard-plant.jpg"
+          alt=""
+          fill
+          className="object-cover"
+          sizes="128px"
+          priority
+        />
+      </div>
+      <h1 className="mt-8 text-[clamp(2rem,5vw,3.25rem)] font-semibold leading-[1.08] tracking-[-0.03em] text-[#191919]">
+        {title}
+      </h1>
+      <div className="mx-auto mt-6 max-w-xl space-y-4 text-base leading-7 text-[#5f5f5f] sm:text-lg sm:leading-8">
+        {paragraphs.map((paragraph) => (
+          <p key={paragraph}>{paragraph}</p>
+        ))}
+      </div>
+      <div className="mt-8 flex flex-wrap items-center justify-center gap-2 text-[11px] font-medium uppercase tracking-[0.16em] text-[#8a8a8a]">
+        {questionCount > 0 ? <span>{questionCount} vragen</span> : null}
+        {isRequired ? <span>· Verplicht</span> : null}
+        {dueAt ? <span>· Deadline {new Date(dueAt).toLocaleDateString("nl-BE")}</span> : null}
+      </div>
+    </div>
+  );
+}
+
+function SuccessScreen({
+  title,
+  paragraphs,
+  userFirstName,
+}: {
+  title: string;
+  paragraphs: string[];
+  userFirstName?: string;
+}) {
+  return (
+    <div className="text-center">
+      <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[#edf4ee] text-[#173622] shadow-[0_20px_50px_-30px_rgba(23,54,34,0.45)]">
+        <Check className="h-9 w-9" strokeWidth={2.5} />
+      </div>
+      {userFirstName ? (
+        <p className="mt-8 text-sm font-medium text-[#173622]">Bedankt, {userFirstName}!</p>
+      ) : null}
+      <h1 className="mt-3 text-[clamp(2rem,5vw,3.25rem)] font-semibold leading-[1.08] tracking-[-0.03em] text-[#191919]">
+        {title}
+      </h1>
+      <div className="mx-auto mt-6 max-w-xl space-y-4 text-base leading-7 text-[#5f5f5f] sm:text-lg sm:leading-8">
+        {paragraphs.map((paragraph) => (
+          <p key={paragraph}>{paragraph}</p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function QuestionScreen({
+  question,
+  index,
+  value,
+  userFirstName,
+  showValidation,
+  inputRef,
+  onChange,
+  onSelectChoice,
+}: {
+  question: Question;
+  index: number;
+  value: unknown;
+  userFirstName?: string;
+  showValidation: boolean;
+  inputRef: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>;
+  onChange: (value: unknown) => void;
+  onSelectChoice: (value: unknown) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-3 flex items-center gap-2 text-sm font-medium text-[#173622]">
+        <span>{index + 1}</span>
+        <span className="text-[#173622]/50">→</span>
+        {question.isRequired ? (
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#173622]/70">
+            Verplicht
+          </span>
         ) : null}
       </div>
+
+      {index > 0 && userFirstName ? (
+        <p className="mb-3 text-sm text-[#737373]">Fijn, {userFirstName}.</p>
+      ) : null}
+
+      <h2 className="text-[clamp(1.65rem,4.2vw,2.65rem)] font-semibold leading-[1.12] tracking-[-0.025em] text-[#191919]">
+        {question.title}
+      </h2>
+
+      {question.description ? (
+        <p className="mt-3 max-w-2xl text-base leading-7 text-[#666] sm:text-lg">
+          {question.description}
+        </p>
+      ) : null}
+
+      <div className={cn("mt-8", showValidation && !isQuestionAnswered(question, value) && "rounded-2xl ring-2 ring-red-300/70 ring-offset-4")}>
+        {renderField(question, value, onChange, onSelectChoice, inputRef)}
+      </div>
+
+      {question.helperText ? (
+        <p className="mt-4 text-sm leading-6 text-[#888]">{question.helperText}</p>
+      ) : null}
+
+      {showValidation && !isQuestionAnswered(question, value) ? (
+        <p className="mt-3 text-sm font-medium text-red-600">Vul een antwoord in om verder te gaan.</p>
+      ) : null}
     </div>
   );
 }
@@ -219,31 +514,35 @@ export function FormRunner({ form, initialAnswers }: FormRunnerProps) {
 function renderField(
   question: Question,
   value: unknown,
-  updateAnswer: (questionId: string, value: unknown) => void
+  onChange: (value: unknown) => void,
+  onSelectChoice: (value: unknown) => void,
+  inputRef: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>
 ) {
   if (question.type === "LONG_TEXT") {
     return (
       <textarea
-        className="min-h-[180px] w-full rounded-[1.5rem] border border-border bg-background px-5 py-4 text-lg"
+        ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+        className="w-full resize-none border-0 border-b-2 border-black/15 bg-transparent py-3 text-xl leading-8 text-[#191919] outline-none transition placeholder:text-[#b0b0b0] focus:border-[#173622]"
+        rows={4}
         value={typeof value === "string" ? value : ""}
-        placeholder={question.placeholder || ""}
-        onChange={(event) => updateAnswer(question.id, event.target.value)}
+        placeholder={question.placeholder || "Typ je antwoord..."}
+        onChange={(event) => onChange(event.target.value)}
       />
     );
   }
 
   if (question.type === "MULTIPLE_CHOICE" || question.type === "DROPDOWN") {
     return (
-      <div className="space-y-3">
-        {question.options.map((option) => (
-          <label key={option} className="flex items-center gap-3 rounded-[1.25rem] border px-4 py-4 text-base">
-            <input
-              type="radio"
-              checked={value === option}
-              onChange={() => updateAnswer(question.id, option)}
-            />
-            {option}
-          </label>
+      <div className="space-y-2.5">
+        {question.options.map((option, optionIndex) => (
+          <ChoiceOption
+            key={option}
+            label={option}
+            letter={String.fromCharCode(65 + optionIndex)}
+            selected={value === option}
+            onSelect={() => onSelectChoice(option)}
+            delayMs={optionIndex * 40}
+          />
         ))}
       </div>
     );
@@ -252,23 +551,23 @@ function renderField(
   if (question.type === "CHECKBOXES") {
     const selected = Array.isArray(value) ? value.map(String) : [];
     return (
-      <div className="space-y-3">
-        {question.options.map((option) => (
-          <label key={option} className="flex items-center gap-3 rounded-[1.25rem] border px-4 py-4 text-base">
-            <input
-              type="checkbox"
-              checked={selected.includes(option)}
-              onChange={(event) =>
-                updateAnswer(
-                  question.id,
-                  event.target.checked
-                    ? [...selected, option]
-                    : selected.filter((entry) => entry !== option)
-                )
-              }
-            />
-            {option}
-          </label>
+      <div className="space-y-2.5">
+        {question.options.map((option, optionIndex) => (
+          <ChoiceOption
+            key={option}
+            label={option}
+            letter={String.fromCharCode(65 + optionIndex)}
+            selected={selected.includes(option)}
+            multiple
+            onSelect={() =>
+              onChange(
+                selected.includes(option)
+                  ? selected.filter((entry) => entry !== option)
+                  : [...selected, option]
+              )
+            }
+            delayMs={optionIndex * 40}
+          />
         ))}
       </div>
     );
@@ -276,18 +575,16 @@ function renderField(
 
   if (question.type === "YES_NO") {
     return (
-      <div className="grid gap-3 md:grid-cols-2">
-        {["Ja", "Nee"].map((option) => (
-          <button
+      <div className="grid gap-2.5 sm:grid-cols-2">
+        {["Ja", "Nee"].map((option, optionIndex) => (
+          <ChoiceOption
             key={option}
-            type="button"
-            onClick={() => updateAnswer(question.id, option)}
-            className={`rounded-[1.25rem] border px-5 py-5 text-left text-lg transition ${
-              value === option ? "border-primary bg-primary/5" : "border-border"
-            }`}
-          >
-            {option}
-          </button>
+            label={option}
+            letter={String.fromCharCode(65 + optionIndex)}
+            selected={value === option}
+            onSelect={() => onSelectChoice(option)}
+            delayMs={optionIndex * 40}
+          />
         ))}
       </div>
     );
@@ -306,11 +603,55 @@ function renderField(
 
   return (
     <input
+      ref={inputRef as React.RefObject<HTMLInputElement>}
       type={inputType}
-      className="h-16 w-full rounded-[1.5rem] border border-border bg-background px-5 text-lg"
+      className="w-full border-0 border-b-2 border-black/15 bg-transparent py-3 text-2xl font-medium text-[#191919] outline-none transition placeholder:font-normal placeholder:text-[#b0b0b0] focus:border-[#173622] sm:text-3xl"
       value={typeof value === "string" || typeof value === "number" ? String(value) : ""}
-      placeholder={question.placeholder || ""}
-      onChange={(event) => updateAnswer(question.id, event.target.value)}
+      placeholder={question.placeholder || "Typ je antwoord..."}
+      onChange={(event) => onChange(event.target.value)}
     />
+  );
+}
+
+function ChoiceOption({
+  label,
+  letter,
+  selected,
+  multiple = false,
+  onSelect,
+  delayMs = 0,
+}: {
+  label: string;
+  letter: string;
+  selected: boolean;
+  multiple?: boolean;
+  onSelect: () => void;
+  delayMs?: number;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      style={{ animationDelay: `${delayMs}ms` }}
+      className={cn(
+        "form-choice-enter flex w-full items-center gap-4 rounded-xl border px-4 py-4 text-left text-base transition sm:px-5 sm:py-[1.15rem] sm:text-lg",
+        selected
+          ? "border-[#173622] bg-[#edf4ee] text-[#173622] shadow-[0_12px_30px_-24px_rgba(23,54,34,0.8)]"
+          : "border-black/10 bg-white hover:border-[#173622]/25 hover:bg-[#fafcf9]"
+      )}
+    >
+      <span
+        className={cn(
+          "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-xs font-semibold",
+          selected
+            ? "border-[#173622] bg-[#173622] text-white"
+            : "border-black/10 bg-[#f5f5f3] text-[#666]"
+        )}
+      >
+        {letter}
+      </span>
+      <span className="min-w-0 flex-1">{label}</span>
+      {selected && multiple ? <Check className="h-4 w-4 shrink-0" /> : null}
+    </button>
   );
 }

@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser, createAuditLog } from "@/lib/auth";
 import { createPost, canUserPostInSpace } from "@/lib/community";
+import { createMentionNotifications } from "@/lib/community-mentions";
 
 const createPostSchema = z.object({
   title: z.string().max(160).optional().or(z.literal("")),
   content: z.string().min(1, "Bericht is verplicht").max(10000),
   spaceId: z.string().min(1, "Space is verplicht"),
+  mentions: z.array(z.string()).max(20).optional(),
   attachments: z
     .array(
       z.object({
@@ -23,8 +25,6 @@ const createPostSchema = z.object({
     })
       .optional(),
 });
-
-const voiceRoles = new Set(["ADMIN", "SUPERADMIN", "COACH"]);
 
 export async function POST(request: NextRequest) {
   try {
@@ -46,16 +46,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (
-      data.attachments?.some((attachment) => attachment.type === "voice_memo") &&
-      !voiceRoles.has(user.role)
-    ) {
-      return NextResponse.json(
-        { error: "Voice messages are only available for coaches and admins." },
-        { status: 403 }
-      );
-    }
-
     const post = await createPost(
       user.id,
       data.spaceId,
@@ -68,6 +58,15 @@ export async function POST(request: NextRequest) {
     await createAuditLog("post.created", user.id, {
       postId: post.id,
       spaceId: data.spaceId,
+    });
+
+    await createMentionNotifications({
+      mentionedUserIds: data.mentions || [],
+      spaceId: data.spaceId,
+      tenantId: user.tenantId,
+      actorId: user.id,
+      actorName: `${user.firstName} ${user.lastName}`,
+      link: `/community/${post.space.slug}`,
     });
 
     return NextResponse.json({ ...post, isLiked: false });

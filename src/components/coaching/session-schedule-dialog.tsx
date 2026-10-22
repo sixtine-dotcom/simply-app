@@ -324,6 +324,7 @@ export function SessionScheduleDialog({ items = [] }: { items?: CalendarPreviewI
       });
       setGroupForm(getInitialGroupForm());
       setMode(null);
+      router.push(`/admin/sessions?view=month&date=${groupForm.startDate}`);
       router.refresh();
     } catch (error) {
       toast({

@@ -2,16 +2,13 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getUserSessions } from "@/lib/coaching";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { formatDateTime, formatRelativeTime, getInitials } from "@/lib/utils";
-import { Calendar, Clock, Video, Download, User } from "lucide-react";
+import { Calendar } from "lucide-react";
 import { SessionCard } from "@/components/coaching/session-card";
 
 export default async function CoachingPage() {
   const user = await getCurrentUser();
-  
+
   if (!user) {
     redirect("/login");
   }
@@ -31,83 +28,89 @@ export default async function CoachingPage() {
   const isCoach = user.role === "COACH" || user.role === "ADMIN";
 
   return (
-    <div className="p-4 md:p-6 lg:p-8">
-      <div className="mx-auto max-w-6xl space-y-8">
-      <div className="overflow-hidden rounded-[34px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(248,242,233,0.82))] p-6 shadow-[0_24px_80px_-34px_rgba(50,32,14,0.28)] md:p-8">
-        <p className="app-kicker">Coaching suite</p>
-        <h1 className="mt-3 font-display text-3xl tracking-tight text-slate-950 md:text-5xl">
-          Coaching
-        </h1>
-        <p className="mt-3 text-muted-foreground">
-          {isClient
-            ? "Jouw coaching sessies, opvolging en opnames in één rustige omgeving."
-            : "Beheer je coaching sessies en houd overzicht over je hele agenda."}
-        </p>
-      </div>
+    <div className="relative min-h-screen overflow-hidden bg-white px-4 py-5 md:px-8 md:py-8">
+      <div
+        className="pointer-events-none fixed inset-0 bg-[url('/simply-community-background.jpg')] bg-cover bg-center bg-no-repeat"
+        aria-hidden="true"
+      />
+      <div className="pointer-events-none fixed inset-0 bg-white/58" aria-hidden="true" />
 
-      {/* Upcoming Sessions */}
-      {upcomingSessions.length > 0 && (
-        <div className="mb-8">
-          <h2 className="font-display text-lg tracking-wider mb-4">
-            AANKOMENDE SESSIES
-          </h2>
-          <div className="space-y-4">
-            {upcomingSessions.map((session) => (
-              <SessionCard
-                key={session.id}
-                session={session}
-                currentUser={user}
-                isClient={isClient}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Past Sessions */}
-      {pastSessions.length > 0 && (
-        <div>
-          <h2 className="font-display text-lg tracking-wider mb-4">
-            AFGERONDE SESSIES
-          </h2>
-          <div className="space-y-4">
-            {pastSessions.map((session) => (
-              <SessionCard
-                key={session.id}
-                session={session}
-                currentUser={user}
-                isClient={isClient}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Empty State */}
-      {upcomingSessions.length === 0 && pastSessions.length === 0 && (
-        <Card className="app-halo">
-          <CardContent className="py-12 text-center">
-            <Calendar className="h-12 w-12 mx-auto text-muted-foreground/50" />
-            <h2 className="mt-4 font-display text-xl tracking-wider">
+      <div className="relative mx-auto max-w-6xl">
+        <header className="mb-6 flex items-end justify-between border-b border-black/10 pb-5">
+          <div>
+            <h1 className="text-xl font-semibold text-[#181c19]">Coaching</h1>
+            <p className="mt-1 text-xs text-[#68706a]">
               {isClient
-                ? "GEEN SESSIES GEPLAND"
-                : "GEEN SESSIES"}
-            </h2>
-            <p className="mt-2 text-muted-foreground max-w-md mx-auto">
-              {isClient
-                ? "Je hebt nog geen coaching sessies. Neem contact op met je coach om een sessie in te plannen."
-                : "Je hebt nog geen sessies gepland. Plan een nieuwe sessie via het admin menu."}
+                ? "Jouw sessies, opvolging en opnames."
+                : "Beheer je coaching en agenda."}
             </p>
-            {isCoach && (
-              <Button className="mt-4" asChild>
-                <Link href="/admin/sessions/new">
-                  Nieuwe sessie plannen
-                </Link>
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+          {isCoach ? (
+            <Link
+              href="/admin/sessions"
+              className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#737a75] transition hover:text-[#173622]"
+            >
+              Volledige agenda
+            </Link>
+          ) : (
+            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#737a75]">
+              {upcomingSessions.length} gepland
+            </span>
+          )}
+        </header>
+
+        <main className="space-y-8">
+          {upcomingSessions.length > 0 ? (
+            <section className="space-y-3">
+              <h2 className="text-sm font-semibold text-[#181c19]">Aankomende sessies</h2>
+              <div className="space-y-3">
+                {upcomingSessions.map((session) => (
+                  <SessionCard
+                    key={session.id}
+                    session={session}
+                    currentUser={user}
+                    isClient={isClient}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {pastSessions.length > 0 ? (
+            <section className="space-y-3">
+              <h2 className="text-sm font-semibold text-[#181c19]">Afgeronde sessies</h2>
+              <div className="space-y-3">
+                {pastSessions.map((session) => (
+                  <SessionCard
+                    key={session.id}
+                    session={session}
+                    currentUser={user}
+                    isClient={isClient}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {upcomingSessions.length === 0 && pastSessions.length === 0 ? (
+            <div className="rounded-2xl border border-black/10 bg-white px-5 py-12 text-center">
+              <Calendar className="mx-auto h-5 w-5 text-slate-400" />
+              <h2 className="mt-4 text-sm font-semibold text-slate-800">
+                {isClient ? "Geen sessies gepland" : "Geen sessies"}
+              </h2>
+              <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">
+                {isClient
+                  ? "Je hebt nog geen coaching sessies. Neem contact op met je coach om een sessie in te plannen."
+                  : "Je hebt nog geen sessies gepland. Plan een nieuwe sessie via je agenda."}
+              </p>
+              {isCoach ? (
+                <Button className="mt-5 bg-[#173622] hover:bg-[#21492e]" asChild>
+                  <Link href="/admin/sessions/new">Nieuwe sessie plannen</Link>
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </main>
       </div>
     </div>
   );

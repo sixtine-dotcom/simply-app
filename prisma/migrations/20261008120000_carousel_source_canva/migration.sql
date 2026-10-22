@@ -1,0 +1,3 @@
+ALTER TABLE "Carousel" ADD COLUMN "source" TEXT NOT NULL DEFAULT 'AI',
+ADD COLUMN "canvaDesignId" TEXT,
+ADD COLUMN "captionRequestedAt" TIMESTAMP(3);

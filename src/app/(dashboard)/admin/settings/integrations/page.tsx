@@ -6,12 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 
 const integrations = [
   {
-    name: "Stripe",
-    description: "Checkout, abonnementen, customer portal en facturatie.",
-    configured: Boolean(process.env.STRIPE_SECRET_KEY),
-    href: "/admin/billing",
-  },
-  {
     name: "Resend",
     description: "Transactionele e-mails, uitnodigingen en reminders.",
     configured: Boolean(process.env.RESEND_API_KEY),

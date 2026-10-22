@@ -196,7 +196,7 @@ export default function RecurringGroupSessionPage() {
         description: data.message || `${data.created} sessies ingepland.`,
       });
 
-      router.push("/admin/sessions");
+      router.push(`/admin/sessions?view=month&date=${formData.startDate}`);
     } catch (error) {
       toast({
         title: "Fout",

@@ -1,0 +1,2 @@
+ALTER TABLE "VideoProject" ADD COLUMN     "mode" TEXT NOT NULL DEFAULT 'SOCIAL';
+

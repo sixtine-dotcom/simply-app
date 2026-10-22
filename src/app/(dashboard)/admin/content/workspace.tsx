@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { CalendarDays, Check, ChevronLeft, ChevronRight, ExternalLink, Filter, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -28,6 +29,8 @@ type Props = {
 
 type ViewMode = "day" | "week" | "month";
 
+const VIDEO_STUDIO_PREFIX = "video-studio:";
+
 export function ContentPlannerWorkspace({ googleConfigured, googleConnected, googleEmail, hasDriveReadScope, canvaConfigured, canvaConnected, metaConfigured, metaConnected, metaAccountName, instagramConfigured, instagramConnected, instagramAccountName }: Props) {
   const [drafts, setDrafts] = useState<ContentDraft[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -40,6 +43,34 @@ export function ContentPlannerWorkspace({ googleConfigured, googleConnected, goo
   const [prefillDate, setPrefillDate] = useState<string | null>(null);
   const [metaSetupOpen, setMetaSetupOpen] = useState(false);
   const [canvaSetupOpen, setCanvaSetupOpen] = useState(false);
+
+  const router = useRouter();
+  // Reels scheduled in Video Studio live in the database, not in this browser: show them in the same calendar.
+  const [studioReels, setStudioReels] = useState<ContentDraft[]>([]);
+  const loadStudioReels = useCallback(async () => {
+    const res = await fetch("/api/admin/video/scheduled", { cache: "no-store" }).catch(() => null);
+    if (!res?.ok) return;
+    const data = await res.json();
+    type Reel = { id: string; key: string; title: string; scheduledAt: string; caption: string | null; publishStatus: string; posterUrl: string | null };
+    setStudioReels(
+      (data.reels as Reel[]).map((reel) => ({
+        video: {
+          id: `${VIDEO_STUDIO_PREFIX}${reel.id}${reel.key !== reel.id ? `#${reel.key}` : ""}`,
+          name: `🎬 ${reel.title}${reel.publishStatus === "PUBLISHED" ? " ✓" : reel.publishStatus === "FAILED" ? " ⚠" : ""}`,
+          mimeType: "video/mp4",
+          modifiedTime: reel.scheduledAt,
+          thumbnailLink: reel.posterUrl ?? undefined,
+          source: "video-studio",
+        },
+        categoryId: "",
+        publications: [{ id: `vs-${reel.key}`, scheduledAt: reel.scheduledAt, platforms: ["instagram"], caption: reel.caption ?? "", format: "reel" }],
+        savedAt: reel.scheduledAt,
+      }))
+    );
+  }, []);
+  useEffect(() => {
+    void loadStudioReels();
+  }, [loadStudioReels]);
 
   const connectHref = "/api/calendar/connect/google?returnTo=%2Fadmin%2Fcontent%3Fgoogle%3Dconnected";
 
@@ -60,6 +91,10 @@ export function ContentPlannerWorkspace({ googleConfigured, googleConnected, goo
   }
 
   function openExistingPost(draft: ContentDraft) {
+    if (draft.video.id.startsWith(VIDEO_STUDIO_PREFIX)) {
+      router.push(`/admin/content/video/${draft.video.id.slice(VIDEO_STUDIO_PREFIX.length).split("#")[0]}`);
+      return;
+    }
     setEditingDraft(draft);
     setPrefillDate(null);
     setDialogOpen(true);
@@ -75,6 +110,10 @@ export function ContentPlannerWorkspace({ googleConfigured, googleConnected, goo
   }
 
   function rescheduleTo(videoId: string, publicationId: string, dateKey: string) {
+    if (videoId.startsWith(VIDEO_STUDIO_PREFIX)) {
+      void rescheduleStudioReel(videoId, dateKey);
+      return;
+    }
     const draft = drafts.find((item) => item.video.id === videoId);
     const publication = draft?.publications.find((item) => item.id === publicationId);
     if (!draft || !publication) return;
@@ -91,6 +130,26 @@ export function ContentPlannerWorkspace({ googleConfigured, googleConnected, goo
     refresh();
   }
 
+  // Dragging a Video Studio reel moves its real Instagram schedule.
+  async function rescheduleStudioReel(videoId: string, dateKey: string) {
+    const reel = studioReels.find((item) => item.video.id === videoId);
+    const publication = reel?.publications[0];
+    if (!reel || !publication || /[✓⚠]$/.test(reel.video.name)) return;
+    const original = new Date(publication.scheduledAt);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const local = dateKey.includes("T") ? dateKey : `${dateKey}T${pad(original.getHours())}:${pad(original.getMinutes())}`;
+    const res = await fetch(`/api/admin/video/${videoId.slice(VIDEO_STUDIO_PREFIX.length)}/publish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "schedule", caption: publication.caption, scheduledAt: new Date(local).toISOString() }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      window.alert(data.error || "Verplaatsen mislukt");
+    }
+    await loadStudioReels();
+  }
+
   function shift(direction: 1 | -1) {
     setAnchorDate((current) => {
       const next = new Date(current);
@@ -103,10 +162,10 @@ export function ContentPlannerWorkspace({ googleConfigured, googleConnected, goo
 
   const scheduled = useMemo(
     () =>
-      drafts
+      [...drafts, ...studioReels.map((reel) => ({ ...reel, categoryId: categories[0]?.id ?? "" }))]
         .filter((draft) => !hiddenCategoryIds.has(draft.categoryId))
         .flatMap((draft) => draft.publications.map((publication) => ({ draft, publication }))),
-    [drafts, hiddenCategoryIds]
+    [drafts, studioReels, categories, hiddenCategoryIds]
   );
 
   const monthDate = useMemo(() => new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1), [anchorDate]);
@@ -143,9 +202,9 @@ export function ContentPlannerWorkspace({ googleConfigured, googleConnected, goo
   }, [scheduled, viewMode, monthDate, weekStartDate, anchorDate]);
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="flex items-center justify-between rounded-2xl border border-border bg-white p-4">
+    <div className="space-y-3">
+      <div className="grid gap-2 md:grid-cols-3">
+        <div className="flex items-center justify-between rounded-xl border border-border bg-white px-3 py-2">
           <div><p className="font-semibold text-slate-900">Canva</p><p className="text-xs text-muted-foreground">{canvaConnected ? "Verbonden · designs rechtstreeks kiezen" : "Nog niet verbonden"}</p></div>
           {canvaConfigured ? (
             <Button asChild variant={canvaConnected ? "outline" : "default"} size="sm"><a href="/api/integrations/canva/connect">{canvaConnected ? "Opnieuw koppelen" : "Canva koppelen"}</a></Button>
@@ -153,7 +212,7 @@ export function ContentPlannerWorkspace({ googleConfigured, googleConnected, goo
             <Button type="button" size="sm" onClick={() => setCanvaSetupOpen(true)}>Configuratie nodig</Button>
           )}
         </div>
-        <div className="flex items-center justify-between rounded-2xl border border-border bg-white p-4">
+        <div className="flex items-center justify-between rounded-xl border border-border bg-white px-3 py-2">
           <div><p className="font-semibold text-slate-900">Instagram</p><p className="text-xs text-muted-foreground">{instagramConnected ? `Verbonden${instagramAccountName ? ` · ${instagramAccountName}` : ""}` : "Nog niet verbonden"}</p></div>
           {instagramConfigured ? (
             <Button asChild variant={instagramConnected ? "outline" : "default"} size="sm"><a href="/api/integrations/instagram/connect">{instagramConnected ? "Opnieuw koppelen" : "Instagram koppelen"}</a></Button>
@@ -161,7 +220,7 @@ export function ContentPlannerWorkspace({ googleConfigured, googleConnected, goo
             <Button type="button" size="sm" onClick={() => setMetaSetupOpen(true)}>Configuratie nodig</Button>
           )}
         </div>
-        <div className="flex items-center justify-between rounded-2xl border border-border bg-white p-4">
+        <div className="flex items-center justify-between rounded-xl border border-border bg-white px-3 py-2">
           <div><p className="font-semibold text-slate-900">Facebook</p><p className="text-xs text-muted-foreground">{metaConnected ? `Verbonden${metaAccountName ? ` · ${metaAccountName}` : ""}` : "Nog niet verbonden"}</p></div>
           {metaConfigured ? (
             <Button asChild variant={metaConnected ? "outline" : "default"} size="sm"><a href="/api/integrations/meta/connect">{metaConnected ? "Opnieuw koppelen" : "Facebook koppelen"}</a></Button>
@@ -171,7 +230,7 @@ export function ContentPlannerWorkspace({ googleConfigured, googleConnected, goo
         </div>
       </div>
       <Card className="app-halo">
-        <CardHeader className="space-y-4">
+        <CardHeader className="space-y-2 pb-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="flex items-center gap-2 font-display text-xl font-normal text-slate-950">
               <CalendarDays className="h-5 w-5 text-primary" />
@@ -183,7 +242,7 @@ export function ContentPlannerWorkspace({ googleConfigured, googleConnected, goo
             </Button>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
             <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-1">
               {(["day", "week", "month"] as const).map((mode) => (
                 <button

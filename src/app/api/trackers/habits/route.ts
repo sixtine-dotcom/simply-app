@@ -9,6 +9,15 @@ const updateHabitSchema = z.object({
   waterGlasses: z.number().int().min(0).optional(),
   steps: z.number().int().min(0).optional(),
   supplements: z.boolean().optional(),
+  customHabits: z
+    .object({
+      sleepHours: z.number().min(0).max(24).optional(),
+      movementMinutes: z.number().int().min(0).max(1440).optional(),
+      vegetableServings: z.number().int().min(0).max(20).optional(),
+      energy: z.number().int().min(1).max(5).optional(),
+      note: z.string().max(500).optional(),
+    })
+    .optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -68,6 +77,7 @@ export async function POST(request: NextRequest) {
         waterGlasses: data.waterGlasses ?? log.waterGlasses,
         steps: data.steps ?? log.steps,
         supplements: data.supplements ?? log.supplements,
+        customHabits: data.customHabits ?? log.customHabits ?? undefined,
       },
     });
 

@@ -45,8 +45,8 @@ export default async function CoursePage({ params }: CoursePageProps) {
     return (
       <div className="min-h-screen p-4 md:p-6 lg:p-8">
         <div className="mx-auto max-w-2xl pt-8 md:pt-16">
-          <Card className="overflow-hidden border-amber-200 bg-white shadow-xl">
-            <div className="bg-[linear-gradient(135deg,#1f4a29,#365f3d)] px-6 py-8 text-white md:px-10">
+          <Card className="overflow-hidden border-black/10 bg-white shadow-none">
+            <div className="bg-[#173622] px-6 py-8 text-white md:px-10">
               <ClipboardList className="h-9 w-9" />
               <p className="mt-5 text-xs font-semibold uppercase tracking-[0.28em] text-white/65">
                 Eerst te voltooien
@@ -57,7 +57,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
               </p>
             </div>
             <CardContent className="p-6 md:p-10">
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-950">
+              <div className="border border-black/10 bg-[#f7f8f5] p-5 text-sm leading-6 text-[#26332a]">
                 <strong>{course.accessGate.assignmentTitle || course.accessGate.formTitle}</strong>
                 <p className="mt-1">Je cursus en gekoppelde community worden automatisch beschikbaar zodra je dit formulier volledig hebt ingediend.</p>
               </div>
@@ -125,7 +125,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
   return (
     <div className="min-h-screen">
       <div className="mx-auto max-w-6xl p-4 md:p-6 lg:p-8">
-        <div className="overflow-hidden rounded-[36px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(248,242,233,0.82))] shadow-[0_24px_80px_-34px_rgba(50,32,14,0.28)]">
+        <div className="overflow-hidden border-y border-black/10 bg-white">
         <div className="p-6 md:p-8 lg:p-10">
           <Link
             href="/courses"
@@ -136,26 +136,26 @@ export default async function CoursePage({ params }: CoursePageProps) {
           </Link>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="app-panel p-6 md:p-8">
+            <div className="p-0 md:py-2">
               <div className="flex flex-wrap items-center gap-3">
                 {course.isPrivate ? (
-                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-900">
+                  <span className="border-l border-[#173622]/30 pl-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#173622]">
                     Privetraject
                   </span>
                 ) : (
-                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-900">
+                  <span className="border-l border-[#173622]/30 pl-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#173622]">
                     Programma
                   </span>
                 )}
                 {course.enrollment.daysRemaining !== null ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-3 py-1 text-xs font-medium text-stone-700">
+                  <span className="inline-flex items-center gap-1 border-l border-black/15 pl-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-600">
                     <Clock className="h-3.5 w-3.5" />
                     Nog {course.enrollment.daysRemaining} dagen toegang
                   </span>
                 ) : null}
               </div>
 
-              <h1 className="mt-4 font-display text-3xl tracking-tight text-stone-900 md:text-5xl">
+              <h1 className="mt-5 [font-family:'The_Seasons',Georgia,serif] text-[clamp(2.5rem,5vw,4.8rem)] font-normal leading-[0.95] tracking-[-0.035em] text-stone-900">
                 {course.title}
               </h1>
 
@@ -165,7 +165,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
                 </p>
               ) : null}
 
-              <div className="mt-8 grid gap-4 md:grid-cols-3">
+              <div className="mt-9 grid border-y border-black/10 md:grid-cols-3 md:divide-x md:divide-black/10">
                 <MetricCard
                   label="Voortgang"
                   value={`${course.progressPercentage}%`}
@@ -201,17 +201,17 @@ export default async function CoursePage({ params }: CoursePageProps) {
               </div>
 
               {course.progressPercentage === 100 && (
-                <div className="mt-6 rounded-2xl border border-green-200 bg-green-50 p-5">
+                <div className="mt-6 border border-[#b9d0be] bg-[#f3f7f3] p-5">
                   <div className="flex items-center gap-3">
                     <Award className="h-8 w-8 text-green-600 flex-shrink-0" />
                     <div className="flex-1">
-                      <p className="font-medium text-green-900">Gefeliciteerd! Je hebt deze cursus voltooid 🎉</p>
+                      <p className="font-medium text-green-900">Gefeliciteerd! Je hebt deze cursus voltooid.</p>
                       <p className="text-sm text-green-700 mt-0.5">Download je persoonlijk certificaat als bewijs van voltooiing.</p>
                     </div>
                     <a
                       href={`/api/courses/${slug}/certificate`}
                       download={`certificaat-${slug}.svg`}
-                      className="inline-flex items-center gap-2 rounded-full bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 transition flex-shrink-0"
+                      className="inline-flex items-center gap-2 bg-green-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-green-800 flex-shrink-0"
                     >
                       <Award className="h-4 w-4" />
                       Certificaat
@@ -222,7 +222,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
 
               <div className="mt-8 flex flex-wrap gap-3">
                 {continueLesson ? (
-                  <Button size="lg" asChild className="rounded-full px-6">
+                  <Button size="lg" asChild className="bg-[#173622] px-6 text-white hover:bg-[#21492e]">
                     <Link href={`/courses/${slug}/lessons/${continueLesson.lessonId}`}>
                       {course.progressPercentage > 0 ? "Ga verder" : "Start cursus"}
                       <ChevronRight className="ml-2 h-4 w-4" />
@@ -230,14 +230,14 @@ export default async function CoursePage({ params }: CoursePageProps) {
                   </Button>
                 ) : null}
                 {course.hasCommunity ? (
-                  <Button size="lg" variant="outline" asChild className="rounded-full px-6">
+                  <Button size="lg" variant="outline" asChild className="px-6">
                     <Link href="/community">
                       <Users className="mr-2 h-4 w-4" />
                       Naar community
                     </Link>
                   </Button>
                 ) : null}
-                <Button size="lg" variant="ghost" asChild className="rounded-full px-6">
+                <Button size="lg" variant="ghost" asChild className="px-6">
                   <Link href={`/courses/${slug}/coachings`}>
                     <Video className="mr-2 h-4 w-4" />
                     Coachings & opnames
@@ -246,13 +246,13 @@ export default async function CoursePage({ params }: CoursePageProps) {
               </div>
             </div>
 
-            <Card className="border-stone-200 bg-stone-950 text-stone-100 shadow-[0_24px_70px_-45px_rgba(0,0,0,0.6)]">
+            <Card className="border-0 bg-[#173622] text-stone-100 shadow-none">
               <CardHeader>
                 <CardTitle className="text-lg">Volgende stap</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-sm text-stone-300">
                 {continueLesson ? (
-                  <div className="rounded-2xl bg-white/5 p-4">
+                  <div className="border-y border-white/10 py-4">
                     <p className="text-xs uppercase tracking-[0.18em] text-stone-400">Aanbevolen</p>
                     <p className="mt-2 text-base font-medium text-white">Ga verder met je volgende les</p>
                     <p className="mt-2 leading-6">
@@ -260,7 +260,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
                     </p>
                   </div>
                 ) : (
-                  <div className="rounded-2xl bg-white/5 p-4">
+                  <div className="border-y border-white/10 py-4">
                     <p className="text-base font-medium text-white">Alles afgerond</p>
                     <p className="mt-2 leading-6">
                       Je hebt deze cursus volledig doorlopen. Neem de community of downloads nog eens door wanneer nodig.
@@ -269,7 +269,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
                 )}
 
                 {nextLockedModule?.unlocksAt ? (
-                  <div className="rounded-2xl border border-white/10 p-4">
+                  <div className="border-t border-white/10 pt-4">
                     <p className="text-xs uppercase tracking-[0.18em] text-stone-400">Volgende unlock</p>
                     <p className="mt-2 font-medium text-white">{nextLockedModule.title}</p>
                     <p className="mt-2">
@@ -278,7 +278,7 @@ export default async function CoursePage({ params }: CoursePageProps) {
                   </div>
                 ) : null}
 
-                <div className="rounded-2xl border border-white/10 p-4">
+                <div className="border-t border-white/10 pt-4">
                   <p className="text-xs uppercase tracking-[0.18em] text-stone-400">Toegang gestart</p>
                   <p className="mt-2 font-medium text-white">{formatDate(course.enrollment.startDate)}</p>
                 </div>
@@ -321,13 +321,13 @@ function MetricCard({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+    <div className="border-b border-black/10 px-4 py-5 last:border-b-0">
       <div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-stone-500">
         {icon}
         {label}
       </div>
       <p className="mt-3 text-xl font-semibold text-stone-900">{value}</p>
-      <p className="mt-1 text-sm leading-6 text-stone-600">{description}</p>
+      <p className="mt-1 text-xs leading-5 text-stone-600">{description}</p>
     </div>
   );
 }
@@ -364,17 +364,17 @@ function ModuleCard({ module, courseSlug, moduleNumber }: ModuleCardProps) {
   const moduleProgress = module.totalCount > 0 ? Math.round((module.completedCount / module.totalCount) * 100) : 0;
 
   return (
-    <Card className="overflow-hidden rounded-[1.75rem] border-stone-200 bg-white shadow-[0_24px_70px_-55px_rgba(0,0,0,0.35)]">
+    <Card className="overflow-hidden border-black/10 bg-white shadow-none">
       <CardContent className="p-0">
         <div className="flex flex-col gap-4 border-b border-stone-200 p-5 md:flex-row md:items-start md:justify-between md:p-6">
           <div className="flex items-start gap-4">
             <div
-              className={`flex h-11 w-11 items-center justify-center rounded-2xl text-sm font-semibold ${
+              className={`flex h-10 w-10 items-center justify-center border text-sm font-semibold ${
                 module.isLocked
-                  ? "bg-stone-100 text-stone-500"
+                  ? "border-black/10 bg-stone-50 text-stone-500"
                   : isComplete
-                    ? "bg-emerald-100 text-emerald-700"
-                    : "bg-amber-100 text-amber-900"
+                    ? "border-[#173622] bg-[#173622] text-white"
+                    : "border-black/10 bg-white text-[#173622]"
               }`}
             >
               {module.isLocked ? <Lock className="h-4 w-4" /> : isComplete ? <CheckCircle2 className="h-5 w-5" /> : moduleNumber}
@@ -383,11 +383,11 @@ function ModuleCard({ module, courseSlug, moduleNumber }: ModuleCardProps) {
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-lg font-semibold text-stone-900">{module.title}</h3>
                 {module.isLocked ? (
-                  <span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600">
+                  <span className="border-l border-black/15 pl-2 text-[10px] font-medium uppercase tracking-[0.14em] text-stone-600">
                     Vergrendeld
                   </span>
                 ) : isComplete ? (
-                  <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                  <span className="border-l border-[#173622]/30 pl-2 text-[10px] font-medium uppercase tracking-[0.14em] text-[#173622]">
                     Afgerond
                   </span>
                 ) : null}
@@ -410,7 +410,7 @@ function ModuleCard({ module, courseSlug, moduleNumber }: ModuleCardProps) {
           </div>
 
           {!module.isLocked ? (
-            <div className="min-w-[170px] rounded-2xl bg-stone-50 p-4">
+            <div className="min-w-[170px] border-l border-black/10 pl-4">
               <div className="flex items-center justify-between text-sm text-stone-600">
                 <span>Module voortgang</span>
                 <span className="font-medium text-stone-900">{moduleProgress}%</span>
@@ -457,7 +457,7 @@ function LessonRow({
         lesson.isLocked ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-stone-50"
       }`}
     >
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-stone-100 text-sm font-medium text-stone-600">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-black/10 bg-white text-sm font-medium text-stone-600">
         {lesson.isLocked ? (
           <Lock className="h-4 w-4" />
         ) : lesson.isCompleted ? (
@@ -473,28 +473,28 @@ function LessonRow({
         </p>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-stone-500">
           {lesson.videoUrl ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-1">
+            <span className="inline-flex items-center gap-1 border-l border-black/10 pl-2">
               <PlayCircle className="h-3.5 w-3.5" />
               {lesson.videoDuration ? formatDuration(lesson.videoDuration) : "Video"}
             </span>
           ) : null}
           {lesson.watchedPercentage !== null ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-1">
+            <span className="inline-flex items-center gap-1 border-l border-black/10 pl-2">
               {lesson.watchedPercentage}% bekeken
             </span>
           ) : null}
           {lesson.remainingSeconds && lesson.remainingSeconds > 0 ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2 py-1">
+            <span className="inline-flex items-center gap-1 border-l border-black/10 pl-2">
               Nog {formatDuration(lesson.remainingSeconds)}
             </span>
           ) : null}
           {lesson.isCompleted ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">
+            <span className="inline-flex items-center gap-1 border-l border-emerald-300 pl-2 text-emerald-700">
               <CheckCircle2 className="h-3.5 w-3.5" />
               Voltooid
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-amber-700">
+            <span className="inline-flex items-center gap-1 border-l border-amber-300 pl-2 text-amber-700">
               <Circle className="h-3.5 w-3.5" />
               Nog te doen
             </span>

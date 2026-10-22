@@ -9,7 +9,7 @@ export type DriveVideo = {
   webViewLink?: string;
   thumbnailLink?: string;
   mediaUrls?: string[];
-  source?: "drive" | "desktop" | "canva";
+  source?: "drive" | "desktop" | "canva" | "video-studio";
 };
 
 export type ContentPublication = {

@@ -10,9 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { formatRelativeTime, getInitials } from "@/lib/utils";
-import { FileText, Heart, Loader2, MessageCircle, MoreHorizontal, Pencil, Pin, PinOff, Trash2, Video } from "lucide-react";
+import { FileText, Heart, Loader2, MessageCircle, MoreHorizontal, Pencil, Pin, PinOff, Reply as ReplyIcon, Send, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PostPoll } from "@/components/community/post-poll";
+import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { MentionField } from "@/components/community/mention-field";
 
 interface PostCardProps {
   post: {
@@ -49,6 +51,25 @@ interface PostCardProps {
         votes: number;
       }>;
     } | null;
+    comments: Array<{
+      id: string;
+      content: string;
+      createdAt: Date;
+      parentId?: string | null;
+      author: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        avatarUrl: string | null;
+        role: string;
+      };
+      attachments: Array<{
+        id: string;
+        url: string;
+        type: string;
+        duration: number | null;
+      }>;
+    }>;
     _count: {
       comments: number;
       likes: number;
@@ -57,10 +78,15 @@ interface PostCardProps {
   };
   currentUserId: string;
   currentUserRole?: string;
+  currentUser?: {
+    firstName: string;
+    lastName: string;
+    avatarUrl?: string | null;
+  };
   showSpace?: boolean;
 }
 
-export function PostCard({ post, currentUserId, currentUserRole, showSpace = true }: PostCardProps) {
+export function PostCard({ post, currentUserId, currentUserRole, currentUser, showSpace = true }: PostCardProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [isLiked, setIsLiked] = useState(post.isLiked);
@@ -74,6 +100,10 @@ export function PostCard({ post, currentUserId, currentUserRole, showSpace = tru
   const [draftContent, setDraftContent] = useState(post.content);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [reply, setReply] = useState("");
+  const [isReplying, setIsReplying] = useState(false);
+  const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([]);
+  const [replyTo, setReplyTo] = useState<{ id: string; name: string; content: string } | null>(null);
 
   const handleLike = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -198,9 +228,37 @@ export function PostCard({ post, currentUserId, currentUserRole, showSpace = tru
     }
   };
 
+  const handleReply = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!reply.trim() || isReplying) return;
+
+    setIsReplying(true);
+    try {
+      const response = await fetch(`/api/community/posts/${post.id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: reply.trim(), attachments: [], mentions: mentionedUserIds, parentId: replyTo?.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Je reactie kon niet worden geplaatst.");
+      setReply("");
+      setMentionedUserIds([]);
+      setReplyTo(null);
+      router.refresh();
+    } catch (error) {
+      toast({
+        title: "Reactie niet geplaatst",
+        description: error instanceof Error ? error.message : "Probeer het opnieuw.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsReplying(false);
+    }
+  };
+
   return (
-    <Card className={isPinned ? "border-primary/30 bg-primary/5" : ""}>
-      <CardContent className="p-5">
+    <Card className={cn("overflow-hidden rounded-2xl border-black/10 bg-white shadow-none", isPinned && "border-[#173622]/35 bg-[#fbfcfa]")}>
+      <CardContent className="p-5 sm:p-6">
         {/* Header */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
@@ -216,7 +274,7 @@ export function PostCard({ post, currentUserId, currentUserRole, showSpace = tru
                   {post.author.firstName} {post.author.lastName}
                 </span>
                 {isAdmin && (
-                  <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                  <span className="border-l border-[#173622]/30 pl-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#173622]">
                     Simply
                   </span>
                 )}
@@ -247,7 +305,7 @@ export function PostCard({ post, currentUserId, currentUserRole, showSpace = tru
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-8 gap-1 px-2 text-xs"
+                  className="h-8 gap-1 rounded-none px-2 text-xs"
                 onClick={handleTogglePin}
                 disabled={isPinning}
               >
@@ -273,28 +331,28 @@ export function PostCard({ post, currentUserId, currentUserRole, showSpace = tru
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
                 {showActions ? (
-                  <div className="absolute right-0 top-10 z-20 min-w-[180px] rounded-2xl border bg-white p-2 shadow-xl">
+                  <div className="absolute right-0 top-10 z-20 min-w-[180px] rounded-xl border border-black/10 bg-white p-2 shadow-[0_18px_45px_-28px_rgba(17,28,20,0.45)]">
                     <button
                       type="button"
-                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm hover:bg-muted/40"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[#f5f6f3]"
                       onClick={() => {
                         setIsEditing(true);
                         setShowActions(false);
                       }}
                     >
                       <Pencil className="h-4 w-4" />
-                      Edit post
+                      Bericht bewerken
                     </button>
                     <button
                       type="button"
-                      className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
                       onClick={() => {
                         setShowActions(false);
                         void handleDeletePost();
                       }}
                     >
                       <Trash2 className="h-4 w-4" />
-                      Delete post
+                      Bericht verwijderen
                     </button>
                   </div>
                 ) : null}
@@ -306,17 +364,18 @@ export function PostCard({ post, currentUserId, currentUserRole, showSpace = tru
         {/* Content */}
         <div className="mb-4 space-y-4">
           {isEditing ? (
-            <div className="space-y-3 rounded-2xl border bg-muted/20 p-4">
+            <div className="space-y-3 rounded-xl border border-black/10 bg-[#fafaf8] p-4">
               <Input
                 value={draftTitle}
                 onChange={(event) => setDraftTitle(event.target.value)}
-                placeholder="Optional post title"
+                placeholder="Titel van het bericht (optioneel)"
+                className="rounded-xl"
               />
               <Textarea
                 value={draftContent}
                 onChange={(event) => setDraftContent(event.target.value)}
-                placeholder="Post content"
-                className="min-h-[140px]"
+                placeholder="Schrijf je bericht"
+                className="min-h-[140px] rounded-xl"
               />
               <div className="flex justify-end gap-2">
                 <Button
@@ -328,22 +387,22 @@ export function PostCard({ post, currentUserId, currentUserRole, showSpace = tru
                     setIsEditing(false);
                   }}
                 >
-                  Cancel
+                  Annuleren
                 </Button>
                 <Button size="sm" onClick={handleSavePost} disabled={isSaving || !draftContent.trim()}>
-                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Opslaan"}
                 </Button>
               </div>
             </div>
           ) : (
-            <Link href={`/community/post/${post.id}`} className="block space-y-3">
+            <div className="space-y-3">
               {post.title ? (
-                <h3 className="text-lg font-semibold leading-tight text-slate-950">
+                <h3 className="text-base font-semibold leading-tight text-[#171b18]">
                   {post.title}
                 </h3>
               ) : null}
-              <p className="whitespace-pre-wrap">{post.content}</p>
-            </Link>
+              <p className="max-w-[72ch] whitespace-pre-wrap text-sm leading-6 text-[#343a35]">{post.content}</p>
+            </div>
           )}
 
           {post.attachments.length > 0 && (
@@ -354,11 +413,11 @@ export function PostCard({ post, currentUserId, currentUserRole, showSpace = tru
                     <img
                       src={attachment.url}
                       alt=""
-                      className="rounded-lg max-h-96 w-auto"
+                      className="max-h-96 w-auto"
                     />
                   )}
                   {attachment.type === "video" && (
-                    <div className="overflow-hidden rounded-2xl border bg-black">
+                    <div className="overflow-hidden rounded-xl border border-black/10 bg-black">
                       <video controls src={attachment.url} className="max-h-[28rem] w-full" />
                     </div>
                   )}
@@ -370,7 +429,7 @@ export function PostCard({ post, currentUserId, currentUserRole, showSpace = tru
                       href={attachment.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-center gap-3 rounded-2xl border bg-muted/20 px-4 py-3 text-sm font-medium hover:border-primary/30 hover:text-primary"
+                      className="flex items-center gap-3 rounded-xl border border-black/10 bg-[#fafaf8] px-4 py-3 text-sm font-medium hover:border-[#173622]/30 hover:text-[#173622]"
                     >
                       <FileText className="h-4 w-4" />
                       <span className="truncate">Open bijlage</span>
@@ -393,7 +452,7 @@ export function PostCard({ post, currentUserId, currentUserRole, showSpace = tru
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-4 pt-3 border-t">
+        <div className="flex items-center gap-5 border-t border-black/10 py-4">
           <button
             onClick={handleLike}
             disabled={isLiking}
@@ -406,22 +465,169 @@ export function PostCard({ post, currentUserId, currentUserRole, showSpace = tru
             <span>{likeCount}</span>
           </button>
 
-          <Link
-            href={`/community/post/${post.id}`}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary"
-          >
+          <span className="flex items-center gap-2 text-sm text-muted-foreground">
             <MessageCircle className="h-5 w-5" />
-            <span>{post._count.comments}</span>
-          </Link>
-
-          <Link
-            href={`/community/post/${post.id}`}
-            className="ml-auto inline-flex items-center gap-2 text-sm font-medium text-primary hover:opacity-80"
-          >
-            <Video className="h-4 w-4" />
-            Bekijk post
-          </Link>
+            <span>{post._count.comments} {post._count.comments === 1 ? "reactie" : "reacties"}</span>
+          </span>
         </div>
+
+        {post.comments.length > 0 ? (
+          <div className="border-t border-black/10 py-4">
+            <Dialog>
+              <DialogTrigger asChild>
+                <button type="button" className="mb-3 text-xs font-semibold text-[#68706a] underline-offset-4 hover:text-[#173622] hover:underline">
+                  Laatste reactie {formatRelativeTime(post.comments[post.comments.length - 1].createdAt)}
+                </button>
+              </DialogTrigger>
+              <DialogContent className="flex max-h-[86vh] max-w-2xl flex-col gap-0 overflow-hidden rounded-2xl border-black/10 bg-white p-0 backdrop-blur-none">
+                <DialogTitle className="sr-only">Alle reacties op {post.title || "dit bericht"}</DialogTitle>
+                <DialogDescription className="sr-only">Bekijk de volledige conversatie en plaats een reactie.</DialogDescription>
+
+                <div className="shrink-0 border-b border-black/10 px-6 py-5 pr-14">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-9 w-9">
+                      <AvatarImage src={post.author.avatarUrl || undefined} />
+                      <AvatarFallback className="bg-[#edf1ec] text-[10px] font-semibold text-[#173622]">
+                        {getInitials(post.author.firstName, post.author.lastName)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-xs font-semibold text-[#1d241f]">{post.author.firstName} {post.author.lastName}</p>
+                      <p className="mt-0.5 text-[10px] text-[#7c847e]">{formatRelativeTime(post.createdAt)} · {post.space.name}</p>
+                    </div>
+                  </div>
+                  {post.title ? <h3 className="mt-5 text-base font-semibold text-[#171b18]">{post.title}</h3> : null}
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#343a35]">{post.content}</p>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+                  <p className="mb-5 text-xs font-semibold text-[#68706a]">{post.comments.length} {post.comments.length === 1 ? "reactie" : "reacties"}</p>
+                  <div className="space-y-5">
+                    {post.comments.map((comment) => (
+                      <div key={comment.id} className="group relative flex gap-3 pr-9">
+                        <Avatar className="h-8 w-8 shrink-0">
+                          <AvatarImage src={comment.author.avatarUrl || undefined} />
+                          <AvatarFallback className="bg-[#edf1ec] text-[10px] font-semibold text-[#173622]">
+                            {getInitials(comment.author.firstName, comment.author.lastName)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-baseline gap-x-2">
+                            <span className="text-xs font-semibold text-[#1d241f]">{comment.author.firstName} {comment.author.lastName}</span>
+                            <span className="text-[10px] text-[#8a918c]">{formatRelativeTime(comment.createdAt)}</span>
+                          </div>
+                          <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[#404741]">{comment.content}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setReplyTo({ id: comment.id, name: `${comment.author.firstName} ${comment.author.lastName}`, content: comment.content })}
+                          aria-label={`Reageer op ${comment.author.firstName}`}
+                          title={`Reageer op ${comment.author.firstName}`}
+                          className="absolute right-0 top-0 flex h-7 w-7 items-center justify-center rounded-lg text-[#737b75] opacity-0 transition hover:bg-[#edf2ed] hover:text-[#173622] focus:opacity-100 group-hover:opacity-100"
+                        >
+                          <ReplyIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <form onSubmit={handleReply} className="flex shrink-0 items-center gap-3 border-t border-black/10 bg-white px-5 py-4">
+                  {replyTo ? (
+                    <div className="absolute inset-x-5 bottom-[68px] flex items-center gap-2 rounded-xl border border-[#173622]/20 bg-[#f5f8f4] px-3 py-2 text-[10px] text-[#667068]">
+                      <span>Reageer op</span>
+                      <strong className="text-[#263129]">{replyTo.name}</strong>
+                      <span className="min-w-0 flex-1 truncate">{replyTo.content}</span>
+                      <button type="button" onClick={() => setReplyTo(null)} aria-label="Antwoord annuleren"><X className="h-3.5 w-3.5" /></button>
+                    </div>
+                  ) : null}
+                  <Avatar className="h-9 w-9 shrink-0">
+                    <AvatarImage src={currentUser?.avatarUrl || undefined} />
+                    <AvatarFallback className="bg-[#edf1ec] text-[10px] font-semibold text-[#173622]">
+                      {currentUser ? getInitials(currentUser.firstName, currentUser.lastName) : "IK"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <MentionField
+                    value={reply}
+                    onChange={setReply}
+                    onMention={(userId) => setMentionedUserIds((current) => current.includes(userId) ? current : [...current, userId])}
+                    spaceId={post.space.id}
+                    placeholder="Schrijf een reactie..."
+                    ariaLabel="Schrijf een reactie in de volledige conversatie. Typ apenstaartje om iemand te taggen."
+                    className="h-11 min-w-0 flex-1 rounded-xl border border-black/10 bg-[#f7f9f7] px-4 text-sm outline-none transition placeholder:text-[#929a94] focus:border-[#173622]/40 focus:bg-white"
+                  />
+                  <button type="submit" disabled={!reply.trim() || isReplying} aria-label="Reactie plaatsen" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#173622] text-white transition hover:bg-[#21492e] disabled:cursor-not-allowed disabled:opacity-35">
+                    {isReplying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </button>
+                </form>
+              </DialogContent>
+            </Dialog>
+            <div className="space-y-4">
+              {post.comments.slice(-2).map((comment) => (
+                <div key={comment.id} className="group relative flex gap-3 pr-9">
+                  <Avatar className="h-8 w-8 shrink-0">
+                    <AvatarImage src={comment.author.avatarUrl || undefined} />
+                    <AvatarFallback className="bg-[#edf1ec] text-[10px] font-semibold text-[#173622]">
+                      {getInitials(comment.author.firstName, comment.author.lastName)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="text-xs font-semibold text-[#1d241f]">{comment.author.firstName} {comment.author.lastName}</span>
+                      <span className="text-[10px] text-[#8a918c]">{formatRelativeTime(comment.createdAt)}</span>
+                    </div>
+                    <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[#404741]">{comment.content}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReplyTo({ id: comment.id, name: `${comment.author.firstName} ${comment.author.lastName}`, content: comment.content })}
+                    aria-label={`Reageer op ${comment.author.firstName}`}
+                    title={`Reageer op ${comment.author.firstName}`}
+                    className="absolute right-0 top-0 flex h-7 w-7 items-center justify-center rounded-lg text-[#737b75] opacity-0 transition hover:bg-[#edf2ed] hover:text-[#173622] focus:opacity-100 group-hover:opacity-100"
+                  >
+                    <ReplyIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        <form onSubmit={handleReply} className="border-t border-black/10 pt-4">
+          {replyTo ? (
+            <div className="mb-2 flex items-center gap-2 rounded-xl border border-[#173622]/20 bg-[#f5f8f4] px-3 py-2 text-[10px] text-[#667068]">
+              <span>Reageer op</span>
+              <strong className="text-[#263129]">{replyTo.name}</strong>
+              <span className="min-w-0 flex-1 truncate">{replyTo.content}</span>
+              <button type="button" onClick={() => setReplyTo(null)} aria-label="Antwoord annuleren"><X className="h-3.5 w-3.5" /></button>
+            </div>
+          ) : null}
+          <div className="flex items-center gap-3">
+          <Avatar className="h-9 w-9 shrink-0">
+            <AvatarImage src={currentUser?.avatarUrl || undefined} />
+            <AvatarFallback className="bg-[#edf1ec] text-[10px] font-semibold text-[#173622]">
+              {currentUser ? getInitials(currentUser.firstName, currentUser.lastName) : "IK"}
+            </AvatarFallback>
+          </Avatar>
+          <MentionField
+            value={reply}
+            onChange={setReply}
+            onMention={(userId) => setMentionedUserIds((current) => current.includes(userId) ? current : [...current, userId])}
+            spaceId={post.space.id}
+            placeholder="Schrijf een reactie..."
+            ariaLabel="Schrijf een reactie. Typ apenstaartje om iemand te taggen."
+            className="h-11 min-w-0 flex-1 rounded-xl border border-black/10 bg-[#f7f9f7] px-4 text-sm outline-none transition placeholder:text-[#929a94] focus:border-[#173622]/40 focus:bg-white"
+          />
+          <button
+            type="submit"
+            disabled={!reply.trim() || isReplying}
+            aria-label="Reactie plaatsen"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#173622] text-white transition hover:bg-[#21492e] disabled:cursor-not-allowed disabled:opacity-35"
+          >
+            {isReplying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </button>
+          </div>
+        </form>
       </CardContent>
     </Card>
   );

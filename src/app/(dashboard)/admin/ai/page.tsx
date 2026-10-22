@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bot, Database, MessageSquare, Plus, RefreshCw, Trash2, ToggleLeft, ToggleRight, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { Bot, Database, Inbox, MessageSquare, Plus, RefreshCw, Trash2, ToggleLeft, ToggleRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ type Source = {
 const SOURCE_TYPES = [
   { value: "guideline", label: "Richtlijn / Protocol" },
   { value: "qa", label: "Vraag & Antwoord" },
+  { value: "community_qa", label: "Communityantwoord" },
   { value: "custom", label: "Overige kennisbron" },
   { value: "recipe", label: "Recept informatie" },
   { value: "course", label: "Cursusinhoud" },
@@ -195,6 +197,12 @@ export default function AdminAiPage() {
 
         {/* Source actions */}
         <div className="flex flex-col justify-end gap-2 sm:flex-row">
+          <Button asChild type="button" variant="outline" className="gap-2">
+            <Link href="/admin/ai/inbox">
+              <Inbox className="h-4 w-4" />
+              Open AI Inbox
+            </Link>
+          </Button>
           <Button
             type="button"
             variant="outline"

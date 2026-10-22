@@ -5,7 +5,6 @@ import {
   BarChart3,
   Bell,
   Bot,
-  CreditCard,
   Globe2,
   KeyRound,
   LayoutTemplate,
@@ -36,12 +35,6 @@ const settingsItems = [
     description: "Abonnement, bedrijfsgegevens, facturen en exports.",
     href: "/admin/billing",
     icon: BadgeEuro,
-  },
-  {
-    title: "Betalingen & checkout",
-    description: "Stripe, checkout, abonnementen en betaalflow.",
-    href: "/admin/billing",
-    icon: CreditCard,
   },
   {
     title: "Website",
@@ -87,7 +80,7 @@ const settingsItems = [
   },
   {
     title: "Integraties",
-    description: "Koppelingen met Stripe, Shopify, mail en andere tools.",
+    description: "Koppelingen met Shopify, mail en andere tools.",
     href: "/admin/settings/integrations",
     icon: Plug,
   },

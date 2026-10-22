@@ -172,7 +172,7 @@ export default async function PostPage({ params }: PostPageProps) {
           postId={post.id}
           comments={post.comments}
           currentUser={user}
-          canComment={!post.space.isHostOnly}
+          canComment
         />
       </div>
     </div>

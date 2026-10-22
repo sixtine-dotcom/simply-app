@@ -187,8 +187,18 @@ export async function syncExternalCalendarEvents(userId: string) {
 }
 
 export async function syncCoachingSessionsToConnectedCalendars(sessionIds: string[]) {
-  const sessions = await db.coachingSession.findMany({
+  const requested = await db.coachingSession.findMany({
     where: { id: { in: sessionIds }, status: "scheduled" },
+    select: { id: true, coachId: true, recurrenceOccurrenceKey: true },
+  });
+  // A newly enrolled participant must not replace the existing invitee list.
+  const sessions = await db.coachingSession.findMany({
+    where: {
+      status: "scheduled",
+      OR: requested.map(session => session.recurrenceOccurrenceKey
+        ? { coachId: session.coachId, recurrenceOccurrenceKey: session.recurrenceOccurrenceKey }
+        : { id: session.id }),
+    },
     include: {
       coach: {
         select: {
@@ -212,13 +222,17 @@ export async function syncCoachingSessionsToConnectedCalendars(sessionIds: strin
   const groupedSessions = new Map<string, typeof sessions>();
   for (const session of sessions) {
     const syncKey = session.recurrenceOccurrenceKey || session.id;
-    groupedSessions.set(syncKey, [...(groupedSessions.get(syncKey) || []), session]);
+    const groupKey = `${session.coachId}:${syncKey}`;
+    groupedSessions.set(groupKey, [...(groupedSessions.get(groupKey) || []), session]);
   }
 
   let synced = 0;
-  for (const [syncKey, group] of Array.from(groupedSessions.entries())) {
+  let failed = 0;
+  const connectedCalendars = new Set<string>();
+  for (const group of Array.from(groupedSessions.values())) {
     const first = group[0];
     if (!first) continue;
+    const syncKey = first.recurrenceOccurrenceKey || first.id;
 
     const connections = await db.calendarConnection.findMany({
       where: { userId: first.coachId, syncEnabled: true },
@@ -227,6 +241,7 @@ export async function syncCoachingSessionsToConnectedCalendars(sessionIds: strin
     for (const connection of connections) {
       if (connection.provider !== "google" && connection.provider !== "microsoft") continue;
 
+      connectedCalendars.add(connection.id);
       try {
         const accessToken = await getValidAccessToken(connection);
         const existing = await db.syncedCalendarEvent.findUnique({
@@ -266,6 +281,7 @@ export async function syncCoachingSessionsToConnectedCalendars(sessionIds: strin
         });
         synced += 1;
       } catch (error) {
+        failed += 1;
         console.error("Outbound calendar sync failed:", {
           connectionId: connection.id,
           provider: connection.provider,
@@ -276,7 +292,7 @@ export async function syncCoachingSessionsToConnectedCalendars(sessionIds: strin
     }
   }
 
-  return { sessions: sessions.length, synced };
+  return { sessions: sessions.length, synced, failed, connectedCalendars: connectedCalendars.size };
 }
 
 export async function syncUpcomingCoachingSessionsForUser(userId: string) {
@@ -408,7 +424,7 @@ function buildCoachingCalendarEventPayload(
         .filter(Boolean)
     )
   );
-  const appUrl = `${getAppUrl()}/admin/sessions/${first.id}`;
+  const appUrl = `${getAppUrl()}/coaching`;
 
   return {
     title: first.title || "Coaching sessie",

@@ -1,0 +1,761 @@
+[
+{
+"emoji": "🍓",
+"name": "aardbei",
+"tags": [
+"fruit",
+"bes"
+],
+"code": "1f353"
+},
+{
+"emoji": "🍎",
+"name": "appel",
+"tags": [
+"fruit"
+],
+"code": "1f34e"
+},
+{
+"emoji": "🍊",
+"name": "sinaasappel",
+"tags": [
+"fruit",
+"vitamine c"
+],
+"code": "1f34a"
+},
+{
+"emoji": "🍋",
+"name": "citroen",
+"tags": [
+"fruit"
+],
+"code": "1f34b"
+},
+{
+"emoji": "🍉",
+"name": "watermeloen",
+"tags": [
+"fruit"
+],
+"code": "1f349"
+},
+{
+"emoji": "🍇",
+"name": "druiven",
+"tags": [
+"fruit"
+],
+"code": "1f347"
+},
+{
+"emoji": "🫐",
+"name": "bosbessen",
+"tags": [
+"fruit",
+"bes"
+],
+"code": "1fad0"
+},
+{
+"emoji": "🍒",
+"name": "kersen",
+"tags": [
+"fruit"
+],
+"code": "1f352"
+},
+{
+"emoji": "🍍",
+"name": "ananas",
+"tags": [
+"fruit"
+],
+"code": "1f34d"
+},
+{
+"emoji": "🥝",
+"name": "kiwi",
+"tags": [
+"fruit"
+],
+"code": "1f95d"
+},
+{
+"emoji": "🥑",
+"name": "avocado",
+"tags": [
+"vet",
+"gezond"
+],
+"code": "1f951"
+},
+{
+"emoji": "🥦",
+"name": "broccoli",
+"tags": [
+"groente"
+],
+"code": "1f966"
+},
+{
+"emoji": "🥕",
+"name": "wortel",
+"tags": [
+"groente"
+],
+"code": "1f955"
+},
+{
+"emoji": "🥬",
+"name": "bladgroente",
+"tags": [
+"groente"
+],
+"code": "1f96c"
+},
+{
+"emoji": "🥒",
+"name": "komkommer",
+"tags": [
+"groente"
+],
+"code": "1f952"
+},
+{
+"emoji": "🌽",
+"name": "maïs",
+"tags": [
+"groente"
+],
+"code": "1f33d"
+},
+{
+"emoji": "🍅",
+"name": "tomaat",
+"tags": [
+"groente"
+],
+"code": "1f345"
+},
+{
+"emoji": "🧄",
+"name": "look",
+"tags": [
+"groente"
+],
+"code": "1f9c4"
+},
+{
+"emoji": "🍄",
+"name": "paddenstoel",
+"tags": [
+"groente"
+],
+"code": "1f344"
+},
+{
+"emoji": "🧀",
+"name": "kaas",
+"tags": [
+"zuivel"
+],
+"code": "1f9c0"
+},
+{
+"emoji": "🍞",
+"name": "brood",
+"tags": [
+"koolhydraten"
+],
+"code": "1f35e"
+},
+{
+"emoji": "🍳",
+"name": "ontbijt",
+"tags": [
+"ontbijt",
+"ei"
+],
+"code": "1f373"
+},
+{
+"emoji": "🥗",
+"name": "salade",
+"tags": [
+"gezond",
+"groente"
+],
+"code": "1f957"
+},
+{
+"emoji": "🍝",
+"name": "pasta",
+"tags": [
+"koolhydraten"
+],
+"code": "1f35d"
+},
+{
+"emoji": "🍕",
+"name": "pizza",
+"tags": [
+"ongezond"
+],
+"code": "1f355"
+},
+{
+"emoji": "🍔",
+"name": "hamburger",
+"tags": [
+"ongezond"
+],
+"code": "1f354"
+},
+{
+"emoji": "🍩",
+"name": "donut",
+"tags": [
+"suiker",
+"ongezond"
+],
+"code": "1f369"
+},
+{
+"emoji": "🍪",
+"name": "koekje",
+"tags": [
+"suiker",
+"ongezond"
+],
+"code": "1f36a"
+},
+{
+"emoji": "🍦",
+"name": "ijsje",
+"tags": [
+"suiker"
+],
+"code": "1f366"
+},
+{
+"emoji": "☕",
+"name": "koffie",
+"tags": [
+"cafeïne"
+],
+"code": "2615"
+},
+{
+"emoji": "🍵",
+"name": "thee",
+"tags": [
+"drank"
+],
+"code": "1f375"
+},
+{
+"emoji": "🧃",
+"name": "sapje",
+"tags": [
+"suiker",
+"drank"
+],
+"code": "1f9c3"
+},
+{
+"emoji": "🍷",
+"name": "wijn",
+"tags": [
+"alcohol"
+],
+"code": "1f377"
+},
+{
+"emoji": "💧",
+"name": "water",
+"tags": [
+"hydratatie"
+],
+"code": "1f4a7"
+},
+{
+"emoji": "🍽️",
+"name": "bord",
+"tags": [
+"maaltijd"
+],
+"code": "1f37d"
+},
+{
+"emoji": "💪",
+"name": "sterk",
+"tags": [
+"kracht",
+"sport"
+],
+"code": "1f4aa"
+},
+{
+"emoji": "😴",
+"name": "slapen",
+"tags": [
+"slaap",
+"moe"
+],
+"code": "1f634"
+},
+{
+"emoji": "🥱",
+"name": "geeuwen",
+"tags": [
+"moe"
+],
+"code": "1f971"
+},
+{
+"emoji": "😊",
+"name": "blij",
+"tags": [
+"gevoel"
+],
+"code": "1f60a"
+},
+{
+"emoji": "😀",
+"name": "lach",
+"tags": [
+"gevoel"
+],
+"code": "1f600"
+},
+{
+"emoji": "😂",
+"name": "lachen",
+"tags": [
+"gevoel",
+"grappig"
+],
+"code": "1f602"
+},
+{
+"emoji": "🥰",
+"name": "liefde",
+"tags": [
+"gevoel"
+],
+"code": "1f970"
+},
+{
+"emoji": "😍",
+"name": "verliefd",
+"tags": [
+"gevoel"
+],
+"code": "1f60d"
+},
+{
+"emoji": "🤩",
+"name": "wow",
+"tags": [
+"gevoel",
+"enthousiast"
+],
+"code": "1f929"
+},
+{
+"emoji": "😎",
+"name": "cool",
+"tags": [
+"gevoel"
+],
+"code": "1f60e"
+},
+{
+"emoji": "🤔",
+"name": "nadenken",
+"tags": [
+"vraag"
+],
+"code": "1f914"
+},
+{
+"emoji": "😮",
+"name": "verbaasd",
+"tags": [
+"gevoel"
+],
+"code": "1f62e"
+},
+{
+"emoji": "😱",
+"name": "geschrokken",
+"tags": [
+"gevoel",
+"schok"
+],
+"code": "1f631"
+},
+{
+"emoji": "😩",
+"name": "uitgeput",
+"tags": [
+"moe",
+"stress"
+],
+"code": "1f629"
+},
+{
+"emoji": "😤",
+"name": "gefrustreerd",
+"tags": [
+"stress"
+],
+"code": "1f624"
+},
+{
+"emoji": "😡",
+"name": "boos",
+"tags": [
+"stress"
+],
+"code": "1f621"
+},
+{
+"emoji": "🤯",
+"name": "overprikkeld",
+"tags": [
+"stress",
+"schok"
+],
+"code": "1f92f"
+},
+{
+"emoji": "😢",
+"name": "verdrietig",
+"tags": [
+"gevoel"
+],
+"code": "1f622"
+},
+{
+"emoji": "🥵",
+"name": "warm",
+"tags": [
+"hormonen",
+"overgang"
+],
+"code": "1f975"
+},
+{
+"emoji": "🥶",
+"name": "koud",
+"tags": [
+"gevoel"
+],
+"code": "1f976"
+},
+{
+"emoji": "🤢",
+"name": "misselijk",
+"tags": [
+"buikpijn",
+"darm"
+],
+"code": "1f922"
+},
+{
+"emoji": "👍",
+"name": "duim omhoog",
+"tags": [
+"goed"
+],
+"code": "1f44d"
+},
+{
+"emoji": "👎",
+"name": "duim omlaag",
+"tags": [
+"slecht"
+],
+"code": "1f44e"
+},
+{
+"emoji": "👏",
+"name": "applaus",
+"tags": [
+"goed"
+],
+"code": "1f44f"
+},
+{
+"emoji": "🙌",
+"name": "hoera",
+"tags": [
+"goed"
+],
+"code": "1f64c"
+},
+{
+"emoji": "🙏",
+"name": "dankjewel",
+"tags": [
+"dank"
+],
+"code": "1f64f"
+},
+{
+"emoji": "👀",
+"name": "kijk",
+"tags": [
+"aandacht"
+],
+"code": "1f440"
+},
+{
+"emoji": "👉",
+"name": "wijzen",
+"tags": [
+"aandacht"
+],
+"code": "1f449"
+},
+{
+"emoji": "✅",
+"name": "vinkje",
+"tags": [
+"goed",
+"ja"
+],
+"code": "2705"
+},
+{
+"emoji": "❌",
+"name": "kruis",
+"tags": [
+"fout",
+"nee"
+],
+"code": "274c"
+},
+{
+"emoji": "❗",
+"name": "uitroepteken",
+"tags": [
+"let op"
+],
+"code": "2757"
+},
+{
+"emoji": "❓",
+"name": "vraagteken",
+"tags": [
+"vraag"
+],
+"code": "2753"
+},
+{
+"emoji": "⚠️",
+"name": "waarschuwing",
+"tags": [
+"let op"
+],
+"code": "26a0"
+},
+{
+"emoji": "💡",
+"name": "idee",
+"tags": [
+"tip"
+],
+"code": "1f4a1"
+},
+{
+"emoji": "🔥",
+"name": "vuur",
+"tags": [
+"ontsteking",
+"energie"
+],
+"code": "1f525"
+},
+{
+"emoji": "⚡",
+"name": "energie",
+"tags": [
+"energie"
+],
+"code": "26a1"
+},
+{
+"emoji": "✨",
+"name": "glinstering",
+"tags": [
+"magie"
+],
+"code": "2728"
+},
+{
+"emoji": "🌟",
+"name": "ster",
+"tags": [
+"goed"
+],
+"code": "1f31f"
+},
+{
+"emoji": "💯",
+"name": "honderd",
+"tags": [
+"goed"
+],
+"code": "1f4af"
+},
+{
+"emoji": "🎉",
+"name": "feest",
+"tags": [
+"goed"
+],
+"code": "1f389"
+},
+{
+"emoji": "❤️",
+"name": "hart",
+"tags": [
+"liefde",
+"hart"
+],
+"code": "2764"
+},
+{
+"emoji": "💔",
+"name": "gebroken hart",
+"tags": [
+"gevoel"
+],
+"code": "1f494"
+},
+{
+"emoji": "🧠",
+"name": "brein",
+"tags": [
+"stress",
+"hersenen"
+],
+"code": "1f9e0"
+},
+{
+"emoji": "🫀",
+"name": "hart orgaan",
+"tags": [
+"hart"
+],
+"code": "1fac0"
+},
+{
+"emoji": "🦠",
+"name": "bacterie",
+"tags": [
+"darm",
+"microbioom"
+],
+"code": "1f9a0"
+},
+{
+"emoji": "🩸",
+"name": "bloed",
+"tags": [
+"bloedsuiker"
+],
+"code": "1fa78"
+},
+{
+"emoji": "🩺",
+"name": "dokter",
+"tags": [
+"gezondheid"
+],
+"code": "1fa7a"
+},
+{
+"emoji": "📈",
+"name": "stijgende grafiek",
+"tags": [
+"bloedsuiker",
+"piek"
+],
+"code": "1f4c8"
+},
+{
+"emoji": "📉",
+"name": "dalende grafiek",
+"tags": [
+"bloedsuiker",
+"dip"
+],
+"code": "1f4c9"
+},
+{
+"emoji": "⏰",
+"name": "wekker",
+"tags": [
+"tijd",
+"ochtend"
+],
+"code": "23f0"
+},
+{
+"emoji": "⏳",
+"name": "zandloper",
+"tags": [
+"tijd"
+],
+"code": "23f3"
+},
+{
+"emoji": "🌱",
+"name": "plantje",
+"tags": [
+"groei",
+"gezond"
+],
+"code": "1f331"
+},
+{
+"emoji": "🌸",
+"name": "bloem",
+"tags": [
+"lente",
+"vrouw"
+],
+"code": "1f338"
+},
+{
+"emoji": "🌀",
+"name": "draaikolk",
+"tags": [
+"stress",
+"chaos"
+],
+"code": "1f300"
+},
+{
+"emoji": "🎯",
+"name": "doel",
+"tags": [
+"doel"
+],
+"code": "1f3af"
+},
+{
+"emoji": "🚀",
+"name": "raket",
+"tags": [
+"energie",
+"groei"
+],
+"code": "1f680"
+}
+]

@@ -452,9 +452,9 @@ export function FormBuilder({
                       setForm((current) => ({ ...current, status: event.target.value as FormStatus }))
                     }
                   >
-                    <option value="DRAFT">Draft</option>
-                    <option value="PUBLISHED">Published</option>
-                    <option value="ARCHIVED">Archived</option>
+                    <option value="DRAFT">Concept — nog niet zichtbaar</option>
+                    <option value="PUBLISHED">Live — zichtbaar voor deelnemers</option>
+                    <option value="ARCHIVED">Gearchiveerd — niet meer actief</option>
                   </select>
                 </Field>
                 <Field label="Submit knop">

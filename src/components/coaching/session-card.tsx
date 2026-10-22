@@ -39,7 +39,7 @@ export function SessionCard({ session, currentUser, isClient }: SessionCardProps
   const outlookCalendarHref = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(calendarTitle)}&startdt=${encodeURIComponent(sessionTime.toISOString())}&enddt=${encodeURIComponent(endTime.toISOString())}&body=${encodeURIComponent(calendarDescription)}&location=${encodeURIComponent(roomUrl)}`;
 
   return (
-    <Card>
+    <Card className="overflow-hidden rounded-2xl border-black/10 bg-white shadow-none">
       <CardContent className="p-5">
         <div className="flex flex-col md:flex-row md:items-center gap-4">
           {/* Avatar & Info */}
@@ -57,12 +57,12 @@ export function SessionCard({ session, currentUser, isClient }: SessionCardProps
                   {session.title || "Coaching sessie"}
                 </h3>
                 {isUpcoming && (
-                  <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded">
+                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
                     Gepland
                   </span>
                 )}
                 {isPast && (
-                  <span className="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded">
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
                     Afgerond
                   </span>
                 )}

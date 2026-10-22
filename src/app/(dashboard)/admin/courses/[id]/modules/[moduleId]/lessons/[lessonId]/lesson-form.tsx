@@ -30,6 +30,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { VideoPlayer } from "@/components/courses/video-player";
 import { EmbeddedVideo } from "@/components/courses/embedded-video";
+import { VideoLibraryPicker } from "@/components/video-studio/video-library-picker";
 
 interface Lesson {
   id: string;
@@ -423,6 +424,16 @@ export function LessonEditForm({
             )}
             Upload GIF/video
           </Button>
+          <VideoLibraryPicker
+            disabled={isLoading}
+            onSelect={(video) => {
+              setVideoUrl(video.finalUrl);
+              setVideoEmbedCode("");
+              if (video.finalDurationSec) {
+                setVideoDurationMinutes(String(Math.max(1, Math.round(video.finalDurationSec / 60))));
+              }
+            }}
+          />
           {videoUrl ? (
             <Button
               type="button"

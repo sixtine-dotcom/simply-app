@@ -28,6 +28,10 @@ export function campaignHtml(body: string, email: string, tenantId: string | nul
   const safeBody = escaped
     .replace(/^### (.+)$/gm, (_match, title: string) => `<h2 style="margin:30px 0 12px;font-family:'The Seasons',Georgia,serif;font-size:22px;line-height:1.3;font-style:normal;font-weight:400;color:#274d2d">${title.toUpperCase()}</h2>`)
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(
+      /^\[BUTTON:\s*(.+?)\]\((https:\/\/[^\s)]+)\)$/gm,
+      '<div style="margin:30px 0;text-align:center"><a href="$2" style="display:inline-block;border-radius:999px;background:#315c38;padding:14px 26px;font-family:Arial,sans-serif;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none">$1</a></div>'
+    )
     .replace(/^- (.+)$/gm, '<div style="margin:0 0 8px 18px">• $1</div>')
     .split(/\n{2,}/)
     .map((block) => block.startsWith("<h2") || block.startsWith("<div") ? block.replace(/\n/g, "") : `<p style="margin:0 0 18px">${block.replace(/\n/g, "<br>")}</p>`)

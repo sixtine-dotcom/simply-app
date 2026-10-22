@@ -29,6 +29,8 @@ import type { FoodSearchResult } from "@/lib/open-food-facts";
 import { pickReferenceServing, scaleServingToQuantity, suggestQuantityForFood } from "@/lib/nutrition-estimates";
 import { FavoriteRecipeButton } from "@/components/recipes/favorite-recipe-button";
 
+import { sumKnownNutrition } from "@/lib/optional-nutrition";
+
 const DAYS = ["Maandag", "Dinsdag", "Woensdag", "Donderdag", "Vrijdag", "Zaterdag", "Zondag"];
 const MEAL_TYPES = [
   { value: "breakfast", label: "Ontbijt" },
@@ -212,24 +214,24 @@ function getItemImage(item: MealPlanItem) {
 }
 
 function getItemCalories(item: MealPlanItem) {
-  return item.isCustom ? item.customCalories ?? 0 : item.recipe?.calories ?? 0;
+  return item.isCustom ? item.customCalories ?? null : item.recipe?.calories ?? null;
 }
 
 function getItemMacros(item: MealPlanItem) {
   if (item.isCustom) {
     return {
-      protein: item.customProtein ?? 0,
-      carbs: item.customCarbs ?? 0,
-      fat: item.customFat ?? 0,
-      fiber: item.customFiber ?? 0,
+      protein: item.customProtein ?? null,
+      carbs: item.customCarbs ?? null,
+      fat: item.customFat ?? null,
+      fiber: item.customFiber ?? null,
     };
   }
 
   return {
-    protein: item.recipe?.protein ?? 0,
-    carbs: item.recipe?.carbs ?? 0,
-    fat: item.recipe?.fat ?? 0,
-    fiber: item.recipe?.fiber ?? 0,
+    protein: item.recipe?.protein ?? null,
+    carbs: item.recipe?.carbs ?? null,
+    fat: item.recipe?.fat ?? null,
+    fiber: item.recipe?.fiber ?? null,
   };
 }
 
@@ -863,33 +865,23 @@ export default function MealPlanPage() {
   const daySummaries = useMemo(() => {
     return DAYS.map((_, dayIndex) => {
       const items = mealPlan?.items.filter((item) => item.dayOfWeek === dayIndex) ?? [];
-      const calories = items.reduce((sum, item) => sum + getItemCalories(item), 0);
-      const macros = items.reduce(
-        (sum, item) => {
-          const current = getItemMacros(item);
-          return {
-            protein: sum.protein + current.protein,
-            carbs: sum.carbs + current.carbs,
-            fat: sum.fat + current.fat,
-          };
-        },
-        { protein: 0, carbs: 0, fat: 0 }
-      );
-
+      const calories = sumKnownNutrition(items.map(getItemCalories));
+      const macros = {
+        protein: sumKnownNutrition(items.map((item) => getItemMacros(item).protein)),
+        carbs: sumKnownNutrition(items.map((item) => getItemMacros(item).carbs)),
+        fat: sumKnownNutrition(items.map((item) => getItemMacros(item).fat)),
+      };
       return { calories, ...macros };
     });
   }, [mealPlan]);
 
   const weeklyTotals = useMemo(() => {
-    return daySummaries.reduce(
-      (sum, day) => ({
-        calories: sum.calories + day.calories,
-        protein: sum.protein + day.protein,
-        carbs: sum.carbs + day.carbs,
-        fat: sum.fat + day.fat,
-      }),
-      { calories: 0, protein: 0, carbs: 0, fat: 0 }
-    );
+    return {
+      calories: sumKnownNutrition(daySummaries.map((day) => day.calories)),
+      protein: sumKnownNutrition(daySummaries.map((day) => day.protein)),
+      carbs: sumKnownNutrition(daySummaries.map((day) => day.carbs)),
+      fat: sumKnownNutrition(daySummaries.map((day) => day.fat)),
+    };
   }, [daySummaries]);
 
   return (
@@ -937,7 +929,7 @@ export default function MealPlanPage() {
                 <p className="text-sm font-medium text-slate-950">Auto caloriecalculator</p>
                 <p className="text-xs text-muted-foreground">
                   {mealPlan?.calorieCalculatorEnabled
-                    ? "Toont totaal kcal en macro's op basis van recepten en eigen invoer."
+                    ? "Toont alleen ingevulde calorieën en macro's van recepten en eigen invoer."
                     : "Uitgeschakeld. Je kan nog steeds eigen recepten handmatig invullen."}
                 </p>
               </div>
@@ -965,32 +957,24 @@ export default function MealPlanPage() {
         </div>
       </div>
 
-      {mealPlan?.calorieCalculatorEnabled && (
-        <div className="mb-8 grid gap-4 md:grid-cols-4">
-          <Card className="app-halo">
-            <CardContent className="p-5">
-              <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Week kcal</p>
-              <p className="mt-2 text-3xl font-semibold text-slate-950">{weeklyTotals.calories}</p>
-            </CardContent>
-          </Card>
-          <Card className="app-halo">
-            <CardContent className="p-5">
-              <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Eiwitten</p>
-              <p className="mt-2 text-3xl font-semibold text-slate-950">{weeklyTotals.protein}g</p>
-            </CardContent>
-          </Card>
-          <Card className="app-halo">
-            <CardContent className="p-5">
-              <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Koolhydraten</p>
-              <p className="mt-2 text-3xl font-semibold text-slate-950">{weeklyTotals.carbs}g</p>
-            </CardContent>
-          </Card>
-          <Card className="app-halo">
-            <CardContent className="p-5">
-              <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Vetten</p>
-              <p className="mt-2 text-3xl font-semibold text-slate-950">{weeklyTotals.fat}g</p>
-            </CardContent>
-          </Card>
+      {mealPlan?.calorieCalculatorEnabled && Object.values(weeklyTotals).some((value) => value !== null) && (
+        <div className="mb-8">
+          <p className="mb-3 text-sm text-muted-foreground">Totalen van de ingevulde voedingswaarden</p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {([
+              { key: "calories", label: "Week kcal", unit: "" },
+              { key: "protein", label: "Eiwitten", unit: "g" },
+              { key: "carbs", label: "Koolhydraten", unit: "g" },
+              { key: "fat", label: "Vetten", unit: "g" },
+            ] as const).map(({ key, label, unit }) => weeklyTotals[key] !== null && (
+              <Card key={key} className="app-halo">
+                <CardContent className="p-5">
+                  <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">{label}</p>
+                  <p className="mt-2 text-3xl font-semibold text-slate-950">{weeklyTotals[key]}{unit}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 
@@ -1018,14 +1002,20 @@ export default function MealPlanPage() {
                     <tr key={day} className="border-t border-black/5 align-top">
                       <td className="p-3">
                         <p className="font-medium">{day}</p>
-                        {mealPlan?.calorieCalculatorEnabled && (
+                        {mealPlan?.calorieCalculatorEnabled && daySummaries[dayIndex].calories !== null && (
                           <p className="mt-2 text-xs text-muted-foreground">
-                            {daySummaries[dayIndex].calories} kcal
+                            {daySummaries[dayIndex].calories} kcal ingevuld
                           </p>
                         )}
                       </td>
                       {MEAL_TYPES.map((meal) => {
                         const mealItem = getMealForDay(dayIndex, meal.value);
+                        const nutrition = mealItem ? [
+                          { key: "calories", value: getItemCalories(mealItem), prefix: "", suffix: " kcal" },
+                          { key: "protein", value: getItemMacros(mealItem).protein, prefix: "P ", suffix: "g" },
+                          { key: "carbs", value: getItemMacros(mealItem).carbs, prefix: "KH ", suffix: "g" },
+                          { key: "fat", value: getItemMacros(mealItem).fat, prefix: "V ", suffix: "g" },
+                        ].filter((entry) => entry.value !== null) : [];
 
                         return (
                           <td key={meal.value} className="p-3">
@@ -1074,20 +1064,15 @@ export default function MealPlanPage() {
                                     {getItemDescription(mealItem)}
                                   </p>
                                 )}
-                                {mealPlan?.calorieCalculatorEnabled && (
+                                {mealPlan?.calorieCalculatorEnabled && nutrition.length > 0 && (
                                   <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                                    <span className="rounded-full bg-orange-100 px-2.5 py-1 text-orange-700">
-                                      {getItemCalories(mealItem)} kcal
-                                    </span>
-                                    <span className="rounded-full bg-stone-100 px-2.5 py-1 text-stone-700">
-                                      P {getItemMacros(mealItem).protein}g
-                                    </span>
-                                    <span className="rounded-full bg-stone-100 px-2.5 py-1 text-stone-700">
-                                      KH {getItemMacros(mealItem).carbs}g
-                                    </span>
-                                    <span className="rounded-full bg-stone-100 px-2.5 py-1 text-stone-700">
-                                      V {getItemMacros(mealItem).fat}g
-                                    </span>
+                                    {nutrition.map(({ key, value, prefix, suffix }) => (
+                                      <span key={key} className={key === "calories"
+                                        ? "rounded-full bg-orange-100 px-2.5 py-1 text-orange-700"
+                                        : "rounded-full bg-stone-100 px-2.5 py-1 text-stone-700"}>
+                                        {prefix}{value}{suffix}
+                                      </span>
+                                    ))}
                                   </div>
                                 )}
                               </div>

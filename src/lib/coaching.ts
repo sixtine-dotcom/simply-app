@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { createAuditLog } from "./auth";
+import { getRecurringStarts, type RecurringScheduleMode } from "./recurring-schedule";
 
 export interface SessionWithDetails {
   id: string;
@@ -333,77 +334,6 @@ export async function updateSessionsRoomByOccurrenceKey(
   });
 }
 
-type RecurringScheduleMode = "weekly" | "biweekly" | "monthly" | "custom";
-
-/**
- * Generate dates for a recurring schedule.
- */
-function getOccurrenceDates(input: {
-  scheduleMode?: RecurringScheduleMode;
-  dayOfWeek?: number;
-  startDate: Date;
-  endDate: Date;
-  customDates?: Date[];
-}): Date[] {
-  const scheduleMode = input.scheduleMode ?? "weekly";
-  if (scheduleMode === "custom") {
-    const start = new Date(input.startDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(input.endDate);
-    end.setHours(23, 59, 59, 999);
-
-    return (input.customDates ?? [])
-      .map((date) => {
-        const d = new Date(date);
-        d.setHours(0, 0, 0, 0);
-        return d;
-      })
-      .filter((date) => date >= start && date <= end)
-      .sort((a, b) => a.getTime() - b.getTime());
-  }
-
-  const dates: Date[] = [];
-  const start = new Date(input.startDate);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(input.endDate);
-  end.setHours(23, 59, 59, 999);
-
-  if (scheduleMode === "monthly") {
-    const originalDayOfMonth = start.getDate();
-    let monthOffset = 0;
-    while (true) {
-      const year = start.getFullYear();
-      const month = start.getMonth() + monthOffset;
-      const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
-      const cursor = new Date(
-        year,
-        month,
-        Math.min(originalDayOfMonth, lastDayOfMonth)
-      );
-      cursor.setHours(0, 0, 0, 0);
-      if (cursor > end) break;
-      dates.push(cursor);
-      monthOffset += 1;
-    }
-    return dates;
-  }
-
-  const dayOfWeek = input.dayOfWeek ?? start.getDay();
-  let d = new Date(start);
-  const startDay = start.getDay();
-  let diff = dayOfWeek - startDay;
-  if (diff < 0) diff += 7;
-  if (diff > 0) d.setDate(d.getDate() + diff);
-  else if (startDay !== dayOfWeek) d.setDate(d.getDate() + 7);
-
-  const stepDays = scheduleMode === "biweekly" ? 14 : 7;
-  while (d <= end) {
-    dates.push(new Date(d));
-    d.setDate(d.getDate() + stepDays);
-  }
-  return dates;
-}
-
 async function createSessionsForRecurringPlan(input: {
   coachId: string;
   courseId: string;
@@ -417,24 +347,17 @@ async function createSessionsForRecurringPlan(input: {
   startDate: Date;
   endDate: Date;
   customDates?: Date[];
+  notBefore?: Date;
 }) {
   if (input.clientIds.length === 0) {
     return { created: 0 };
   }
 
-  const occurrenceDates = getOccurrenceDates({
-    scheduleMode: input.scheduleMode,
-    dayOfWeek: input.dayOfWeek,
-    startDate: input.startDate,
-    endDate: input.endDate,
-    customDates: input.customDates,
-  });
-  const [hours, minutes] = input.startTime.split(":").map(Number);
+  const occurrenceDates = getRecurringStarts(input);
   const created: string[] = [];
 
-  for (const date of occurrenceDates) {
-    const scheduledAt = new Date(date);
-    scheduledAt.setHours(hours, minutes, 0, 0);
+  for (const scheduledAt of occurrenceDates) {
+    if (input.notBefore && scheduledAt < input.notBefore) continue;
     const key = `recur-${input.courseId}-${scheduledAt.toISOString().slice(0, 16)}`;
 
     for (const clientId of input.clientIds) {
@@ -509,6 +432,37 @@ async function getStoredRecurringGroupPlans(courseId: string, tenantId?: string 
           typeof plan.endDate === "string"
       );
     });
+}
+
+/** Show saved group plans even before the first participant enrolls. Read-only. */
+export async function getPlannedGroupOccurrences(input: {
+  coachId: string;
+  tenantId?: string | null;
+  includeTenantPlans: boolean;
+  start: Date;
+  end: Date;
+}) {
+  const logs = await db.auditLog.findMany({
+    where: { action: "session.recurring_group_planned", tenantId: input.tenantId ?? null },
+    orderBy: { createdAt: "desc" },
+  });
+  const occurrences = new Map<string, { id: string; title: string; startsAt: Date; endsAt: Date; recurrenceOccurrenceKey: string }>();
+  for (const log of logs) {
+    const plan = log.metadata as StoredRecurringGroupPlan | null;
+    if (!plan?.isActive || !plan.courseId || !plan.coachId || !plan.startTime || !plan.startDate || !plan.endDate) continue;
+    if ((!input.includeTenantPlans || !input.tenantId) && plan.coachId !== input.coachId) continue;
+    const startDate = new Date(plan.startDate);
+    const endDate = new Date(plan.endDate);
+    if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime())) continue;
+    for (const startsAt of getRecurringStarts({ ...plan, startDate, endDate, customDates: (plan.customDates ?? []).map(date => new Date(date)) })) {
+      const endsAt = new Date(startsAt.getTime() + plan.duration * 60000);
+      if (startsAt > input.end || endsAt < input.start) continue;
+      const key = `recur-${plan.courseId}-${startsAt.toISOString().slice(0, 16)}`;
+      const id = `${plan.coachId}:${key}`;
+      if (!occurrences.has(id)) occurrences.set(id, { id, title: plan.title, startsAt, endsAt, recurrenceOccurrenceKey: key });
+    }
+  }
+  return Array.from(occurrences.values());
 }
 
 /**
@@ -607,7 +561,7 @@ export async function createRecurringGroupSessions(
     message:
       clientIds.length > 0
         ? undefined
-        : "Groepsreeks opgeslagen. Zodra deelnemers toegang krijgen tot deze cursus, kunnen hun sessies aangemaakt worden.",
+        : "Groepsreeks staat in je agenda. Er zijn nog geen deelnemers ingeschreven; zij krijgen hun sessies zodra ze toegang krijgen tot deze cursus.",
   };
 }
 
@@ -650,6 +604,7 @@ export async function syncEnrollmentToRecurringGroupPlans(input: {
   );
 
   let created = 0;
+  const sessionIds: string[] = [];
   for (const plan of plans) {
     const planStartDate = new Date(plan.startDate);
     const planEndDate = new Date(plan.endDate);
@@ -657,7 +612,6 @@ export async function syncEnrollmentToRecurringGroupPlans(input: {
       continue;
     }
 
-    const effectiveStartDate = planStartDate > now ? planStartDate : now;
     const result = await createSessionsForRecurringPlan({
       coachId: plan.coachId,
       courseId: input.courseId,
@@ -668,13 +622,19 @@ export async function syncEnrollmentToRecurringGroupPlans(input: {
       dayOfWeek: plan.dayOfWeek,
       startTime: plan.startTime,
       duration: plan.duration,
-      startDate: effectiveStartDate,
+      startDate: planStartDate,
+      notBefore: now,
       endDate: planEndDate,
       customDates: (plan.customDates ?? []).map((date) => new Date(date)),
     });
     created += result.created;
+    if ("sessionIds" in result) sessionIds.push(...(result.sessionIds ?? []));
   }
 
+  if (sessionIds.length) {
+    const { syncCoachingSessionsToConnectedCalendars } = await import("./calendar-sync");
+    await syncCoachingSessionsToConnectedCalendars(sessionIds);
+  }
   return { created };
 }
 

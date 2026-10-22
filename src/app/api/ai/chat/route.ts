@@ -1,7 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { isAiConfigured, streamAiChat, getOrCreateConversation } from "@/lib/ai";
+import {
+  classifyQuestionRisk,
+  getRelevantSources,
+  isAiConfigured,
+  streamAiChat,
+  getOrCreateConversation,
+} from "@/lib/ai";
+
+function immediateSse(payload: Record<string, unknown>) {
+  const donePayload = {
+    done: true,
+    conversationId: payload.conversationId,
+    messageId: payload.messageId,
+    escalated: payload.escalated,
+    communityHref: payload.communityHref,
+  };
+  return new Response(`data: ${JSON.stringify(payload)}\n\ndata: ${JSON.stringify(donePayload)}\n\n`, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,16 +42,6 @@ export async function POST(req: NextRequest) {
 
     if (message.trim().length > 2000) {
       return NextResponse.json({ error: "Message too long" }, { status: 400 });
-    }
-
-    if (!isAiConfigured()) {
-      return NextResponse.json(
-        {
-          error:
-            "SIX AI is nog niet geconfigureerd. Voeg OPENAI_API_KEY toe aan de environment variables.",
-        },
-        { status: 503 }
-      );
     }
 
     // Get or create conversation
@@ -52,10 +65,58 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    const cleanMessage = message.trim();
+    const risk = classifyQuestionRisk(cleanMessage);
+    const relevantSources = risk ? [] : await getRelevantSources(cleanMessage, user.tenantId);
+
+    if (risk || relevantSources.length === 0) {
+      const reason = risk || "no_source";
+      const priority = risk === "medical" ? "high" : "normal";
+      const responseText = risk
+        ? `Dag ${user.firstName}, bedankt om dit te delen. Dit is een persoonlijke of medische vraag die Sixtine best zelf bekijkt. Ik heb je vraag veilig voor haar klaargezet. Bij dringende of ernstige klachten neem je best meteen contact op met een arts.`
+        : `Dag ${user.firstName}, bedankt voor je vraag. Sixtine heeft deze vraag nog niet beantwoord in mijn kennisbank. Stel ze gerust in de community, zodat zij persoonlijk kan antwoorden en andere deelnemers er ook iets aan hebben.`;
+
+      await db.aiEscalation.create({
+        data: {
+          tenantId: user.tenantId,
+          userId: user.id,
+          conversationId: conversation.id,
+          question: cleanMessage,
+          reason,
+          priority,
+        },
+      });
+
+      const assistantMessage = await db.aiMessage.create({
+        data: {
+          conversationId: conversation.id,
+          role: "assistant",
+          content: responseText,
+          sourceIds: [],
+        },
+      });
+
+      return immediateSse({
+        text: responseText,
+        conversationId: conversation.id,
+        messageId: assistantMessage.id,
+        escalated: reason,
+        communityHref: risk ? null : "/community",
+      });
+    }
+
+    if (!isAiConfigured()) {
+      return NextResponse.json(
+        { error: "De FAQ-chat is klaar, maar de API-sleutel voor natuurlijke formulering ontbreekt nog." },
+        { status: 503 }
+      );
+    }
+
     // Stream AI response
     const { stream, sourceIds } = await streamAiChat({
       conversationId: conversation.id,
-      userMessage: message.trim(),
+      userMessage: cleanMessage,
+      firstName: user.firstName,
       tenantId: user.tenantId,
     });
 

@@ -10,7 +10,7 @@ import { RecipeSyncButton } from "./sync-button";
 export default async function AdminRecipesPage() {
   await requireAdminUser("/admin/recipes");
 
-  const recipes = await getRecipesForAdmin({ limit: 100 });
+  const recipes = await getRecipesForAdmin();
 
   return (
     <div className="p-6 md:p-8 lg:p-12">

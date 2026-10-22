@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
 import { normalizeRecipeTags } from "../src/lib/recipe-tags";
+import recipeSlugAliases from "../src/lib/recipe-slug-aliases.json";
 
 const prisma = new PrismaClient();
 
@@ -602,7 +603,9 @@ async function main() {
   );
 
   const toCreate = recipes.filter(
-    (recipe) => !existingTitles.has(recipe.title.toLowerCase()) && !existingTitles.has(recipe.slug)
+    (recipe) => !existingTitles.has(recipe.title.toLowerCase()) &&
+      !existingTitles.has(recipe.slug) &&
+      !existingTitles.has((recipeSlugAliases as Record<string, string>)[recipe.slug] ?? recipe.slug)
   );
 
   console.log(

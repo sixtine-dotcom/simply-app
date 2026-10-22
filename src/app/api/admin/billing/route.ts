@@ -8,7 +8,6 @@ import {
   scheduleTenantCancellation,
   updateTenantBillingProfile,
 } from "@/lib/billing";
-import { isStripeConfigured } from "@/lib/stripe";
 
 const optionalText = z.preprocess(
   (value) => (typeof value === "string" && value.trim() === "" ? "" : value),
@@ -63,13 +62,7 @@ export async function GET() {
       return NextResponse.json({ error: "Tenant niet gevonden" }, { status: 404 });
     }
 
-    return NextResponse.json({
-      billing: {
-        ...billing,
-        stripeEnabled: isStripeConfigured(),
-        canOpenPortal: Boolean(billing.activeSubscription?.stripeCustomerId),
-      },
-    });
+    return NextResponse.json({ billing });
   } catch (error) {
     console.error("Get billing error:", error);
     return NextResponse.json({ error: "Er is iets misgegaan" }, { status: 500 });

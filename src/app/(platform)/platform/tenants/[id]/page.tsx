@@ -25,8 +25,6 @@ type TenantSubscription = {
   billingInterval: string | null;
   priceCents: number | null;
   platformFeePercent: number | null;
-  stripeCustomerId: string | null;
-  stripeSubscriptionId: string | null;
   cancelAtPeriodEnd: boolean;
   lastPaymentFailureAt: string | null;
   pastDueStartedAt: string | null;
