@@ -20,6 +20,7 @@ export type ContentPublication = {
   // Optional TikTok-specific caption; falls back to `caption` when empty.
   tiktokCaption?: string;
   format?: "reel" | "post";
+  deliveryStatus?: string;
 };
 
 export type ContentDraft = {
@@ -88,4 +89,14 @@ export function loadDraftsFromStorage(fallbackCategoryId: string): ContentDraft[
     }
   }
   return drafts;
+}
+
+export async function saveScheduledDraft(draft: ContentDraft) {
+  const response = await fetch("/api/admin/content/schedule", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...draft, publications: draft.publications.map((p) => ({ ...p, scheduledAt: new Date(p.scheduledAt).toISOString() })) }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Inplannen mislukt");
+  saveDraftToStorage(draft);
 }

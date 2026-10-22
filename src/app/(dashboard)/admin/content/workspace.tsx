@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { Category, loadCategories, swatchFor } from "./categories";
 import { DayAgenda, MonthGrid, WeekBoard, isoDate, startOfWeek } from "./calendar-views";
 import { ContentPlannerDialog } from "./content-planner-dialog";
-import { ContentDraft, loadDraftsFromStorage, saveDraftToStorage } from "./types";
+import { ContentDraft, loadDraftsFromStorage, saveScheduledDraft } from "./types";
 
 type Props = {
   googleConfigured: boolean;
@@ -77,10 +77,27 @@ export function ContentPlannerWorkspace({ googleConfigured, googleConnected, goo
 
   const connectHref = "/api/calendar/connect/google?returnTo=%2Fadmin%2Fcontent%3Fgoogle%3Dconnected";
 
-  function refresh() {
+  async function refresh() {
     const cats = loadCategories();
     setCategories(cats);
-    setDrafts(loadDraftsFromStorage(cats[0]?.id || ""));
+    const local = loadDraftsFromStorage(cats[0]?.id || "");
+    setDrafts(local);
+    const response = await fetch("/api/admin/content/schedule", { cache: "no-store" }).catch(() => null);
+    if (!response?.ok) return;
+    const data = await response.json();
+    const merged = new Map(local.map((d) => [d.video.id, d]));
+    for (const draft of data.drafts as ContentDraft[]) {
+      draft.publications = draft.publications.map((p) => {
+        const date = new Date(p.scheduledAt);
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const scheduledAt = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+        const labels: Record<string, string> = { SCHEDULED: "ingepland", PUBLISHED: "gepubliceerd", PROCESSING: "wordt verwerkt", CLAIMED: "wordt verstuurd", FAILED: "mislukt", REVIEW: "controleren" };
+        const deliveryStatus = data.deliveries.filter((d: { publicationId: string }) => d.publicationId === p.id).map((d: { platform: string; status: string; lastError?: string }) => `${d.platform}: ${labels[d.status] || d.status}${d.lastError ? ` — ${d.lastError}` : ""}`).join(" · ");
+        return { ...p, scheduledAt, deliveryStatus };
+      });
+      merged.set(draft.video.id, draft);
+    }
+    setDrafts(Array.from(merged.values()));
   }
 
   useEffect(() => {
@@ -112,7 +129,7 @@ export function ContentPlannerWorkspace({ googleConfigured, googleConnected, goo
     });
   }
 
-  function rescheduleTo(videoId: string, publicationId: string, dateKey: string) {
+  async function rescheduleTo(videoId: string, publicationId: string, dateKey: string) {
     if (videoId.startsWith(VIDEO_STUDIO_PREFIX)) {
       void rescheduleStudioReel(videoId, dateKey);
       return;
@@ -129,8 +146,8 @@ export function ContentPlannerWorkspace({ googleConfigured, googleConnected, goo
       ...draft,
       publications: draft.publications.map((item) => (item.id === publicationId ? { ...item, scheduledAt: nextScheduledAt } : item)),
     };
-    saveDraftToStorage(updated);
-    refresh();
+    try { await saveScheduledDraft(updated); await refresh(); }
+    catch (error) { window.alert(error instanceof Error ? error.message : "Verplaatsen mislukt"); }
   }
 
   // Dragging a Video Studio reel moves its real Instagram schedule.

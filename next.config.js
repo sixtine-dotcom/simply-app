@@ -25,6 +25,10 @@ if (process.env.R2_PUBLIC_URL) {
 const nextConfig = {
   // Gebruik lokaal een aparte cache zodat `next build` een draaiende dev-server niet beschadigt.
   distDir: process.env.NEXT_DIST_DIR || '.next',
+  async rewrites() {
+    const assets = require('./src/lib/static-assets.json');
+    return { beforeFiles: [], afterFiles: [], fallback: Object.entries(assets).map(([source, destination]) => ({ source, destination })) };
+  },
   images: {
     remotePatterns,
   },

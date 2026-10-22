@@ -37,6 +37,8 @@ function getR2Client() {
   if (!client) {
     client = new S3Client({
       region: "auto",
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
       endpoint: r2Config.endpoint,
       credentials: {
         accessKeyId: r2Config.accessKeyId,

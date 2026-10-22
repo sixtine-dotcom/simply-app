@@ -1,0 +1,22 @@
+name: Publish scheduled social content
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: scheduled-social-content
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Advance due Instagram, Facebook and TikTok publications
+        env:
+          CRON_SECRET: ${{ secrets.SIMPLY_CONTENT_CRON_SECRET }}
+        run: |
+          test -n "$CRON_SECRET" || { echo 'Missing scheduler secret'; exit 1; }
+          curl --fail-with-body --silent --show-error --max-time 290 \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            https://simplyapp.be/api/cron/publish-content

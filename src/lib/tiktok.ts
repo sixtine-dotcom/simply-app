@@ -84,12 +84,15 @@ export async function getValidTikTokToken(userId: string) {
 type CreatorInfo = {
   privacy_level_options?: string[];
   max_video_post_duration_sec?: number;
+  comment_disabled?: boolean;
+  duet_disabled?: boolean;
+  stitch_disabled?: boolean;
 };
 
 // Unaudited TikTok apps may only post as SELF_ONLY (private). Once the app passes TikTok's audit,
 // set TIKTOK_PRIVACY_LEVEL=PUBLIC_TO_EVERYONE to publish publicly.
 function choosePrivacyLevel(options: string[]) {
-  const wanted = process.env.TIKTOK_PRIVACY_LEVEL || "PUBLIC_TO_EVERYONE";
+  const wanted = process.env.TIKTOK_PRIVACY_LEVEL || "SELF_ONLY";
   if (options.includes(wanted)) return wanted;
   if (options.includes("SELF_ONLY")) return "SELF_ONLY";
   return options[0] || "SELF_ONLY";
@@ -100,6 +103,10 @@ function chunkPlan(size: number) {
   const chunkSize = Math.max(MIN_CHUNK, TARGET_CHUNK);
   // The final chunk absorbs the remainder, so the count is rounded down.
   return { chunkSize, count: Math.floor(size / chunkSize) };
+}
+
+export async function getTikTokPublishStatus(token: string, publishId: string) {
+  return tiktokFetch<{ status?: string; fail_reason?: string }>("post/publish/status/fetch/", token, { publish_id: publishId });
 }
 
 async function waitForTikTokPublish(token: string, publishId: string) {
@@ -114,26 +121,30 @@ async function waitForTikTokPublish(token: string, publishId: string) {
   return "PROCESSING";
 }
 
-export async function publishTikTokVideo(token: string, videoUrl: string, caption: string) {
+export async function publishTikTokVideo(token: string, videoUrl: string, caption: string, onInitialized?: (id: string) => Promise<void>, wait = true) {
   const creator = await tiktokFetch<CreatorInfo>("post/publish/creator_info/query/", token, {});
   const privacyLevel = choosePrivacyLevel(creator.privacy_level_options || []);
 
   // FILE_UPLOAD avoids TikTok's URL-prefix domain verification required by PULL_FROM_URL.
   const download = await fetch(videoUrl);
   if (!download.ok) throw new Error("De video kon niet worden opgehaald voor TikTok");
+  if (Number(download.headers.get("content-length")) > 250 * MB) throw new Error("TikTok-video is groter dan 250 MB");
   const video = Buffer.from(await download.arrayBuffer());
+  if (!video.length || video.length > 250 * MB) throw new Error("Kies een video van maximaal 250 MB");
   const { chunkSize, count } = chunkPlan(video.length);
 
   const init = await tiktokFetch<{ publish_id: string; upload_url: string }>("post/publish/video/init/", token, {
     post_info: {
       title: caption.slice(0, 2200),
       privacy_level: privacyLevel,
-      disable_comment: false,
-      disable_duet: false,
-      disable_stitch: false,
+      disable_comment: creator.comment_disabled ?? false,
+      disable_duet: creator.duet_disabled ?? false,
+      disable_stitch: creator.stitch_disabled ?? false,
     },
     source_info: { source: "FILE_UPLOAD", video_size: video.length, chunk_size: chunkSize, total_chunk_count: count },
   });
+
+  await onInitialized?.(init.publish_id);
 
   const contentType = download.headers.get("content-type")?.startsWith("video/") ? download.headers.get("content-type")! : "video/mp4";
   for (let index = 0; index < count; index += 1) {
@@ -151,6 +162,6 @@ export async function publishTikTokVideo(token: string, videoUrl: string, captio
     if (!upload.ok) throw new Error(`Uploaden naar TikTok mislukt (deel ${index + 1}/${count})`);
   }
 
-  const status = await waitForTikTokPublish(token, init.publish_id);
+  const status = wait ? await waitForTikTokPublish(token, init.publish_id) : "PROCESSING";
   return { publishId: init.publish_id, status, privacyLevel };
 }

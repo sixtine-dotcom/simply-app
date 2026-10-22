@@ -19,6 +19,7 @@ import {
   formatSize,
   platformMeta,
   saveDraftToStorage,
+  saveScheduledDraft,
 } from "./types";
 
 type Props = {
@@ -85,6 +86,8 @@ export function ContentPlannerDialog({
   const [canvaDesigns, setCanvaDesigns] = useState<CanvaDesign[]>([]);
   const [canvaLoading, setCanvaLoading] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const selectedFile = useRef<File | null>(null);
 
   const [selectedVideo, setSelectedVideo] = useState<DriveVideo | null>(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState("");
@@ -102,6 +105,7 @@ export function ContentPlannerDialog({
     if (!open) return;
     const cats = loadCategories();
     setCategories(cats);
+    selectedFile.current = null;
     setSearch("");
     setError("");
     setNewCategoryOpen(false);
@@ -207,6 +211,7 @@ export function ContentPlannerDialog({
 
   function chooseDesktopFile(file?: File) {
     if (!file) return;
+    selectedFile.current = file;
     const previewUrl = URL.createObjectURL(file);
     chooseVideo({
       id: `desktop-${crypto.randomUUID()}`,
@@ -270,7 +275,32 @@ export function ContentPlannerDialog({
     setNewCategoryOpen(false);
   }
 
-  function handleSave() {
+  async function onlineVideo(): Promise<DriveVideo> {
+    if (!selectedVideo) throw new Error("Kies eerst media");
+    if (selectedVideo.mediaUrls?.length) return selectedVideo;
+    if (selectedFile.current && selectedVideo.id.startsWith("desktop-")) {
+      const file = selectedFile.current;
+      const response = await fetch("/api/admin/content/media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: file.name, type: file.type, size: file.size }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Upload voorbereiden mislukt");
+      const upload = await fetch(data.uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+      if (!upload.ok) throw new Error("Upload mislukt. Probeer opnieuw.");
+      const video = { ...selectedVideo, source: "desktop" as const, mediaUrls: [data.url] };
+      setSelectedVideo(video);
+      return video;
+    }
+    if (!selectedVideo.id.startsWith("desktop-") && !selectedVideo.id.startsWith("empty-") && /^[a-zA-Z0-9_-]+$/.test(selectedVideo.id) && selectedVideo.mimeType.startsWith("video/")) {
+      const response = await fetch("/api/admin/content/media", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ driveId: selectedVideo.id }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Drive-import mislukt");
+      const video = { ...selectedVideo, source: "drive" as const, mediaUrls: [data.url] };
+      setSelectedVideo(video);
+      return video;
+    }
+    throw new Error("Kies het oorspronkelijke bestand opnieuw om het online te bewaren.");
+  }
+
+  async function handleSave() {
     if (!selectedVideo) return;
     if (selectedVideo.id.startsWith("empty-")) {
       toast({ title: "Voeg eerst een foto of video toe" });
@@ -302,17 +332,27 @@ export function ContentPlannerDialog({
       publications: valid.map((item) => ({ ...item, platforms: item.platforms.length ? item.platforms : ["instagram"] })),
       savedAt: new Date().toISOString(),
     };
-    saveDraftToStorage(draft);
-    onSaved(draft);
+    setSaving(true);
+    try {
+      draft.video = await onlineVideo();
+      if (initialDraft) draft.video = { ...draft.video, id: initialDraft.video.id };
+      await saveScheduledDraft(draft);
+      onSaved(draft);
     toast({
       title: initialDraft ? "Post bijgewerkt" : "Content ingepland",
       description: `${valid.length} moment${valid.length === 1 ? "" : "en"} op de kalender gezet.`,
     });
     onOpenChange(false);
+    } catch (error) {
+      saveDraftToStorage(draft);
+      toast({ title: "Nog niet ingepland", description: error instanceof Error ? error.message : "Je concept is lokaal bewaard." });
+    } finally { setSaving(false); }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!initialDraft) return;
+    const response = await fetch(`/api/admin/content/schedule?id=${encodeURIComponent(initialDraft.video.id)}`, { method: "DELETE" }).catch(() => null);
+    if (!response?.ok) { toast({ title: "Verwijderen mislukt", description: "De planning is behouden. Probeer opnieuw." }); return; }
     deleteDraftFromStorage(initialDraft.video.id);
     onDeleted(initialDraft.video.id);
     toast({ title: "Post verwijderd" });
@@ -321,17 +361,10 @@ export function ContentPlannerDialog({
 
   async function publishNow() {
     if (!selectedVideo || !occurrences[0]) return;
-    const urls = selectedVideo.mediaUrls?.length
-      ? selectedVideo.mediaUrls
-      : selectedVideo.thumbnailLink?.startsWith("https://")
-        ? [selectedVideo.thumbnailLink]
-        : [];
-    if (!urls.length) {
-      toast({ title: "Deze media is nog niet online beschikbaar", description: "Gebruik voor de eerste test een Canva-design. De app importeert dat automatisch naar publieke opslag." });
-      return;
-    }
     setPublishing(true);
     try {
+      const video = await onlineVideo();
+      const urls = video.mediaUrls!;
       const response = await fetch("/api/integrations/meta/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -701,6 +734,7 @@ export function ContentPlannerDialog({
                     </div>
                   </div>
                   <div className="grid gap-1.5">
+                    {occurrence.deliveryStatus ? <p className="text-xs text-muted-foreground">{occurrence.deliveryStatus}</p> : null}
                     <Label>Caption</Label>
                     <Textarea
                       value={occurrence.caption}
@@ -745,6 +779,8 @@ export function ContentPlannerDialog({
                   ) : localPreviewUrl && selectedVideo.mimeType.startsWith("image/") ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={localPreviewUrl} alt="Voorbeeld" className="h-full w-full object-cover" />
+                  ) : selectedVideo.mimeType.startsWith("video/") && selectedVideo.mediaUrls?.[0] ? (
+                    <video src={selectedVideo.mediaUrls[0]} controls playsInline preload="metadata" className="h-full w-full object-contain" aria-label={`Voorbeeld van ${selectedVideo.name}`} />
                   ) : selectedVideo.mimeType.startsWith("video/") && !selectedVideo.id.startsWith("manual-") && !selectedVideo.id.startsWith("desktop-") ? (
                     <iframe
                       src={`https://drive.google.com/file/d/${encodeURIComponent(selectedVideo.id)}/preview`}
@@ -796,10 +832,10 @@ export function ContentPlannerDialog({
                   ? new Date(occurrences[0].scheduledAt).toLocaleString("nl-BE", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
                   : "Kies datum en tijd"}
               </div>
-              {instagramConnected || facebookConnected || tiktokConnected ? <Button type="button" variant="outline" disabled={publishing} onClick={() => void publishNow()}>{publishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Nu publiceren</Button> : <Button asChild type="button" variant="outline"><a href="/api/integrations/instagram/connect">Instagram koppelen</a></Button>}
-              <Button type="button" onClick={handleSave}>
+              {instagramConnected || facebookConnected || tiktokConnected ? <Button type="button" variant="outline" disabled={publishing || saving} onClick={() => void publishNow()}>{publishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Nu publiceren</Button> : <Button asChild type="button" variant="outline"><a href="/api/integrations/instagram/connect">Instagram koppelen</a></Button>}
+              <Button type="button" disabled={saving || publishing} onClick={() => void handleSave()}>
                 <Save className="mr-2 h-4 w-4" />
-                {initialDraft ? "Wijzigingen opslaan" : "Inplannen"}
+                {saving ? "Opslaan…" : initialDraft ? "Wijzigingen opslaan" : "Inplannen"}
               </Button>
             </div>
           </DialogFooter>

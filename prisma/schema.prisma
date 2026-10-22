@@ -217,21 +217,22 @@ model TenantFeatureFlag {
 }
 
 model User {
-  id                 String    @id @default(cuid())
+  socialPublications SocialPublication[]
+  id                 String              @id @default(cuid())
   tenantId           String?
-  tenant             Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
-  email              String    @unique
+  tenant             Tenant?             @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  email              String              @unique
   emailVerified      DateTime?
   passwordHash       String?
   firstName          String
   lastName           String
   avatarUrl          String?
-  bio                String?   @db.Text // korte beschrijving, niet verplicht
-  role               Role      @default(CLIENT)
-  preferredLanguage  String    @default("nl")
+  bio                String?             @db.Text // korte beschrijving, niet verplicht
+  role               Role                @default(CLIENT)
+  preferredLanguage  String              @default("nl")
   phone              String?
-  shopifyCustomerId  String?   @unique
-  marketingConsent   Boolean   @default(false)
+  shopifyCustomerId  String?             @unique
+  marketingConsent   Boolean             @default(false)
   marketingSource    String?
   marketingConsentAt DateTime?
 
@@ -2050,53 +2051,53 @@ model Carousel {
 }
 
 model CarouselSettings {
-  id             String   @id @default(cuid())
-  tenantId       String?  @unique
+  id                  String    @id @default(cuid())
+  tenantId            String?   @unique
   // Tone of voice and carousel rules (the approved briefing).
-  briefing       String?  @db.Text
+  briefing            String?   @db.Text
   // Topics to write about, one per line (optional: otherwise Claude picks from the briefing).
-  topics         String?  @db.Text
+  topics              String?   @db.Text
   // Look of the slides: { background: photo|plain, backgroundColor, textColor, accentColor, shade }
-  theme          Json?
-  perWeek        Int      @default(7)
+  theme               Json?
+  perWeek             Int       @default(7)
   // Local time (Europe/Brussels) the carousel goes out, "07:00".
-  postTime       String   @default("07:00")
+  postTime            String    @default("07:00")
   // false = new carousels wait for "Goedkeuren"; true = they are scheduled straight away.
-  autoPublish    Boolean  @default(false)
+  autoPublish         Boolean   @default(false)
   // Pause the weekly generation.
-  enabled        Boolean  @default(true)
+  enabled             Boolean   @default(true)
   // "Maak nu een week": the Mac generates the next batch right away.
   generateRequestedAt DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 }
 
 // Reel Scripts: talking-to-camera scripts (hook, credibility, value, call-to-action) to record, 7 a week.
 model ReelScript {
-  id          String    @id @default(cuid())
-  tenantId    String?
+  id           String    @id @default(cuid())
+  tenantId     String?
   // Text on screen above her head: what is this reel about, who is it for.
-  headline    String
-  topic       String?
+  headline     String
+  topic        String?
   // Spoken hook (built on a proven viral hook structure).
-  hook        String    @db.Text
-  credibility String    @db.Text
+  hook         String    @db.Text
+  credibility  String    @db.Text
   // The value part: steps / points / perspective, with her own story woven in.
-  value       String    @db.Text
-  cta         String    @db.Text
+  value        String    @db.Text
+  cta          String    @db.Text
   // Which hook structure was used, and the personal story angle (for her reference).
-  hookFormat  String?
-  storyNote   String?   @db.Text
+  hookFormat   String?
+  storyNote    String?   @db.Text
   // WRITING (AI busy) | DRAFT (to review) | READY (ready to record) | RECORDED
-  status      String    @default("DRAFT")
-  recordedAt  DateTime?
+  status       String    @default("DRAFT")
+  recordedAt   DateTime?
   // "Herschrijf met feedback": the Mac rewrites the script with this feedback.
-  feedback    String?   @db.Text
+  feedback     String?   @db.Text
   // The week (Monday) this script belongs to.
-  weekStart   DateTime?
-  errorMessage String?  @db.Text
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  weekStart    DateTime?
+  errorMessage String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([tenantId, weekStart])
 }
@@ -2119,4 +2120,30 @@ model ScriptSettings {
   hooksRequestedAt    DateTime?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+}
+
+// One durable delivery per channel. A successful channel is never retried when another fails.
+model SocialPublication {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  draftId       String
+  publicationId String
+  platform      String
+  draft         Json
+  media         Json
+  caption       String    @db.Text
+  format        String    @default("reel")
+  scheduledAt   DateTime
+  status        String    @default("SCHEDULED")
+  remoteId      String?
+  lastError     String?   @db.Text
+  claimedAt     DateTime?
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([userId, publicationId, platform])
+  @@index([status, scheduledAt])
+  @@index([userId, draftId])
 }

@@ -21,7 +21,9 @@
     "android:open": "cap open android",
     "android:build": "cd android && ./gradlew bundleRelease",
     "ios:sync": "cap sync ios",
-    "ios:open": "cap open ios"
+    "ios:open": "cap open ios",
+    "test:scheduling": "tsx scripts/tests/social-scheduling.ts",
+    "vercel-build": "prisma migrate deploy && next build"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1037.0",
