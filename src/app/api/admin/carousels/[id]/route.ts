@@ -4,8 +4,11 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireVideoAdmin } from "@/lib/video-studio";
 import { startCarouselCanvaExport } from "@/lib/canva-export";
+import { renderCarouselToR2, renderInputForCarousel } from "@/lib/carousel-render";
 
 export const dynamic = "force-dynamic";
+// Drawing up to 10 slides in the app ("render-app") takes a few seconds.
+export const maxDuration = 60;
 
 async function findCarousel(id: string, tenantId: string | null | undefined) {
   return db.carousel.findFirst({ where: { id, tenantId: tenantId ?? null } });
@@ -51,6 +54,8 @@ const patchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("unapprove-text") }),
   // Explicit permission: make this carousel in the Canva template now.
   z.object({ action: z.literal("make-canva") }),
+  // Draw the slides in the app itself (no Canva, a few seconds), optionally with another template.
+  z.object({ action: z.literal("render-app"), template: z.string().max(40).optional() }),
   // Downloaded from Canva and dropped in the app: instant, no Canva task needed.
   z.object({ action: z.literal("set-images"), imageUrls: z.array(z.string().url()).min(2, "Minstens 2 slides").max(10, "Maximaal 10 slides") }),
   // Finished in Canva: fetch the slides into the app (needed to schedule and post).
@@ -98,6 +103,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "Keur eerst de tekst goed" }, { status: 400 });
     }
     data = { status: "CANVA_REQUESTED", errorMessage: null };
+  } else if (input.action === "render-app") {
+    if (carousel.source === "UPLOAD") return NextResponse.json({ error: "Geüploade carousels hebben al slides" }, { status: 400 });
+    if (["WRITING", "DRAFT"].includes(carousel.status)) return NextResponse.json({ error: "Keur eerst de tekst goed" }, { status: 400 });
+    try {
+      const renderInput = await renderInputForCarousel(carousel, input.template);
+      if (renderInput.slides.length < 2) return NextResponse.json({ error: "Een carousel heeft minstens 2 slides nodig" }, { status: 400 });
+      const imageUrls = await renderCarouselToR2(renderInput, `carousel-studio/${carousel.tenantId ?? "default"}/${carousel.id}`);
+      data = {
+        imageUrls,
+        renderedAt: new Date(),
+        renderRequestedAt: null,
+        errorMessage: null,
+        ...(carousel.status === "APPROVED" ? {} : { status: "READY" }),
+      };
+    } catch (error) {
+      console.error("Carousel render in app failed", error);
+      return NextResponse.json({ error: `Slides maken mislukt: ${error instanceof Error ? error.message : "onbekende fout"}` }, { status: 500 });
+    }
   } else if (input.action === "set-images") {
     data = { imageUrls: input.imageUrls, renderedAt: new Date(), renderRequestedAt: null, errorMessage: null, ...(carousel.status === "APPROVED" ? {} : { status: "READY" }) };
   } else if (input.action === "fetch-canva") {
