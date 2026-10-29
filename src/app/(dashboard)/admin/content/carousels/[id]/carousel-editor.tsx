@@ -252,6 +252,19 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
     setDirty(true);
   };
 
+  /** Own photo for one slide (used by the templates made in the app). */
+  async function setSlidePhoto(index: number, file: File | undefined) {
+    if (!file) return;
+    setBusy(`slide-photo-${index}`);
+    setError(null);
+    try {
+      editSlide(index, { photo: await uploadCarouselImage(file) });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Uploaden mislukt");
+    }
+    setBusy(null);
+  }
+
   const statusLabel =
     carousel.status === "APPROVED" && carousel.publishStatus ? PUBLISH_STATUS_LABELS[carousel.publishStatus] : CAROUSEL_STATUS_LABELS[carousel.status];
 
@@ -515,7 +528,7 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
           <section className="space-y-2">
             <h2 className="font-semibold text-slate-950">Tekst per slide</h2>
             <p className="text-sm text-muted-foreground">
-              Foto&apos;s voeg je toe in Canva. Een extra slide komt vóór de call-to-action (maximaal 10).
+              Voor slides in de app kies je per slide een eigen foto en eventueel een titel en kicker; zet **woorden** tussen sterretjes voor cursief (titel) of vet (tekst). Een extra slide komt vóór de call-to-action (maximaal 10).
             </p>
             <div className="divide-y divide-slate-100 rounded-2xl bg-white/85">
               {slides.map((slide, i) => {
@@ -527,6 +540,22 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
                       <p className={slide.type === "hook" && value.length > 55 ? "font-medium text-red-600" : undefined}>
                         {value.length} tekens{slide.type === "hook" && value.length > 55 ? " · te lang" : ""}
                       </p>
+                      {!locked ? (
+                        slide.photo ? (
+                          <span className="mt-1 flex items-center gap-1">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={slide.photo} alt="" className="h-8 w-8 rounded object-cover" />
+                            <button type="button" className="underline underline-offset-2" onClick={() => editSlide(i, { photo: undefined })}>
+                              weg
+                            </button>
+                          </span>
+                        ) : (
+                          <label className="mt-1 inline-flex cursor-pointer items-center gap-1 underline-offset-2 hover:underline" title="Eigen foto voor deze slide (slides in de app)">
+                            {busy === `slide-photo-${i}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImageIcon className="h-3 w-3" />} foto
+                            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => void setSlidePhoto(i, e.target.files?.[0])} />
+                          </label>
+                        )
+                      ) : null}
                     </div>
                     {slide.type === "hook" ? (
                       <div className="space-y-1">
@@ -546,12 +575,31 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
                         />
                       </div>
                     ) : (
-                    <AutoTextarea
-                      disabled={locked}
-                      value={value}
-                      onChange={(e) => editSlide(i, { text: e.target.value })}
-                      className="min-h-0 resize-none border-transparent bg-transparent px-2 py-1.5 text-sm shadow-none hover:border-slate-200 focus:border-slate-300"
-                    />
+                    <div className="space-y-1">
+                      {/* Title and kicker: only used by the templates made in the app (Canva fills the text only). */}
+                      <div className="grid grid-cols-[1fr_2fr] gap-1">
+                        <input
+                          disabled={locked}
+                          value={slide.kicker ?? ""}
+                          onChange={(e) => editSlide(i, { kicker: e.target.value || undefined })}
+                          placeholder="Kicker (cursief, optioneel)"
+                          className="rounded-md border border-transparent bg-transparent px-2 py-1 text-xs italic hover:border-slate-200 focus:border-slate-300 focus:outline-none"
+                        />
+                        <input
+                          disabled={locked}
+                          value={slide.title ?? ""}
+                          onChange={(e) => editSlide(i, { title: e.target.value || undefined })}
+                          placeholder="Titel in grote letters (optioneel, voor slides in de app)"
+                          className="rounded-md border border-transparent bg-transparent px-2 py-1 text-xs font-medium hover:border-slate-200 focus:border-slate-300 focus:outline-none"
+                        />
+                      </div>
+                      <AutoTextarea
+                        disabled={locked}
+                        value={value}
+                        onChange={(e) => editSlide(i, { text: e.target.value })}
+                        className="min-h-0 resize-none border-transparent bg-transparent px-2 py-1.5 text-sm shadow-none hover:border-slate-200 focus:border-slate-300"
+                      />
+                    </div>
                     )}
                     {slide.type === "body" && !locked ? (
                       <button

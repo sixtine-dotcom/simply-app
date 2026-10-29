@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { CarouselSlide, CarouselTheme } from "@/lib/carousel-shared";
+import { EDITORIAL_TEMPLATES } from "./editorial-templates";
 
 // Carousel templates rendered in the app itself (no Canva): plain React with inline styles, drawn to an image
 // by Satori (next/og). Satori only supports flexbox and a subset of CSS: every element with more than one child
@@ -19,6 +20,8 @@ export type TemplateContext = {
   label: string;
   /** Instagram handle top right, without @. */
   handle: string;
+  /** Small text bottom left in the templates with a footer line ("TIPS VAN SIX"). */
+  footer: string;
 };
 
 export type CarouselTemplate = {
@@ -42,7 +45,11 @@ function rich(text: string | undefined, boldWeight = 700) {
   const words: Array<{ word: string; bold: boolean }> = [];
   for (const part of text.split(/(\*\*.+?\*\*)/g).filter(Boolean)) {
     const bold = part.startsWith("**") && part.endsWith("**");
-    for (const word of (bold ? part.slice(2, -2) : part).split(/\s+/).filter(Boolean)) words.push({ word, bold });
+    for (const word of (bold ? part.slice(2, -2) : part).split(/\s+/).filter(Boolean)) {
+      const prev = words[words.length - 1];
+      if (prev && /^[.,!?;:)]+$/.test(word)) prev.word += word;
+      else words.push({ word, bold });
+    }
   }
   return words.map(({ word, bold }, i) => (
     <span key={i} style={{ marginRight: "0.27em", ...(bold ? { fontWeight: boldWeight } : {}) }}>
@@ -205,7 +212,7 @@ const plainMagazine: CarouselTemplate = {
   },
 };
 
-export const CAROUSEL_TEMPLATES: CarouselTemplate[] = [photoEditorial, plainMagazine];
+export const CAROUSEL_TEMPLATES: CarouselTemplate[] = [...EDITORIAL_TEMPLATES, photoEditorial, plainMagazine];
 
 export function getTemplate(id: string | null | undefined) {
   return CAROUSEL_TEMPLATES.find((t) => t.id === id) ?? CAROUSEL_TEMPLATES[0];

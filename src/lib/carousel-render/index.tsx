@@ -12,7 +12,7 @@ import { SLIDE_HEIGHT, SLIDE_WIDTH, getTemplate } from "./templates";
 
 const FONT_DIR = path.join(process.cwd(), "src/lib/carousel-render/fonts");
 
-type FontSpec = { name: string; data: ArrayBuffer; weight: 400 | 600 | 700; style: "normal" | "italic" };
+type FontSpec = { name: string; data: ArrayBuffer; weight: 400 | 500 | 600 | 700; style: "normal" | "italic" };
 let fontsPromise: Promise<FontSpec[]> | null = null;
 
 function loadFonts() {
@@ -25,6 +25,11 @@ function loadFonts() {
         ["Montserrat", "montserrat-latin-400-normal.woff", 400, "normal"],
         ["Montserrat", "montserrat-latin-600-normal.woff", 600, "normal"],
         ["Montserrat", "montserrat-latin-700-normal.woff", 700, "normal"],
+        ["Instrument Serif", "instrument-serif-latin-400-normal.woff", 400, "normal"],
+        ["Instrument Serif", "instrument-serif-latin-400-italic.woff", 400, "italic"],
+        ["Anton", "anton-latin-400-normal.woff", 400, "normal"],
+        ["DM Mono", "dm-mono-latin-400-normal.woff", 400, "normal"],
+        ["Caveat", "caveat-latin-500-normal.woff", 500, "normal"],
       ] as const
     ).map(async ([name, file, weight, style]) => {
       const buffer = await readFile(path.join(FONT_DIR, file));
@@ -44,6 +49,7 @@ export type RenderInput = {
   photoUrl: string | null;
   label: string;
   handle: string;
+  footer: string;
 };
 
 /** What to draw for a carousel: its slides and photo, with the look from the Carousel Studio settings. */
@@ -60,6 +66,7 @@ export async function renderInputForCarousel(
     photoUrl: carousel.photoUrl,
     label: theme.label || DEFAULT_THEME.label || "",
     handle: theme.handle || DEFAULT_THEME.handle || "",
+    footer: theme.footer || "",
   };
 }
 
@@ -73,9 +80,11 @@ export async function renderSlidePng(input: RenderInput, index: number) {
     index,
     total: input.slides.length,
     theme: input.theme,
-    photoUrl: template.usesPhoto || slide.type === "hook" ? input.photoUrl : null,
+    // A slide's own photo wins over the carousel's background photo.
+    photoUrl: slide.photo || (template.usesPhoto || slide.type === "hook" ? input.photoUrl : null),
     label: input.label,
     handle: input.handle,
+    footer: input.footer,
   });
   const response = new ImageResponse(<>{element}</>, { width: SLIDE_WIDTH, height: SLIDE_HEIGHT, fonts: await loadFonts() });
   return Buffer.from(await response.arrayBuffer());

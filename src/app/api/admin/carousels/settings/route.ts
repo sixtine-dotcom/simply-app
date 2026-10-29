@@ -40,6 +40,7 @@ const schema = z.object({
       template: z.string().max(40).optional(),
       label: z.string().trim().max(40).optional(),
       handle: z.string().trim().max(40).transform((h) => h.replace(/^@/, "")).optional(),
+      footer: z.string().trim().max(40).optional(),
     })
     .optional(),
   postTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),

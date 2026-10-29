@@ -29,6 +29,7 @@ const slideSchema = z.object({
   kicker: z.string().max(300).optional(),
   text: z.string().max(1200).optional(),
   keyword: z.string().max(60).optional(),
+  photo: z.string().url().optional(),
 });
 
 const patchSchema = z.discriminatedUnion("action", [

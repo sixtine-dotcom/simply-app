@@ -113,7 +113,7 @@ export function CarouselSettingsDialog({ open, onOpenChange, onSaved }: { open: 
             </div>
             <div className="space-y-3 rounded-2xl border border-slate-200 p-4">
               <p className="font-medium">Ontwerp in de app (zonder Canva)</p>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="block space-y-1.5">
                   <span>Standaard sjabloon</span>
                   <select value={theme.template ?? CAROUSEL_TEMPLATE_OPTIONS[0].id} onChange={(e) => updateTheme({ template: e.target.value })} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2">
@@ -126,11 +126,15 @@ export function CarouselSettingsDialog({ open, onOpenChange, onSaved }: { open: 
                 </label>
                 <label className="block space-y-1.5">
                   <span>Tekst linksboven</span>
-                  <input value={theme.label ?? ""} onChange={(e) => updateTheme({ label: e.target.value })} maxLength={40} className="h-9 w-full rounded-lg border border-slate-200 px-2" placeholder="Simply in Balance" />
+                  <input value={theme.label ?? ""} onChange={(e) => updateTheme({ label: e.target.value })} maxLength={40} className="h-9 w-full rounded-lg border border-slate-200 px-2" placeholder="Darmgezondheid" />
                 </label>
                 <label className="block space-y-1.5">
                   <span>Instagram-naam rechtsboven</span>
                   <input value={theme.handle ?? ""} onChange={(e) => updateTheme({ handle: e.target.value.replace(/^@/, "") })} maxLength={40} className="h-9 w-full rounded-lg border border-slate-200 px-2" placeholder="simplyinbalance" />
+                </label>
+                <label className="block space-y-1.5">
+                  <span>Tekst linksonder (bij sjablonen met lijnen)</span>
+                  <input value={theme.footer ?? ""} onChange={(e) => updateTheme({ footer: e.target.value })} maxLength={40} className="h-9 w-full rounded-lg border border-slate-200 px-2" placeholder="Tips van Six" />
                 </label>
               </div>
               <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
