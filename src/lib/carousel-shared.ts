@@ -6,6 +6,8 @@ export type CarouselSlide = {
   kicker?: string;
   text?: string;
   keyword?: string;
+  /** Own photo for this slide (templates made in the app); otherwise the carousel's background photo. */
+  photo?: string;
 };
 
 export const DEFAULT_CANVA_TEMPLATE_ID = "DAHXbZyD6NQ";
@@ -20,6 +22,12 @@ export type CarouselTheme = {
   /** Last slide: real testimonial screenshots (rotated) under this title. Empty = no proof slide. */
   proofTitle?: string;
   proofImages?: string[];
+  /** Slides made in the app (no Canva): which template, and the small texts at the top of every slide. */
+  template?: string;
+  label?: string;
+  handle?: string;
+  /** Bottom left in the templates with a footer line, e.g. "TIPS VAN SIX". */
+  footer?: string;
 };
 
 export const DEFAULT_THEME: CarouselTheme = {
@@ -31,7 +39,21 @@ export const DEFAULT_THEME: CarouselTheme = {
   shade: 0.38,
   proofTitle: "450+ anderen waren jou voor",
   proofImages: [],
+  template: "tips-editorial",
+  label: "Darmgezondheid",
+  handle: "simplyinbalance",
+  footer: "Tips van Six",
 };
+
+/** Templates for slides made in the app (drawn in src/lib/carousel-render/templates.tsx, same ids). */
+export const CAROUSEL_TEMPLATE_OPTIONS = [
+  { id: "tips-editorial", name: "Tips editorial (zoals cola zero)", description: "Foto over de hele slide, dunne lijnen met labels boven en onder, grote smalle serif-titel en een handgetekend pijltje." },
+  { id: "recap-magazine", name: "Recap magazine (zoals monthly recap)", description: "Donkere foto, nummer linksboven, serif-titel met cursieve woorden en een smalle tekstkolom. Zet **woorden** tussen sterretjes voor cursief." },
+  { id: "photo-journal", name: "Photo journal (zoals One day in my life)", description: "Foto met grote serif-titel in kleine letters, verdeeld boven en onder, een polaroid en sterretjes." },
+  { id: "highlights-paper", name: "Highlights papier (zoals Highlights of my year)", description: "Beige papier met een zware smalle titel, tekst en een schuine polaroid met handgeschreven onderschrift. Openingsslide met foto." },
+  { id: "foto-editorial", name: "Foto editorial", description: "Jouw foto over de hele slide, grote serif-titel en witte tekst." },
+  { id: "effen-magazine", name: "Effen magazine", description: "Rustige effen achtergrond in jouw kleuren, serif-titel met accentlijn. Geen foto nodig." },
+] as const;
 
 export const CAROUSEL_STATUS_LABELS: Record<string, string> = {
   // AI carousels: text first, then Canva (filled on request in Claude), then the slides.

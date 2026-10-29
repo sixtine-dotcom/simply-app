@@ -160,7 +160,8 @@ export function VideoReview({
   const [playbackRate, setPlaybackRate] = useState(1);
   const [titleDraft, setTitleDraft] = useState<string | null>(null);
   // Course videos open in the cut editor; social videos in the styled review.
-  const [view, setView] = useState<"review" | "cut">(initialProject.mode === "COURSE" ? "cut" : "review");
+  // Open in the cut editor (kept/cut timeline) for every video once a version exists; "Review" stays one click away.
+  const [view, setView] = useState<"review" | "cut">(initialProject.versions.length > 0 ? "cut" : "review");
   const playerRef = useRef<PlayerRef>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   // Animations of the shown version, edited locally and saved shortly after each change.

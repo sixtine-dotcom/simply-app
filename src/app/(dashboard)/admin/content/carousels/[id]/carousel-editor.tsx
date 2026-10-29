@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, ImageIcon, Loader2, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { CAROUSEL_STATUS_LABELS, CarouselSlide, PUBLISH_STATUS_LABELS, SLIDE_TYPE_LABELS, boldWords } from "@/lib/carousel-shared";
+import { CAROUSEL_STATUS_LABELS, CAROUSEL_TEMPLATE_OPTIONS, CarouselSlide, PUBLISH_STATUS_LABELS, SLIDE_TYPE_LABELS, boldWords } from "@/lib/carousel-shared";
 import { uploadCarouselImage } from "../carousel-settings";
 
 export type EditorCarousel = {
@@ -81,6 +81,18 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
   const canvaUrl = carousel.canvaDesignId?.startsWith("D") ? `https://www.canva.com/design/${carousel.canvaDesignId}/edit` : null;
   const writingCaption = Boolean(carousel.captionRequestedAt);
   const locked = carousel.publishStatus === "PUBLISHING" || carousel.publishStatus === "PUBLISHED";
+  // Slides drawn in the app itself (no Canva): which template, and a live preview while the text is approved.
+  const [template, setTemplate] = useState<string>(CAROUSEL_TEMPLATE_OPTIONS[0].id);
+  const canRenderInApp = !uploaded && !locked && !makingCanva && !["WRITING", "DRAFT"].includes(carousel.status);
+  useEffect(() => {
+    fetch("/api/admin/carousels/settings", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const id = data?.settings?.theme?.template;
+        if (CAROUSEL_TEMPLATE_OPTIONS.some((t) => t.id === id)) setTemplate(id);
+      })
+      .catch(() => undefined);
+  }, []);
 
   const reload = useCallback(async () => {
     const res = await fetch(`/api/admin/carousels/${carousel.id}`, { cache: "no-store" });
@@ -184,9 +196,9 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
   }
 
   /** Save the text first (when changed), then do the action, so nothing typed is ever lost. */
-  async function saveThen(action: string) {
+  async function saveThen(action: string, extra: object = {}) {
     if (dirty && !(await save())) return;
-    await act(action);
+    await act(action, extra);
   }
 
   async function save() {
@@ -240,6 +252,19 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
     setDirty(true);
   };
 
+  /** Own photo for one slide (used by the templates made in the app). */
+  async function setSlidePhoto(index: number, file: File | undefined) {
+    if (!file) return;
+    setBusy(`slide-photo-${index}`);
+    setError(null);
+    try {
+      editSlide(index, { photo: await uploadCarouselImage(file) });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Uploaden mislukt");
+    }
+    setBusy(null);
+  }
+
   const statusLabel =
     carousel.status === "APPROVED" && carousel.publishStatus ? PUBLISH_STATUS_LABELS[carousel.publishStatus] : CAROUSEL_STATUS_LABELS[carousel.status];
 
@@ -267,6 +292,33 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {canRenderInApp ? (
+            <>
+              <select
+                value={template}
+                onChange={(e) => setTemplate(e.target.value)}
+                disabled={busy !== null}
+                className="h-9 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                aria-label="Sjabloon"
+                title={CAROUSEL_TEMPLATE_OPTIONS.find((t) => t.id === template)?.description}
+              >
+                {CAROUSEL_TEMPLATE_OPTIONS.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              <Button
+                variant={carousel.imageUrls?.length ? "outline" : "default"}
+                disabled={busy !== null}
+                onClick={() => void saveThen("render-app", { template })}
+                title="Maakt de slides meteen in de app, zonder Canva"
+              >
+                {busy === "render-app" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+                {carousel.imageUrls?.length ? "Slides opnieuw maken" : "Maak slides in de app"}
+              </Button>
+            </>
+          ) : null}
           {textStage ? (
             carousel.status === "WRITING" ? null : carousel.status === "DRAFT" ? (
               <Button disabled={busy !== null} onClick={() => void saveThen("approve-text")}>
@@ -284,7 +336,7 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
             ) : (
               <>
                 {carousel.status === "TEXT_APPROVED" ? (
-                  <Button disabled={busy !== null} onClick={() => void saveThen("make-canva")}>
+                  <Button variant="outline" disabled={busy !== null} onClick={() => void saveThen("make-canva")}>
                     Maak in Canva
                   </Button>
                 ) : null}
@@ -351,7 +403,7 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
               : carousel.status === "DRAFT"
               ? "Lees de tekst hieronder na, pas aan waar nodig en klik op Tekst goedkeuren."
               : carousel.status === "TEXT_APPROVED"
-                ? "Tekst goedgekeurd. Klik op Maak in Canva wanneer de carousel in je sjabloon mag worden ingevuld."
+                ? "Tekst goedgekeurd. Hieronder zie je een voorbeeld. Klik op Maak slides in de app (meteen klaar), of op Maak in Canva voor je Canva-sjabloon."
                 : makingCanva
                 ? "Je Canva-sjabloon wordt ingevuld (binnen ± 5 minuten, als de Claude-app openstaat). Daarna verschijnt Open in Canva."
                 : carousel.status === "CANVA_EXPORT"
@@ -374,6 +426,18 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
             <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(e) => void dropSlides(e.target.files)} />
           </label>
         ) : null}
+        {carousel.status === "TEXT_APPROVED" && !carousel.imageUrls?.length && !dirty
+          ? carousel.slides.map((_, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={`${template}-${i}-${savedAt?.getTime() ?? 0}`}
+                src={`/api/admin/carousels/${carousel.id}/preview?slide=${i}&template=${template}&v=${savedAt?.getTime() ?? 0}`}
+                alt={`Voorbeeld slide ${i + 1}`}
+                loading="lazy"
+                className="aspect-[4/5] w-72 shrink-0 snap-start rounded-2xl bg-slate-100 object-cover"
+              />
+            ))
+          : null}
         {textStage && !carousel.imageUrls?.length ? null : rendering || !carousel.imageUrls?.length ? (
           <div className="flex aspect-[4/5] w-72 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-sm text-muted-foreground">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -464,7 +528,7 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
           <section className="space-y-2">
             <h2 className="font-semibold text-slate-950">Tekst per slide</h2>
             <p className="text-sm text-muted-foreground">
-              Foto&apos;s voeg je toe in Canva. Een extra slide komt vóór de call-to-action (maximaal 10).
+              Voor slides in de app kies je per slide een eigen foto en eventueel een titel en kicker; zet **woorden** tussen sterretjes voor cursief (titel) of vet (tekst). Een extra slide komt vóór de call-to-action (maximaal 10).
             </p>
             <div className="divide-y divide-slate-100 rounded-2xl bg-white/85">
               {slides.map((slide, i) => {
@@ -476,6 +540,22 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
                       <p className={slide.type === "hook" && value.length > 55 ? "font-medium text-red-600" : undefined}>
                         {value.length} tekens{slide.type === "hook" && value.length > 55 ? " · te lang" : ""}
                       </p>
+                      {!locked ? (
+                        slide.photo ? (
+                          <span className="mt-1 flex items-center gap-1">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={slide.photo} alt="" className="h-8 w-8 rounded object-cover" />
+                            <button type="button" className="underline underline-offset-2" onClick={() => editSlide(i, { photo: undefined })}>
+                              weg
+                            </button>
+                          </span>
+                        ) : (
+                          <label className="mt-1 inline-flex cursor-pointer items-center gap-1 underline-offset-2 hover:underline" title="Eigen foto voor deze slide (slides in de app)">
+                            {busy === `slide-photo-${i}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <ImageIcon className="h-3 w-3" />} foto
+                            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => void setSlidePhoto(i, e.target.files?.[0])} />
+                          </label>
+                        )
+                      ) : null}
                     </div>
                     {slide.type === "hook" ? (
                       <div className="space-y-1">
@@ -495,12 +575,31 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
                         />
                       </div>
                     ) : (
-                    <AutoTextarea
-                      disabled={locked}
-                      value={value}
-                      onChange={(e) => editSlide(i, { text: e.target.value })}
-                      className="min-h-0 resize-none border-transparent bg-transparent px-2 py-1.5 text-sm shadow-none hover:border-slate-200 focus:border-slate-300"
-                    />
+                    <div className="space-y-1">
+                      {/* Title and kicker: only used by the templates made in the app (Canva fills the text only). */}
+                      <div className="grid grid-cols-[1fr_2fr] gap-1">
+                        <input
+                          disabled={locked}
+                          value={slide.kicker ?? ""}
+                          onChange={(e) => editSlide(i, { kicker: e.target.value || undefined })}
+                          placeholder="Kicker (cursief, optioneel)"
+                          className="rounded-md border border-transparent bg-transparent px-2 py-1 text-xs italic hover:border-slate-200 focus:border-slate-300 focus:outline-none"
+                        />
+                        <input
+                          disabled={locked}
+                          value={slide.title ?? ""}
+                          onChange={(e) => editSlide(i, { title: e.target.value || undefined })}
+                          placeholder="Titel in grote letters (optioneel, voor slides in de app)"
+                          className="rounded-md border border-transparent bg-transparent px-2 py-1 text-xs font-medium hover:border-slate-200 focus:border-slate-300 focus:outline-none"
+                        />
+                      </div>
+                      <AutoTextarea
+                        disabled={locked}
+                        value={value}
+                        onChange={(e) => editSlide(i, { text: e.target.value })}
+                        className="min-h-0 resize-none border-transparent bg-transparent px-2 py-1.5 text-sm shadow-none hover:border-slate-200 focus:border-slate-300"
+                      />
+                    </div>
                     )}
                     {slide.type === "body" && !locked ? (
                       <button

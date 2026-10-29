@@ -104,3 +104,6 @@ coverage/
 *.ttf
 *.otf
 *.eot
+
+# Fonts the in-app carousel renderer needs (SIL OFL, see LICENSE files there)
+!src/lib/carousel-render/fonts/*.woff

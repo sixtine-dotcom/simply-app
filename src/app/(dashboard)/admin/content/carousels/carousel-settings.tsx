@@ -5,7 +5,7 @@ import { Loader2, Trash2, Upload } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { CarouselTheme, DEFAULT_THEME, DEFAULT_CANVA_TEMPLATE_ID } from "@/lib/carousel-shared";
+import { CAROUSEL_TEMPLATE_OPTIONS, CarouselTheme, DEFAULT_CANVA_TEMPLATE_ID, DEFAULT_THEME } from "@/lib/carousel-shared";
 
 type Settings = {
   briefing: string;
@@ -111,6 +111,52 @@ export function CarouselSettingsDialog({ open, onOpenChange, onSaved }: { open: 
                 Elke week nieuwe carousels maken
               </label>
             </div>
+            <div className="space-y-3 rounded-2xl border border-slate-200 p-4">
+              <p className="font-medium">Ontwerp in de app (zonder Canva)</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block space-y-1.5">
+                  <span>Standaard sjabloon</span>
+                  <select value={theme.template ?? CAROUSEL_TEMPLATE_OPTIONS[0].id} onChange={(e) => updateTheme({ template: e.target.value })} className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2">
+                    {CAROUSEL_TEMPLATE_OPTIONS.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block space-y-1.5">
+                  <span>Tekst linksboven</span>
+                  <input value={theme.label ?? ""} onChange={(e) => updateTheme({ label: e.target.value })} maxLength={40} className="h-9 w-full rounded-lg border border-slate-200 px-2" placeholder="Darmgezondheid" />
+                </label>
+                <label className="block space-y-1.5">
+                  <span>Instagram-naam rechtsboven</span>
+                  <input value={theme.handle ?? ""} onChange={(e) => updateTheme({ handle: e.target.value.replace(/^@/, "") })} maxLength={40} className="h-9 w-full rounded-lg border border-slate-200 px-2" placeholder="simplyinbalance" />
+                </label>
+                <label className="block space-y-1.5">
+                  <span>Tekst linksonder (bij sjablonen met lijnen)</span>
+                  <input value={theme.footer ?? ""} onChange={(e) => updateTheme({ footer: e.target.value })} maxLength={40} className="h-9 w-full rounded-lg border border-slate-200 px-2" placeholder="Tips van Six" />
+                </label>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                {(
+                  [
+                    ["backgroundColor", "Achtergrond"],
+                    ["textColor", "Tekst"],
+                    ["accentColor", "Accent"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2">
+                    <input type="color" value={theme[key]} onChange={(e) => updateTheme({ [key]: e.target.value })} className="h-8 w-10 cursor-pointer rounded border border-slate-200" />
+                    {label}
+                  </label>
+                ))}
+                <label className="flex items-center gap-2">
+                  Donkere laag over foto
+                  <input type="range" min={0} max={0.8} step={0.02} value={theme.shade} onChange={(e) => updateTheme({ shade: Number(e.target.value) })} />
+                </label>
+              </div>
+              <p className="text-xs text-muted-foreground">{CAROUSEL_TEMPLATE_OPTIONS.find((t) => t.id === (theme.template ?? CAROUSEL_TEMPLATE_OPTIONS[0].id))?.description}</p>
+            </div>
             <label className="block space-y-1.5">
               <span className="font-medium">Canva-sjabloon</span>
               <input
@@ -126,6 +172,11 @@ export function CarouselSettingsDialog({ open, onOpenChange, onSaved }: { open: 
                 Bestaande ontwerpen blijven behouden.
               </span>
             </label>
+            <p className="text-muted-foreground">
+              Ontwerp in Canva: je Canva-sjabloon <strong>Carousel sjabloon – automatisch (niet verwijderen)</strong>. Pas je dat aan in Canva, dan volgen alle nieuwe
+              carousels. Achtergrondfoto&apos;s: je eigen foto&apos;s in de map <strong>carousels/fotos</strong> op je Mac komen eerst, anders een passende
+              (donkere) foto van Unsplash.
+            </p>
             {message ? <p className="text-red-600">{message}</p> : null}
           </div>
         )}

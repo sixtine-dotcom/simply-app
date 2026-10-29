@@ -38,6 +38,10 @@ const schema = z.object({
       shade: z.number().min(0).max(0.8),
       proofTitle: z.string().max(80).optional(),
       proofImages: z.array(z.string().url()).max(20).optional(),
+      template: z.string().max(40).optional(),
+      label: z.string().trim().max(40).optional(),
+      handle: z.string().trim().max(40).transform((h) => h.replace(/^@/, "")).optional(),
+      footer: z.string().trim().max(40).optional(),
     })
     .optional(),
   postTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
