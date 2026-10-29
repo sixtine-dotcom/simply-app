@@ -39,7 +39,7 @@ export function NewVideoForm() {
       body: JSON.stringify({
         title,
         mode,
-        briefing: mode === "FINISHED" ? undefined : briefing,
+        briefing: ["FINISHED", "SUBTITLES"].includes(mode) ? undefined : briefing,
         cutByVisuals: mode === "SOCIAL" && cutByVisuals,
         colorMatch: mode === "SOCIAL" && matchColors ? DEFAULT_COLOR_MATCH : null,
       }),
@@ -57,7 +57,7 @@ export function NewVideoForm() {
 
   return (
     <form onSubmit={submit} className="flex max-w-2xl flex-col gap-2 sm:flex-row sm:flex-wrap">
-      <div className="flex shrink-0 rounded-full border border-slate-200 bg-white p-1" role="radiogroup" aria-label="Soort video">
+      <div className="flex flex-wrap shrink-0 rounded-full border border-slate-200 bg-white p-1" role="radiogroup" aria-label="Soort video">
         {(Object.keys(VIDEO_MODE_LABELS) as VideoMode[]).map((key) => (
           <button
             key={key}
@@ -69,6 +69,8 @@ export function NewVideoForm() {
             title={
               key === "SOCIAL"
                 ? "Knippen + ondertitels, grote woorden en zooms"
+                : key === "SUBTITLES"
+                  ? "Gemonteerde video behouden en alleen gesproken ondertitels toevoegen"
                 : key === "COURSE"
                   ? "Alleen knippen (bv. Loom-opnames voor je cursus)"
                   : "Al bewerkt: niets aanpassen, alleen caption en inplannen"
@@ -88,7 +90,7 @@ export function NewVideoForm() {
         <Plus className="mr-1.5 h-4 w-4" />
         {saving ? "Aanmaken…" : "Nieuwe video"}
       </Button>
-      {mode !== "FINISHED" ? (
+      {!["FINISHED", "SUBTITLES"].includes(mode) ? (
         <div className="flex flex-col gap-2 sm:basis-full">
           <textarea
             value={briefing}

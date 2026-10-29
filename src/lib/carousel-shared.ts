@@ -8,7 +8,10 @@ export type CarouselSlide = {
   keyword?: string;
 };
 
+export const DEFAULT_CANVA_TEMPLATE_ID = "DAHXbZyD6NQ";
+
 export type CarouselTheme = {
+  canvaTemplateId?: string;
   background: "photo" | "plain";
   backgroundColor: string;
   textColor: string;
@@ -20,6 +23,7 @@ export type CarouselTheme = {
 };
 
 export const DEFAULT_THEME: CarouselTheme = {
+  canvaTemplateId: DEFAULT_CANVA_TEMPLATE_ID,
   background: "photo",
   backgroundColor: "#E6E1D9",
   textColor: "#3A322C",

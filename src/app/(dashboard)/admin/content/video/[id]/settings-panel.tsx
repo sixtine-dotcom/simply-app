@@ -59,7 +59,7 @@ export function SettingsPanel({ project, busy, onChanged }: { project: ReviewPro
       </button>
       {open ? (
         <div className="space-y-3 border-t border-slate-100 px-4 py-3">
-          {mode === "FINISHED" ? null : (
+          {["FINISHED", "SUBTITLES"].includes(mode) ? null : (
           <textarea
             value={briefing}
             onChange={(e) => setBriefing(e.target.value)}

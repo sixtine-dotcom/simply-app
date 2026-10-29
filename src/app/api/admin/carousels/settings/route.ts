@@ -30,6 +30,7 @@ const schema = z.object({
   topics: z.string().max(20000).optional(),
   theme: z
     .object({
+      canvaTemplateId: z.string().regex(/^D[A-Za-z0-9_-]{10}$/, "Vul een geldig Canva-ontwerp-ID in").optional(),
       background: z.enum(["photo", "plain"]),
       backgroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
       textColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),

@@ -6,8 +6,11 @@ import { TimelineSegment, findVideoProjectForAdmin, outputToSource, requireVideo
 
 const overlaySchema = z.object({
   id: z.string().min(1).max(80),
-  kind: z.enum(["lottie", "video", "image", "motion"]),
+  kind: z.enum(["lottie", "video", "image", "motion", "text", "card", "photos"]),
   src: z.string().min(1).max(2000),
+  srcs: z.array(z.string().max(2000)).max(3).optional(),
+  layout: z.enum(["frame", "grid"]).optional(),
+  text: z.string().max(2000).optional(),
   label: z.string().max(200),
   preview: z.string().max(2000).optional(),
   start: z.number().nonnegative(),

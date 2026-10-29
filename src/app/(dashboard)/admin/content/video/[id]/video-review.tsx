@@ -213,7 +213,9 @@ export function VideoReview({
   );
   const isCourse = project.mode === "COURSE";
   // Course and "kant-en-klaar" videos are shown as they are: no captions, big words or animations on top.
-  const plain = project.mode !== "SOCIAL";
+  const subtitlesOnly = project.mode === "SUBTITLES";
+  useEffect(() => { if (subtitlesOnly) setView("review"); }, [subtitlesOnly]);
+  const plain = project.mode !== "SOCIAL" && !subtitlesOnly;
   const style = plain ? undefined : version?.edl?.style;
 
   // Reset the local animations only when another version is shown (not on every background refresh).
@@ -289,15 +291,15 @@ export function VideoReview({
     () => ({
       videoSrc: version?.proxyUrl ?? "",
       displayFontSrc: "/fonts/video-studio/Edges.ttf",
-      foregroundSrc: plain ? null : version?.edl?.foregroundUrl ?? null,
+      foregroundSrc: plain || subtitlesOnly ? null : version?.edl?.foregroundUrl ?? null,
       showCaptions: !plain,
       words: words.map(({ text, start, end }) => ({ text, start, end })),
-      emphasis: style?.emphasis ?? [],
-      zooms: style?.zooms ?? [],
-      overlays: plain ? [] : overlays,
-      audio: plain ? undefined : audio,
+      emphasis: subtitlesOnly ? [] : style?.emphasis ?? [],
+      zooms: subtitlesOnly ? [] : style?.zooms ?? [],
+      overlays: plain || subtitlesOnly ? [] : overlays,
+      audio: plain || subtitlesOnly ? undefined : audio,
     }),
-    [version?.proxyUrl, version?.edl?.foregroundUrl, words, style, plain, overlays, audio]
+    [version?.proxyUrl, version?.edl?.foregroundUrl, words, style, plain, subtitlesOnly, overlays, audio]
   );
 
   // Follow the playhead for the transcript highlight and comment timestamps.
@@ -491,7 +493,7 @@ export function VideoReview({
                   ["review", "Review"],
                   ["cut", "Knip-editor"],
                 ] as const
-              ).map(([key, label]) => (
+              ).filter(([key]) => !subtitlesOnly || key !== "cut").map(([key, label]) => (
                 <button
                   key={key}
                   type="button"
@@ -519,7 +521,7 @@ export function VideoReview({
                 ))}
               </select>
             ) : null}
-            <Button
+            {!subtitlesOnly ? <Button
               size="sm"
               disabled={openCount === 0 || isBusy || busyAction !== null}
               onClick={async () => {
@@ -528,7 +530,7 @@ export function VideoReview({
             >
               <Send className="mr-1.5 h-4 w-4" />
               Verwerk feedback{openCount > 0 ? ` (${openCount})` : ""}
-            </Button>
+            </Button> : null}
             {project.status === "FAILED" ? (
               <Button
                 size="sm"
@@ -663,7 +665,7 @@ export function VideoReview({
                     onClick={onVideoClick}
                     title="Klik om een opmerking op dit moment en deze plek te geven"
                   />
-                  {!plain
+                  {!plain && !subtitlesOnly
                     ? overlays
                         .filter((o) => currentTime >= o.start && currentTime <= o.end)
                         .map((o) => {
@@ -776,7 +778,7 @@ export function VideoReview({
           {/* Side panel */}
           <div className="flex min-h-[560px] flex-col overflow-hidden rounded-3xl border border-white/70 bg-white/85">
             <div className="flex items-center gap-1 border-b border-slate-200 px-4">
-              {(plain ? (["transcript", "comments"] as const) : (["transcript", "comments", "animations", "audio"] as const)).map((key) => (
+              {(subtitlesOnly ? (["transcript"] as const) : plain ? (["transcript", "comments"] as const) : (["transcript", "comments", "animations", "audio"] as const)).map((key) => (
                 <button
                   key={key}
                   type="button"

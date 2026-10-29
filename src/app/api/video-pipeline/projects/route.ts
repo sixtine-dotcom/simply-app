@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     projects: projects.map(({ versions, _count, manualEdit, sourceProxyUrl, captionRequestedAt, caption, ...project }) => ({
       ...project,
-      needsCaption: project.mode !== "COURSE" && project.status === "APPROVED" && (captionRequestedAt !== null || caption === null),
+      needsCaption: project.mode !== "COURSE" && (project.mode !== "SUBTITLES" || captionRequestedAt !== null) && project.status === "APPROVED" && (captionRequestedAt !== null || caption === null),
       // Only real hand cuts count (an empty leftover value made feedback fail with "Geen handmatige knippen gevonden").
       hasManualEdit: ((manualEdit as { segments?: unknown[] } | null)?.segments?.length ?? 0) > 0,
       // "Opnieuw knippen" after changing the briefing: a fresh AI edit instead of hand cuts.

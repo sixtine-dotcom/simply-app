@@ -5,7 +5,7 @@ import { Loader2, Trash2, Upload } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { CarouselTheme, DEFAULT_THEME } from "@/lib/carousel-shared";
+import { CarouselTheme, DEFAULT_THEME, DEFAULT_CANVA_TEMPLATE_ID } from "@/lib/carousel-shared";
 
 type Settings = {
   briefing: string;
@@ -111,11 +111,21 @@ export function CarouselSettingsDialog({ open, onOpenChange, onSaved }: { open: 
                 Elke week nieuwe carousels maken
               </label>
             </div>
-            <p className="text-muted-foreground">
-              Ontwerp: je Canva-sjabloon <strong>Carousel sjabloon – automatisch (niet verwijderen)</strong>. Pas je dat aan in Canva, dan volgen alle nieuwe
-              carousels. Achtergrondfoto&apos;s: je eigen foto&apos;s in de map <strong>carousels/fotos</strong> op je Mac komen eerst, anders een passende
-              (donkere) foto van Unsplash.
-            </p>
+            <label className="block space-y-1.5">
+              <span className="font-medium">Canva-sjabloon</span>
+              <input
+                type="text"
+                value={theme.canvaTemplateId ?? DEFAULT_CANVA_TEMPLATE_ID}
+                onChange={(e) => updateTheme({ canvaTemplateId: e.target.value.trim() })}
+                aria-describedby="canva-template-help"
+                className="h-10 w-full rounded-lg border border-slate-200 px-3"
+                placeholder="DAHXZ5e-kPk"
+              />
+              <span id="canva-template-help" className="block text-muted-foreground">
+                Vul het ontwerp-ID uit je Canva-link in. Dit geldt voor volgende opdrachten via ‘Maak in Canva’.
+                Bestaande ontwerpen blijven behouden.
+              </span>
+            </label>
             {message ? <p className="text-red-600">{message}</p> : null}
           </div>
         )}

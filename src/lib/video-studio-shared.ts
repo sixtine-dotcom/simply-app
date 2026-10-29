@@ -60,15 +60,16 @@ export type VideoMarker = { label: string; x: number; y: number };
 export const DEFAULT_COLOR_MATCH = 0.6;
 
 // SOCIAL: edited + captions/animations · COURSE: cuts only · FINISHED: already edited elsewhere, only caption + scheduling.
-export const VIDEO_MODES = ["SOCIAL", "COURSE", "FINISHED"] as const;
+export const VIDEO_MODES = ["SOCIAL", "COURSE", "FINISHED", "SUBTITLES"] as const;
 export type VideoMode = (typeof VIDEO_MODES)[number];
 export const VIDEO_MODE_LABELS: Record<VideoMode, string> = {
   SOCIAL: "Social",
   COURSE: "Cursus",
   FINISHED: "Kant-en-klaar",
+  SUBTITLES: "Alleen ondertitels",
 };
 /** Modes that end up on Instagram (caption + scheduling). */
-export const isPostable = (mode: string) => mode === "SOCIAL" || mode === "FINISHED";
+export const isPostable = (mode: string) => mode === "SOCIAL" || mode === "FINISHED" || mode === "SUBTITLES";
 
 export const VIDEO_PROJECT_STATUSES = [
   "WAITING_FOR_FOOTAGE",

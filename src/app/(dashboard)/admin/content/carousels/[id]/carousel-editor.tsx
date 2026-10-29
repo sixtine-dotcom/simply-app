@@ -102,10 +102,10 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
   }, [carousel.caption]);
 
   useEffect(() => {
-    if (!rendering && !writingCaption && !makingCanva && carousel.status !== "WRITING" && carousel.publishStatus !== "PUBLISHING") return;
+    if (!carousel.errorMessage && !rendering && !writingCaption && !makingCanva && carousel.status !== "WRITING" && carousel.publishStatus !== "PUBLISHING") return;
     const timer = setInterval(reload, 4000);
     return () => clearInterval(timer);
-  }, [rendering, writingCaption, makingCanva, carousel.status, carousel.publishStatus, reload]);
+  }, [rendering, writingCaption, makingCanva, carousel.status, carousel.publishStatus, carousel.errorMessage, reload]);
 
   async function act(action: string, extra: object = {}) {
     setBusy(action);

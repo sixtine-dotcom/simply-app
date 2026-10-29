@@ -23,6 +23,14 @@ if (process.env.R2_PUBLIC_URL) {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  webpack(config) {
+    // Keep packages under node_modules when it points to the local .nosync folder.
+    // Next otherwise treats dependencies such as Resend as application source.
+    if (require('fs').lstatSync(require('path').join(__dirname, 'node_modules')).isSymbolicLink()) {
+      config.resolve.symlinks = false;
+    }
+    return config;
+  },
   // Gebruik lokaal een aparte cache zodat `next build` een draaiende dev-server niet beschadigt.
   distDir: process.env.NEXT_DIST_DIR || '.next',
   async rewrites() {

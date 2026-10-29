@@ -76,7 +76,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       data: {
         ...(mode ? { mode } : {}),
         // Kant-en-klaar (or course): never colour-matched or cut on visuals.
-        ...(mode === "FINISHED" || mode === "COURSE" ? { colorMatch: null, cutByVisuals: false } : {}),
+        ...(mode === "FINISHED" || mode === "COURSE" || mode === "SUBTITLES" ? { colorMatch: null, cutByVisuals: false } : {}),
         ...(briefing !== undefined ? { briefing: briefing || null } : {}),
         ...(cutByVisuals !== undefined ? { cutByVisuals } : {}),
         ...(colorMatch !== undefined ? { colorMatch } : {}),
