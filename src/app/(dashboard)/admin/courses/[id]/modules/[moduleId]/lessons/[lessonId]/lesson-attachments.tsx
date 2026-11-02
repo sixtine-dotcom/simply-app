@@ -1,5 +1,6 @@
 "use client";
 
+import { uploadFile } from "@/lib/upload-client";
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,17 +51,7 @@ export function LessonAttachmentsSection({
     e.target.value = "";
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Upload mislukt");
-      }
-      const data = await res.json();
+      const data = await uploadFile(file);
       const inferredType: "pdf" | "image" | "file" =
         file.type === "application/pdf"
           ? "pdf"

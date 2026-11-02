@@ -1,5 +1,6 @@
 "use client";
 
+import { uploadFile } from "@/lib/upload-client";
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -150,11 +151,7 @@ export default function SettingsPage() {
                     if (!file) return;
                     setUploadingAvatar(true);
                     try {
-                      const fd = new FormData();
-                      fd.set("file", file);
-                      const up = await fetch("/api/upload", { method: "POST", body: fd });
-                      const d = await up.json();
-                      if (!up.ok) throw new Error(d.error || "Upload mislukt");
+                      const d = await uploadFile(file);
                       const pr = await fetch("/api/user/profile", {
                         method: "PATCH",
                         headers: { "Content-Type": "application/json" },

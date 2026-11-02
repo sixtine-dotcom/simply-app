@@ -3,19 +3,27 @@ import { z } from "zod";
 import { getCurrentUser, createAuditLog } from "@/lib/auth";
 import { createPost, canUserPostInSpace } from "@/lib/community";
 
-const createPostSchema = z.object({
-  content: z.string().min(1, "Bericht is verplicht").max(10000),
-  spaceId: z.string().min(1, "Space is verplicht"),
-  attachments: z
-    .array(
-      z.object({
-        url: z.string(),
-        type: z.enum(["image", "voice_memo", "file"]),
-        duration: z.number().optional(),
-      })
-    )
-    .optional(),
-});
+const createPostSchema = z
+  .object({
+    content: z.string().max(10000),
+    spaceId: z.string().min(1, "Space is verplicht"),
+    attachments: z
+      .array(
+        z.object({
+          url: z.string(),
+          type: z.enum(["image", "voice_memo", "file"]),
+          duration: z.number().optional(),
+        }),
+      )
+      .max(10, "Maximaal 10 bijlagen per post")
+      .optional(),
+  })
+  .refine(
+    (d) => d.content.trim().length > 0 || (d.attachments?.length ?? 0) > 0,
+    {
+      message: "Bericht is verplicht",
+    },
+  );
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,7 +41,7 @@ export async function POST(request: NextRequest) {
     if (!canPost) {
       return NextResponse.json(
         { error: "Je hebt geen toegang om te posten in deze space" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -41,7 +49,7 @@ export async function POST(request: NextRequest) {
       user.id,
       data.spaceId,
       data.content,
-      data.attachments
+      data.attachments,
     );
 
     await createAuditLog("post.created", user.id, {
@@ -54,14 +62,14 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: error.errors[0].message },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     console.error("Create post error:", error);
     return NextResponse.json(
       { error: "Er is iets misgegaan" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -39,6 +39,16 @@ Onder **Environment Variables** vul je minstens deze in (dezelfde als in `.env.l
 
 Na de eerste deploy kun je `APP_URL` aanpassen naar de echte URL die Vercel toewijst (bijv. `https://simply-in-balance.vercel.app`).
 
+**Uploads (foto's, carousels, bijlagen) – verplicht op Vercel:**
+
+Vercel kan geen bestanden op zijn eigen schijf bewaren. Daarom gaan uploads naar **Vercel Blob**:
+
+1. In je Vercel-project: **Storage** → **Create Database** → **Blob** → koppel aan dit project
+2. Vercel zet dan automatisch `BLOB_READ_WRITE_TOKEN` bij je Environment Variables
+3. **Redeploy** zodat de nieuwe variabele actief wordt
+
+Zonder deze stap mislukt elke upload.
+
 **Optioneel** (als je ze gebruikt):
 
 - `EMAIL_FROM` – standaard: `Simply <noreply@simplyinbalance.com>`

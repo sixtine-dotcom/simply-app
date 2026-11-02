@@ -1,5 +1,6 @@
 "use client";
 
+import { uploadFile as uploadToStorage } from "@/lib/upload-client";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -51,17 +52,7 @@ export default function ProgressPhotosPage() {
   };
 
   const uploadFile = async (file: File): Promise<string> => {
-    const formData = new FormData();
-    formData.append("file", file);
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      body: formData,
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || "Upload mislukt");
-    }
-    const { url } = await res.json();
+    const { url } = await uploadToStorage(file);
     return url;
   };
 

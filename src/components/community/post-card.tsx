@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatRelativeTime, getInitials } from "@/lib/utils";
 import { Heart, MessageCircle, MoreHorizontal, Pin } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ImageCarousel } from "./image-carousel";
 
 interface PostCardProps {
   post: {
@@ -139,20 +140,21 @@ export function PostCard({ post, currentUserId, showSpace = true }: PostCardProp
           {/* Attachments */}
           {post.attachments.length > 0 && (
             <div className="mb-4 grid gap-2">
-              {post.attachments.map((attachment) => (
-                <div key={attachment.id}>
-                  {attachment.type === "image" && (
-                    <img
-                      src={attachment.url}
-                      alt=""
-                      className="rounded-lg max-h-96 w-auto"
-                    />
-                  )}
-                  {attachment.type === "voice_memo" && (
-                    <audio controls src={attachment.url} className="w-full" />
-                  )}
-                </div>
-              ))}
+              {post.attachments.some((a) => a.type === "image") && (
+                <ImageCarousel
+                  images={post.attachments.filter((a) => a.type === "image")}
+                />
+              )}
+              {post.attachments
+                .filter((a) => a.type === "voice_memo")
+                .map((attachment) => (
+                  <audio
+                    key={attachment.id}
+                    controls
+                    src={attachment.url}
+                    className="w-full"
+                  />
+                ))}
             </div>
           )}
         </Link>
