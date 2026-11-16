@@ -20,3 +20,9 @@ De actieve lijst staat centraal, met een opvallende naam, een compacte lijstkeuz
 - `npx tsx scripts/tests/grocery-generation.ts`: hoeveelheden worden gecombineerd, verschillende eenheden blijven apart, numerieke en tekstuele hoeveelheden behouden. Zonder echte database.
 - Impeccable-detector: nul bevindingen. Onafhankelijke finish review: `ship` na het oplossen van de twee gevonden punten (toetsenbordfocus en tekstcontrast). Het tweede oordeel betreft die twee correcties, geen onbeperkte kwaliteitsclaim.
 - Tijdelijke testaccounts en boodschappenlijsten zijn verwijderd. Tests op een echte iPhone/Capacitor blijven onderdeel van het TestFlight-traject.
+
+## Publicatie
+
+Broncode: `1685af9` op `release/test-launch-2026-11-16`, bewaard in GitHub (`sixtine-dotcom/simply-app`). Design-documentatie volgt in `2ad874f`/`dc56cec`.
+
+Vercel deployment `dpl_H5cFZWFW3YLYfTQhgBjJhGFbaond` (`simply-l8n5zobmb-sixtine-1828s-projects.vercel.app`): productiebuild Ready en gepromoveerd naar simplyapp.be. Domeinkoppeling gecontroleerd via Vercel inspect; functionele tests lokaal, geen HTTP-controle op het gepubliceerde domein. Extra broncodeherstelbestand: `~/Documents/Simply backups/simply-app-grocery-redesign-2026-11-16.bundle`.
