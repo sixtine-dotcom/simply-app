@@ -18,10 +18,10 @@ Een website op je beginscherm is bruikbaar om nu al te testen, maar vervangt de 
 
 ## Wat Sixtine voor de iPhone moet doen
 
-1. Open op deze Mac de App Store en zoek **Xcode** (van Apple). Installeer de app. Dit is groot en kan een tijd duren.
+1. Werk eerst macOS bij via Systeeminstellingen → Algemeen → Software-update. De aangeboden Xcode-versie vraagt een nieuwere macOS-versie dan nu geïnstalleerd. Open daarna de App Store en installeer **Xcode** (van Apple).
 2. Open Xcode één keer. Rond de eerste installatie af en accepteer zelf de Apple-voorwaarden. Installeer de gevraagde iOS-onderdelen.
 3. Ga naar https://developer.apple.com/account en log in met je Apple Account.
-4. Controleer of **Apple Developer Program** actief is. Indien niet: start de inschrijving via https://developer.apple.com/programs/enroll/ en rond identiteitscontrole, betaling en overeenkomsten af. Kies bewust de juiste juridische eigenaar/organisatie.
+4. Het **Apple Developer Program** en toegang tot App Store Connect zijn volgens de ontvangen Apple-mails geactiveerd. Gebruik het Apple Account dat bij dit lidmaatschap hoort.
 5. Ga naar https://appstoreconnect.apple.com en controleer of je binnen kunt. Ontbrekende overeenkomsten moet de accounthouder zelf accepteren.
 6. Open Xcode → Settings → Accounts en voeg hetzelfde Apple Account toe. Deel geen wachtwoorden of verificatiecodes in de chat.
 7. Installeer **TestFlight** (van Apple) op je iPhone. De uitnodiging volgt pas nadat de ondertekende testbuild is geüpload en verwerkt.
@@ -103,3 +103,12 @@ Dit zijn streefdata. Accountverificatie, beta-review en store-review worden door
 Op 16 november 2026 is een PostgreSQL-back-up gemaakt in `~/Library/Application Support/Simply App/Backups/`. De map is alleen toegankelijk voor de Mac-gebruiker en het dumpbestand is niet aan Git of Vercel toegevoegd. De inhoudsopgave van het archief is gecontroleerd met `pg_restore --list`; een volledige hersteltest is nog niet uitgevoerd. Nieuwe back-up: `node --env-file=.env --env-file=.env.local scripts/backup-database.mjs`.
 
 De databaseback-up bevat records en bestandsverwijzingen, niet de pdf-/foto-/videobestanden in R2/object storage. Voor die bestanden blijft een afzonderlijke opslagback-up nodig.
+
+## Accountbeveiliging en verwijdering (16 november)
+
+- Inloggen via persoonlijke e-maillink blijft beschikbaar. Een wachtwoord instellen kan via Instellingen; bij een oudere sessie is een nieuwe inloglink of het huidige wachtwoord nodig. Andere sessies worden ingetrokken bij wijziging.
+- Aanmeldpogingen met wachtwoord hebben een gedeelde database-limiet. Wachtwoorden staan alleen als scrypt-hash opgeslagen.
+- Klanten kunnen in Instellingen een verwijderverzoek doen. Dit wordt **handmatig** afgehandeld via `/admin/account-deletions`; beheerders krijgen een interne melding. Verwijder eerst persoonlijke uploads, opnames en externe accounts/koppelingen. Controleer apart eventuele administratieve bewaarplichten. Vink dit pas af wanneer dat werkelijk gebeurd is.
+- Na definitieve verwerking verwijdert de app het klantaccount en gekoppelde gegevens, sessies en privégesprekken. Gedeelde teaminhoud blokkeert automatische afhandeling. De bevestigingsmail wordt pas na verwerking verzonden; een mislukte mail moet handmatig worden opgevolgd.
+- Publieke instructies: `https://simplyapp.be/account-deletion`; support: `https://simplyapp.be/support`.
+- Deze workflow is geen automatische verwijdering uit alle externe systemen of oudere back-ups. Het beheer daarvan blijft een echte handeling.

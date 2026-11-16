@@ -27,7 +27,7 @@ function CompleteContent() {
   useEffect(() => {
     if (!token) {
       setStatus("error");
-      setError("Gebruik de activatielink uit de e-mail die je na je aankoop hebt ontvangen.");
+      setError("Gebruik de persoonlijke activatielink uit je e-mail.");
       return;
     }
 

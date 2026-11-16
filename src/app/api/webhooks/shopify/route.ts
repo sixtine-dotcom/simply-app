@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { db } from "@/lib/db";
+import { deletionEmailDigest } from "@/lib/account-deletion";
 import { createMagicLink, createRegistrationToken, createAuditLog } from "@/lib/auth";
 import { syncEnrollmentToRecurringGroupPlans } from "@/lib/coaching";
 import { sendRegistrationEmail, sendCourseAccessEmail } from "@/lib/email";
@@ -154,6 +155,8 @@ async function handleOrderPaid(order: ShopifyOrder) {
 
   if (order.financial_status !== "paid") return;
   const email = customer.email.trim().toLowerCase();
+  const erased = await db.accountDeletionRequest.findMany({ where: { emailDigest: deletionEmailDigest(email), status: "COMPLETED" }, select: { shopifyOrderIds: true } });
+  if (erased.some(record => Array.isArray(record.shopifyOrderIds) && record.shopifyOrderIds.includes(order.id.toString()))) return;
   const mappedItems = (await Promise.all(line_items.map(async (item) => {
     if (!item.product_id) return null;
     const mapping = await db.shopifyProductMapping.findUnique({

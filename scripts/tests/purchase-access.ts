@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 import { isTrustedRegistrationInvitation } from "../../src/lib/registration-access";
 
 async function main() {
+  process.env.AUTH_SECRET = "test-erasure-key";
   process.env.SHOPIFY_WEBHOOK_SECRET = "shopify-test-secret";
   process.env.RESEND_API_KEY = "re_test_no_real_delivery";
   process.env.APP_URL = "https://example.com";
@@ -18,6 +19,7 @@ async function main() {
       create: async ({ data }: any) => { const u = { id: `u${users.length}`, deletedAt: null, lastLoginAt: null, ...data }; users.push(u); return u; },
       update: async ({ where, data }: any) => Object.assign(users.find(u => u.id === where.id), data),
     },
+    accountDeletionRequest: { findMany: async () => [] },
     tenant: { findMany: async () => [{ id: "tenant" }] },
     shopifyProductMapping: { findUnique: async ({ where }: any) => where.shopifyProductId === "101" ? { courseId: "course", accessDays: 180, course: { id: "course", title: "Testcursus", trajectoryStartDate: null, trajectoryEndDate: null } } : null },
     enrollment: {

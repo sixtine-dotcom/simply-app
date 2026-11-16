@@ -1,5 +1,7 @@
 "use client";
 
+import { safeLoginDestination } from "@/lib/auth-navigation";
+
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +12,7 @@ function VerifyContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
-  const nextPath = searchParams.get("next") || "/";
+  const nextPath = safeLoginDestination(searchParams.get("next"));
 
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [error, setError] = useState("");

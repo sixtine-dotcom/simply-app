@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { AccountDeletionSettings } from "@/components/settings/account-deletion-settings";
+import { PasswordSettings } from "@/components/settings/password-settings";
 import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -893,13 +895,7 @@ export default function SettingsPage() {
             <CardDescription>Wachtwoord en inlogopties</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Wachtwoord</p>
-                <p className="text-sm text-muted-foreground">Je logt momenteel in via magic link</p>
-              </div>
-              <Button variant="outline">Wachtwoord instellen</Button>
-            </div>
+            <PasswordSettings />
           </CardContent>
         </Card>
 
@@ -1069,6 +1065,7 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+        {user?.role === "CLIENT" ? <AccountDeletionSettings email={user.email} /> : isAdmin ? <div className="rounded-2xl border bg-white p-5"><Link href="/admin/account-deletions" className="font-medium text-primary underline">Accountverwijderingen behandelen</Link></div> : null}
       </div>
     </div>
   );

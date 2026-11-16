@@ -79,7 +79,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
             {query?.message === "purchase-required" ? (
               <p className="mb-4 text-sm leading-6 text-slate-700" role="status">
-                Je krijgt toegang na aankoop van een cursus of traject. Gebruik de activatielink uit je e-mail. Al geactiveerd? Vraag hieronder een inloglink aan.
+                Je toegang is persoonlijk. Gebruik de activatielink uit je e-mail. Al geactiveerd? Vraag hieronder een inloglink aan.
               </p>
             ) : null}
             <MagicLinkLoginForm nextPath={nextPath} />
