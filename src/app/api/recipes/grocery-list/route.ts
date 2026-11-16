@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getUserGroceryLists, generateGroceryList } from "@/lib/recipes";
-import { db } from "@/lib/db";
+import { z } from "zod";
+import { groceryName } from "@/lib/grocery-list";
+
+const createSchema = z.object({ name: groceryName.optional(), recipeIds: z.array(z.string().min(1).max(100)).max(100).default([]) }).strict();
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +16,7 @@ export async function GET(request: NextRequest) {
 
     const lists = await getUserGroceryLists(user.id);
 
-    return NextResponse.json(lists);
+    return NextResponse.json(lists, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     console.error("Get grocery lists error:", error);
     return NextResponse.json(
@@ -31,15 +34,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { recipeIds, name } = body;
-
-    if (!recipeIds || !Array.isArray(recipeIds) || recipeIds.length === 0) {
-      return NextResponse.json(
-        { error: "Recept IDs zijn verplicht" },
-        { status: 400 }
-      );
-    }
+    const parsed = createSchema.safeParse(await request.json());
+    if (!parsed.success) return NextResponse.json({ error: "Geef je lijst een naam van maximaal 100 tekens en kies geldige recepten." }, { status: 400 });
+    const { recipeIds, name } = parsed.data;
 
     const list = await generateGroceryList(user.id, recipeIds, name);
 

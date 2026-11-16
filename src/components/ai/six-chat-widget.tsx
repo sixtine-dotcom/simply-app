@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Bot, MessageCircle, Send, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ const STARTERS = [
 ];
 
 export function SixChatWidget() {
+  const compactLauncher = usePathname() === "/recipes/grocery-list";
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -222,11 +224,11 @@ export function SixChatWidget() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="group flex h-14 items-center gap-2.5 rounded-full bg-[#183d27] px-4 text-white shadow-[0_20px_45px_-18px_rgba(24,61,39,0.75)] transition hover:-translate-y-0.5 hover:bg-[#214f34]"
+          className={`group flex items-center gap-2.5 rounded-full bg-[#183d27] text-white shadow-[0_20px_45px_-18px_rgba(24,61,39,0.75)] transition hover:-translate-y-0.5 hover:bg-[#214f34] ${compactLauncher ? "h-11 w-11 justify-center px-0 md:h-14 md:w-auto md:px-4" : "h-14 px-4"}`}
           aria-label="Open SIX chat"
         >
           <MessageCircle className="h-5 w-5" />
-          <span className="pr-1 text-xs font-semibold">Vraag het aan SIX</span>
+          <span className={`pr-1 text-xs font-semibold ${compactLauncher ? "sr-only md:not-sr-only" : ""}`}>Vraag het aan SIX</span>
         </button>
       )}
     </div>

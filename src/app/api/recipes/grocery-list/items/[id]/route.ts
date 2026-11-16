@@ -1,50 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { groceryItemFields } from "@/lib/grocery-list";
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+const patchSchema = groceryItemFields.partial().extend({ isChecked: z.boolean().optional() }).strict().refine(data => Object.keys(data).length > 0);
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await getCurrentUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
-    }
-
+    if (!user) return NextResponse.json({ error: "Log opnieuw in." }, { status: 401 });
+    const parsed = patchSchema.safeParse(await request.json());
+    if (!parsed.success) return NextResponse.json({ error: "Controleer de productnaam, hoeveelheid en het vinkje." }, { status: 400 });
     const { id } = await params;
-    const body = await request.json();
-    const { isChecked } = body;
-
-    // Verify user owns the list
-    const item = await db.groceryItem.findUnique({
-      where: { id },
-      include: {
-        groceryList: {
-          select: { userId: true },
-        },
-      },
-    });
-
-    if (!item || item.groceryList.userId !== user.id) {
-      return NextResponse.json(
-        { error: "Geen toegang" },
-        { status: 403 }
-      );
-    }
-
-    const updated = await db.groceryItem.update({
-      where: { id },
-      data: { isChecked },
-    });
-
-    return NextResponse.json(updated);
-  } catch (error) {
-    console.error("Update grocery item error:", error);
-    return NextResponse.json(
-      { error: "Er is iets misgegaan" },
-      { status: 500 }
-    );
+    const updated = await db.groceryItem.updateMany({ where: { id, groceryList: { userId: user.id } }, data: parsed.data });
+    if (!updated.count) return NextResponse.json({ error: "Product niet gevonden." }, { status: 404 });
+    return NextResponse.json({ id, ...parsed.data });
+  } catch {
+    return NextResponse.json({ error: "De wijziging kon niet worden opgeslagen. Probeer opnieuw." }, { status: 500 });
+  }
+}
+export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) return NextResponse.json({ error: "Log opnieuw in." }, { status: 401 });
+    const { id } = await params;
+    const deleted = await db.groceryItem.deleteMany({ where: { id, groceryList: { userId: user.id } } });
+    if (!deleted.count) return NextResponse.json({ error: "Product niet gevonden." }, { status: 404 });
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: "Het product kon niet worden verwijderd. Probeer opnieuw." }, { status: 500 });
   }
 }

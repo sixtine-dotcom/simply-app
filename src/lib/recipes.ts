@@ -158,26 +158,30 @@ export async function generateGroceryList(
     },
   });
 
-  // Aggregate ingredients
-  const ingredientMap = new Map<string, { amount: string; unit: string }>();
-
-  recipes.forEach((recipe) => {
-    const ingredients = recipe.ingredients as any[];
-    ingredients.forEach((ing) => {
-      const key = ing.ingredient.toLowerCase();
-      if (ingredientMap.has(key)) {
-        // Merge amounts (simplified - in production, you'd want proper unit conversion)
-        const existing = ingredientMap.get(key)!;
-        // For now, just keep the first one or combine
-        // In a real app, you'd want to handle unit conversions
-      } else {
-        ingredientMap.set(key, {
-          amount: ing.amount || "",
-          unit: ing.unit || "",
-        });
+  // Keep incompatible units separate. Never silently discard the quantity
+  // of an ingredient that occurs in more than one selected recipe.
+  const ingredientMap = new Map<string, { ingredient: string; amount: string; unit: string; recipeId: string }>();
+  for (const recipe of recipes) {
+    if (!Array.isArray(recipe.ingredients)) continue;
+    for (const value of recipe.ingredients) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+      const ing = value as Record<string, unknown>;
+      if (typeof ing.ingredient !== "string" || !ing.ingredient.trim()) continue;
+      const ingredient = ing.ingredient.trim();
+      const amount = ing.amount == null ? "" : String(ing.amount).trim();
+      const unit = ing.unit == null ? "" : String(ing.unit).trim();
+      const key = `${ingredient.toLocaleLowerCase("nl")}\u0000${unit.toLocaleLowerCase("nl")}`;
+      const existing = ingredientMap.get(key);
+      if (!existing) { ingredientMap.set(key, { ingredient, amount, unit, recipeId: recipe.id }); continue; }
+      const numeric = /^\d+(?:[.,]\d+)?$/;
+      if (numeric.test(existing.amount) && numeric.test(amount)) {
+        const sum = Number(existing.amount.replace(",", ".")) + Number(amount.replace(",", "."));
+        existing.amount = String(Math.round(sum * 1e6) / 1e6).replace(".", ",");
+      } else if (existing.amount || amount) {
+        existing.amount = `${existing.amount || "naar behoefte"} + ${amount || "naar behoefte"}`;
       }
-    });
-  });
+    }
+  }
 
   // Create grocery list
   const groceryList = await db.groceryList.create({
@@ -185,12 +189,7 @@ export async function generateGroceryList(
       userId,
       name: name || "Boodschappenlijst",
       items: {
-        create: Array.from(ingredientMap.entries()).map(([ingredient, data]) => ({
-          ingredient,
-          amount: data.amount,
-          unit: data.unit,
-          recipeId: recipeIds[0], // Link to first recipe (simplified)
-        })),
+        create: Array.from(ingredientMap.values()),
       },
     },
     include: {
