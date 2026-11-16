@@ -5,7 +5,7 @@ import { getRecipes, getRecipeCategories, getRecipeTags } from "@/lib/recipes";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { UtensilsCrossed, Search, ShoppingCart, Calendar, FileText } from "lucide-react";
+import { UtensilsCrossed, Search, ShoppingCart, Calendar } from "lucide-react";
 import { RecipeCard } from "@/components/recipes/recipe-card";
 import { RecipeFilters } from "@/components/recipes/recipe-filters";
 
@@ -44,7 +44,7 @@ export default async function RecipesPage({
       </div>
 
       {/* Quick Actions */}
-      <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2">
         <Button asChild variant="outline" className="h-auto rounded-[26px] border-white/80 bg-white/80 py-4 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.24)] backdrop-blur">
           <Link href="/recipes/grocery-list">
             <ShoppingCart className="h-5 w-5 mr-2" />
@@ -67,17 +67,7 @@ export default async function RecipesPage({
             </div>
           </Link>
         </Button>
-        <Button asChild variant="outline" className="h-auto rounded-[26px] border-white/80 bg-white/80 py-4 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.24)] backdrop-blur">
-          <Link href="/recipes/nutrition-plan">
-            <FileText className="h-5 w-5 mr-2" />
-            <div className="text-left">
-              <div className="font-medium">Voedingsschema</div>
-              <div className="text-sm text-muted-foreground">
-                Download je schema
-              </div>
-            </div>
-          </Link>
-        </Button>
+
       </div>
 
       {/* Filters */}

@@ -410,7 +410,7 @@ export default async function DashboardPage() {
             detail={upcomingSession ? formatSessionDate(upcomingSession.scheduledAt) : "Geen sessie gepland"}
           />
           <Destination
-            href="/recipes/nutrition-plan"
+            href="/nutrition-plan"
             icon={Utensils}
             number="04"
             title="Voedingsschema"

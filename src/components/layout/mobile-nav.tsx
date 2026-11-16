@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useDashboardBranding } from "@/hooks/use-branding";
 import { useCurrentUserSummary } from "@/hooks/use-current-user";
 import { isPathActive } from "@/components/layout/navigation";
@@ -13,7 +15,7 @@ import {
   BookOpen,
   Users,
   LineChart,
-  Smartphone,
+  FileDown,
   LayoutDashboard,
   CreditCard,
   UserRound,
@@ -21,9 +23,11 @@ import {
   FileText,
   ArrowUpRight,
 } from "lucide-react";
-import { useEffect, useState } from "react";
 
-const adminNavItems = [
+
+type MobileNavItem = { href: string; label: string; shortLabel?: string; icon: LucideIcon };
+
+const adminNavItems: MobileNavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/landing-pages", label: "Website", icon: LayoutTemplate },
   { href: "/admin/offers", label: "Sales", icon: CreditCard },
@@ -36,19 +40,15 @@ export function MobileNav() {
   const branding = useDashboardBranding();
   const { user } = useCurrentUserSummary();
   const { t } = useLocale();
-  const [pathname, setPathname] = useState("/");
-  const clientNavItems = [
+  const pathname = usePathname() || "/";
+  const clientNavItems: MobileNavItem[] = [
     { href: "/", label: t("sidebar_dashboard"), icon: Home },
     { href: "/courses", label: t("sidebar_my_courses"), icon: BookOpen },
     { href: "/community", label: t("sidebar_community"), icon: Users },
     { href: "/forms", label: t("sidebar_forms"), icon: FileText },
     { href: "/trackers", label: t("mobile_environment"), icon: LineChart },
-    { href: "/app", label: "App", icon: Smartphone },
+    { href: "/nutrition-plan", label: t("sidebar_nutrition_plan"), shortLabel: t("mobile_my_plan"), icon: FileDown },
   ];
-
-  useEffect(() => {
-    setPathname(window.location.pathname || "/");
-  }, []);
 
   if (!user) {
     return null;
@@ -94,7 +94,7 @@ export function MobileNav() {
               )}
             >
               <item.icon className="h-5 w-5" />
-              <span className="max-w-[54px] truncate">{item.label}</span>
+              <span className="max-w-[54px] truncate">{item.shortLabel || item.label}</span>
             </Link>
           );
         })}

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useDashboardBranding } from "@/hooks/use-branding";
 import { useCurrentUserSummary } from "@/hooks/use-current-user";
 import { isPathActive } from "@/components/layout/navigation";
@@ -16,6 +17,7 @@ import {
   LineChart,
   Package,
   FileText,
+  FileDown,
   UtensilsCrossed,
   Settings,
   LogOut,
@@ -92,7 +94,7 @@ export function Sidebar() {
   const branding = useDashboardBranding();
   const { user } = useCurrentUserSummary();
   const { t } = useLocale();
-  const [pathname, setPathname] = useState("/");
+  const pathname = usePathname() || "/";
   const [trackersOpen, setTrackersOpen] = useState(false);
   const [communityOpen, setCommunityOpen] = useState(false);
   const [communitySpaces, setCommunitySpaces] = useState<Array<{
@@ -105,23 +107,8 @@ export function Sidebar() {
   }>>([]);
 
   useEffect(() => {
-    const nextPathname = window.location.pathname || "/";
-    setPathname(nextPathname);
-
-    if (nextPathname.startsWith("/trackers")) {
-      setTrackersOpen(true);
-    }
-    if (nextPathname.startsWith("/community")) {
-      setCommunityOpen(true);
-    }
-
-  }, []);
-
-  useEffect(() => {
-    if (pathname.startsWith("/trackers")) {
-      setTrackersOpen(true);
-    }
-
+    if (pathname.startsWith("/trackers")) setTrackersOpen(true);
+    if (pathname.startsWith("/community")) setCommunityOpen(true);
   }, [pathname]);
 
   useEffect(() => {
@@ -139,6 +126,7 @@ export function Sidebar() {
   const mainNavItems = [
     { href: "/", label: t("sidebar_dashboard"), icon: Home },
     { href: "/courses", label: t("sidebar_my_courses"), icon: BookOpen },
+    { href: "/nutrition-plan", label: t("sidebar_nutrition_plan"), icon: FileDown },
     { href: "/community", label: t("sidebar_community"), icon: Users },
     { href: "/forms", label: t("sidebar_forms"), icon: FileText },
     { href: "/messages", label: t("sidebar_messages"), icon: MessageSquare },
