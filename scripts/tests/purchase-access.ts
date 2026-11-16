@@ -9,6 +9,7 @@ async function main() {
   process.env.RESEND_API_KEY = "re_test_no_real_delivery";
   process.env.APP_URL = "https://example.com";
   const users: any[] = [], enrollments: any[] = [], tokens: any[] = [], logs: any[] = [], mails: any[] = [];
+  const erased: any[] = [];
   let failMail = false;
   const matchAudit = (entry: any, where: any) => (!where.userId || entry.userId === where.userId) &&
     (typeof where.action === "string" ? entry.action === where.action : !where.action?.in || where.action.in.includes(entry.action)) &&
@@ -19,7 +20,7 @@ async function main() {
       create: async ({ data }: any) => { const u = { id: `u${users.length}`, deletedAt: null, lastLoginAt: null, ...data }; users.push(u); return u; },
       update: async ({ where, data }: any) => Object.assign(users.find(u => u.id === where.id), data),
     },
-    accountDeletionRequest: { findMany: async () => [] },
+    accountDeletionRequest: { findMany: async ({ where }: any) => erased.filter(r => r.emailDigest === where.emailDigest) },
     tenant: { findMany: async () => [{ id: "tenant" }] },
     shopifyProductMapping: { findUnique: async ({ where }: any) => where.shopifyProductId === "101" ? { courseId: "course", accessDays: 180, course: { id: "course", title: "Testcursus", trajectoryStartDate: null, trajectoryEndDate: null } } : null },
     enrollment: {
@@ -89,6 +90,12 @@ async function main() {
   const expectedError=console.error;console.error=()=>{};
   try {assert.equal((await send("orders/paid",order(6,"retry@example.com"))).status,500);}finally{console.error=expectedError;}
   assert.equal((await send("orders/paid",order(6,"retry@example.com"))).status,200);assert.equal(mails.length,before+1,"Failed delivery is retried even though enrollment already exists");
-  console.log("PASS: public registration denied; signature/payment/product checks; no contact-only accounts; purchase activation; replay and delivery retry; old-link rejection; token purpose and single use; staff invitations preserved. No real email or database used.");
+  const { deletionEmailDigest } = await import("../../src/lib/account-deletion");
+  erased.push({ emailDigest: deletionEmailDigest("erased@example.com"), shopifyOrderIds: ["70"] });
+  assert.equal((await send("orders/paid", order(70, "erased@example.com"))).status, 200);
+  assert(!users.some(u => u.email === "erased@example.com"), "Old paid order cannot recreate an erased account");
+  assert.equal((await send("orders/paid", order(71, "erased@example.com"))).status, 200);
+  assert(users.some(u => u.email === "erased@example.com"), "A genuinely new order can provision access again");
+  console.log("PASS: public registration denied; signature/payment/product checks; no contact-only accounts; purchase activation; replay and delivery retry; old-link rejection; token purpose and single use; staff invitations preserved; erased-order replay blocked and new purchase allowed. No real email or database used.");
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});
