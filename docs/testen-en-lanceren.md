@@ -97,3 +97,9 @@ Dit zijn streefdata. Accountverificatie, beta-review en store-review worden door
 - https://developer.apple.com/app-store/review/guidelines/
 - https://support.google.com/googleplay/android-developer/answer/14151465
 - https://capacitorjs.com/docs/getting-started/environment-setup
+
+## Databaseback-up van deze voorbereiding
+
+Op 16 november 2026 is een PostgreSQL-back-up gemaakt in `~/Library/Application Support/Simply App/Backups/`. De map is alleen toegankelijk voor de Mac-gebruiker en het dumpbestand is niet aan Git of Vercel toegevoegd. De inhoudsopgave van het archief is gecontroleerd met `pg_restore --list`; een volledige hersteltest is nog niet uitgevoerd. Nieuwe back-up: `node --env-file=.env --env-file=.env.local scripts/backup-database.mjs`.
+
+De databaseback-up bevat records en bestandsverwijzingen, niet de pdf-/foto-/videobestanden in R2/object storage. Voor die bestanden blijft een afzonderlijke opslagback-up nodig.
