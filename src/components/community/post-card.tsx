@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { PostPoll } from "@/components/community/post-poll";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { MentionField } from "@/components/community/mention-field";
+import { ReactionBar, type ReactionSummary } from "@/components/community/reaction-bar";
 
 interface PostCardProps {
   post: {
@@ -69,7 +70,9 @@ interface PostCardProps {
         type: string;
         duration: number | null;
       }>;
+      reactions?: ReactionSummary[];
     }>;
+    reactions?: ReactionSummary[];
     _count: {
       comments: number;
       likes: number;
@@ -104,6 +107,9 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
   const [isReplying, setIsReplying] = useState(false);
   const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([]);
   const [replyTo, setReplyTo] = useState<{ id: string; name: string; content: string } | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const isLongContent = post.content.length > 220 || post.content.split("\n").length > 4;
+  const lastComment = post.comments[post.comments.length - 1];
 
   const handleLike = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -256,8 +262,41 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
     }
   };
 
+  const renderComment = (comment: PostCardProps["post"]["comments"][number]) => (
+    <div key={comment.id} className="group relative flex gap-3 pr-9">
+      <Avatar className="h-9 w-9 shrink-0">
+        <AvatarImage src={comment.author.avatarUrl || undefined} />
+        <AvatarFallback className="bg-[#edf1ec] text-[10px] font-semibold text-[#173622]">
+          {getInitials(comment.author.firstName, comment.author.lastName)}
+        </AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-1.5">
+          <span className="text-xs font-semibold text-[#1d241f]">{comment.author.firstName} {comment.author.lastName}</span>
+          <span className="text-[11px] text-[#8a918c]">· {formatRelativeTime(comment.createdAt)}</span>
+        </div>
+        <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[#404741]">{comment.content}</p>
+        <ReactionBar
+          endpoint={`/api/community/comments/${comment.id}/reactions`}
+          initialReactions={comment.reactions ?? []}
+          showLikeShortcut
+          className="mt-2"
+        />
+      </div>
+      <button
+        type="button"
+        onClick={() => setReplyTo({ id: comment.id, name: `${comment.author.firstName} ${comment.author.lastName}`, content: comment.content })}
+        aria-label={`Reageer op ${comment.author.firstName}`}
+        title={`Reageer op ${comment.author.firstName}`}
+        className="absolute right-0 top-0 flex h-7 w-7 items-center justify-center text-[#737b75] opacity-0 transition hover:bg-[#edf2ed] hover:text-[#173622] focus:opacity-100 group-hover:opacity-100 !min-h-0 !rounded-full"
+      >
+        <ReplyIcon className="h-4 w-4" />
+      </button>
+    </div>
+  );
+
   return (
-    <Card className={cn("overflow-hidden rounded-2xl border-black/10 bg-white shadow-none", isPinned && "border-[#173622]/35 bg-[#fbfcfa]")}>
+    <Card className={cn("community-round-card overflow-visible !rounded-2xl border-black/10 bg-white !shadow-[0_8px_28px_-22px_rgba(17,28,20,0.35)]", isPinned && "!border-[#173622]/35 !bg-[#fbfcfa]")}>
       <CardContent className="p-5 sm:p-6">
         {/* Header */}
         <div className="flex items-start justify-between mb-3">
@@ -305,7 +344,7 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
                 type="button"
                 variant="ghost"
                 size="sm"
-                  className="h-8 gap-1 rounded-none px-2 text-xs"
+                  className="h-8 gap-1 !rounded-full px-3 text-xs"
                 onClick={handleTogglePin}
                 disabled={isPinning}
               >
@@ -325,7 +364,7 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
+                  className="h-8 w-8 !rounded-full"
                   onClick={() => setShowActions((current) => !current)}
                 >
                   <MoreHorizontal className="h-4 w-4" />
@@ -334,7 +373,7 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
                   <div className="absolute right-0 top-10 z-20 min-w-[180px] rounded-xl border border-black/10 bg-white p-2 shadow-[0_18px_45px_-28px_rgba(17,28,20,0.45)]">
                     <button
                       type="button"
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[#f5f6f3]"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-[#f5f6f3] !rounded-lg"
                       onClick={() => {
                         setIsEditing(true);
                         setShowActions(false);
@@ -345,7 +384,7 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
                     </button>
                     <button
                       type="button"
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 !rounded-lg"
                       onClick={() => {
                         setShowActions(false);
                         void handleDeletePost();
@@ -401,7 +440,16 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
                   {post.title}
                 </h3>
               ) : null}
-              <p className="max-w-[72ch] whitespace-pre-wrap text-sm leading-6 text-[#343a35]">{post.content}</p>
+              <p className={cn("max-w-[72ch] whitespace-pre-wrap text-sm leading-6 text-[#343a35]", isLongContent && !isExpanded && "line-clamp-3")}>{post.content}</p>
+              {isLongContent ? (
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded((current) => !current)}
+                  className="text-sm font-semibold text-[#173622] hover:underline !min-h-0"
+                >
+                  {isExpanded ? "Toon minder" : "Laat meer zien"}
+                </button>
+              ) : null}
             </div>
           )}
 
@@ -413,7 +461,7 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
                     <img
                       src={attachment.url}
                       alt=""
-                      className="max-h-96 w-auto"
+                      className="max-h-96 w-auto rounded-xl"
                     />
                   )}
                   {attachment.type === "video" && (
@@ -452,34 +500,56 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-5 border-t border-black/10 py-4">
-          <button
-            onClick={handleLike}
-            disabled={isLiking}
-            className={cn(
-              "flex items-center gap-2 text-sm transition-colors",
-              isLiked ? "text-red-500" : "text-muted-foreground hover:text-red-500"
-            )}
-          >
-            <Heart className={cn("h-5 w-5", isLiked && "fill-current")} />
-            <span>{likeCount}</span>
-          </button>
+        <div className="flex items-center justify-between gap-3 py-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={handleLike}
+              disabled={isLiking}
+              aria-pressed={isLiked}
+              aria-label="Vind ik leuk"
+              className={cn(
+                "inline-flex !h-8 items-center gap-1.5 border px-3 text-xs font-semibold transition !min-h-0 !rounded-full",
+                isLiked
+                  ? "border-red-200 bg-red-50 text-red-500"
+                  : "border-black/10 bg-white text-[#5d655f] hover:border-red-200 hover:text-red-500"
+              )}
+            >
+              <Heart className={cn("h-4 w-4", isLiked && "fill-current")} />
+              <span>{likeCount}</span>
+            </button>
+            <ReactionBar
+              endpoint={`/api/community/posts/${post.id}/reactions`}
+              initialReactions={post.reactions ?? []}
+              size="md"
+            />
+          </div>
 
-          <span className="flex items-center gap-2 text-sm text-muted-foreground">
-            <MessageCircle className="h-5 w-5" />
-            <span>{post._count.comments} {post._count.comments === 1 ? "reactie" : "reacties"}</span>
+          <span
+            className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold text-[#5d655f]"
+            title={`${post._count.comments} ${post._count.comments === 1 ? "reactie" : "reacties"}`}
+          >
+            <MessageCircle className="h-4 w-4" />
+            <span>{post._count.comments}</span>
+            <span className="sr-only">{post._count.comments === 1 ? "reactie" : "reacties"}</span>
           </span>
         </div>
 
         {post.comments.length > 0 ? (
           <div className="border-t border-black/10 py-4">
             <Dialog>
-              <DialogTrigger asChild>
-                <button type="button" className="mb-3 text-xs font-semibold text-[#68706a] underline-offset-4 hover:text-[#173622] hover:underline">
-                  Laatste reactie {formatRelativeTime(post.comments[post.comments.length - 1].createdAt)}
-                </button>
-              </DialogTrigger>
-              <DialogContent className="flex max-h-[86vh] max-w-2xl flex-col gap-0 overflow-hidden rounded-2xl border-black/10 bg-white p-0 backdrop-blur-none">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-[#3d4640]">
+                  Laatste reactie {formatRelativeTime(lastComment.createdAt).toLowerCase()}
+                </p>
+                {post.comments.length > 2 ? (
+                  <DialogTrigger asChild>
+                    <button type="button" className="text-xs font-semibold text-[#173622] underline-offset-4 hover:underline !min-h-0">
+                      Alle {post.comments.length} reacties bekijken
+                    </button>
+                  </DialogTrigger>
+                ) : null}
+              </div>
+              <DialogContent className="flex max-h-[86vh] max-w-2xl flex-col gap-0 overflow-hidden !rounded-3xl border-black/10 bg-white p-0 backdrop-blur-none">
                 <DialogTitle className="sr-only">Alle reacties op {post.title || "dit bericht"}</DialogTitle>
                 <DialogDescription className="sr-only">Bekijk de volledige conversatie en plaats een reactie.</DialogDescription>
 
@@ -503,38 +573,13 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
                 <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
                   <p className="mb-5 text-xs font-semibold text-[#68706a]">{post.comments.length} {post.comments.length === 1 ? "reactie" : "reacties"}</p>
                   <div className="space-y-5">
-                    {post.comments.map((comment) => (
-                      <div key={comment.id} className="group relative flex gap-3 pr-9">
-                        <Avatar className="h-8 w-8 shrink-0">
-                          <AvatarImage src={comment.author.avatarUrl || undefined} />
-                          <AvatarFallback className="bg-[#edf1ec] text-[10px] font-semibold text-[#173622]">
-                            {getInitials(comment.author.firstName, comment.author.lastName)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-baseline gap-x-2">
-                            <span className="text-xs font-semibold text-[#1d241f]">{comment.author.firstName} {comment.author.lastName}</span>
-                            <span className="text-[10px] text-[#8a918c]">{formatRelativeTime(comment.createdAt)}</span>
-                          </div>
-                          <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[#404741]">{comment.content}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setReplyTo({ id: comment.id, name: `${comment.author.firstName} ${comment.author.lastName}`, content: comment.content })}
-                          aria-label={`Reageer op ${comment.author.firstName}`}
-                          title={`Reageer op ${comment.author.firstName}`}
-                          className="absolute right-0 top-0 flex h-7 w-7 items-center justify-center rounded-lg text-[#737b75] opacity-0 transition hover:bg-[#edf2ed] hover:text-[#173622] focus:opacity-100 group-hover:opacity-100"
-                        >
-                          <ReplyIcon className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
+                    {post.comments.map(renderComment)}
                   </div>
                 </div>
 
                 <form onSubmit={handleReply} className="flex shrink-0 items-center gap-3 border-t border-black/10 bg-white px-5 py-4">
                   {replyTo ? (
-                    <div className="absolute inset-x-5 bottom-[68px] flex items-center gap-2 rounded-xl border border-[#173622]/20 bg-[#f5f8f4] px-3 py-2 text-[10px] text-[#667068]">
+                    <div className="absolute inset-x-5 bottom-[68px] flex items-center gap-2 !rounded-2xl border border-[#173622]/20 bg-[#f5f8f4] px-3 py-2 text-[10px] text-[#667068]">
                       <span>Reageer op</span>
                       <strong className="text-[#263129]">{replyTo.name}</strong>
                       <span className="min-w-0 flex-1 truncate">{replyTo.content}</span>
@@ -554,48 +599,23 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
                     spaceId={post.space.id}
                     placeholder="Schrijf een reactie..."
                     ariaLabel="Schrijf een reactie in de volledige conversatie. Typ apenstaartje om iemand te taggen."
-                    className="h-11 min-w-0 flex-1 rounded-xl border border-black/10 bg-[#f7f9f7] px-4 text-sm outline-none transition placeholder:text-[#929a94] focus:border-[#173622]/40 focus:bg-white"
+                    className="h-12 w-full min-w-0 border border-black/10 bg-[#f6f8f6] px-5 text-sm outline-none transition placeholder:text-[#929a94] focus:border-[#173622]/40 focus:bg-white community-round-field !rounded-2xl"
                   />
-                  <button type="submit" disabled={!reply.trim() || isReplying} aria-label="Reactie plaatsen" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#173622] text-white transition hover:bg-[#21492e] disabled:cursor-not-allowed disabled:opacity-35">
+                  <button type="submit" disabled={!reply.trim() || isReplying} aria-label="Reactie plaatsen" className="flex h-11 w-11 shrink-0 items-center justify-center bg-[#173622] text-white transition hover:bg-[#21492e] disabled:cursor-not-allowed disabled:opacity-35 !rounded-full">
                     {isReplying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </button>
                 </form>
               </DialogContent>
             </Dialog>
-            <div className="space-y-4">
-              {post.comments.slice(-2).map((comment) => (
-                <div key={comment.id} className="group relative flex gap-3 pr-9">
-                  <Avatar className="h-8 w-8 shrink-0">
-                    <AvatarImage src={comment.author.avatarUrl || undefined} />
-                    <AvatarFallback className="bg-[#edf1ec] text-[10px] font-semibold text-[#173622]">
-                      {getInitials(comment.author.firstName, comment.author.lastName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-baseline gap-x-2">
-                      <span className="text-xs font-semibold text-[#1d241f]">{comment.author.firstName} {comment.author.lastName}</span>
-                      <span className="text-[10px] text-[#8a918c]">{formatRelativeTime(comment.createdAt)}</span>
-                    </div>
-                    <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[#404741]">{comment.content}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setReplyTo({ id: comment.id, name: `${comment.author.firstName} ${comment.author.lastName}`, content: comment.content })}
-                    aria-label={`Reageer op ${comment.author.firstName}`}
-                    title={`Reageer op ${comment.author.firstName}`}
-                    className="absolute right-0 top-0 flex h-7 w-7 items-center justify-center rounded-lg text-[#737b75] opacity-0 transition hover:bg-[#edf2ed] hover:text-[#173622] focus:opacity-100 group-hover:opacity-100"
-                  >
-                    <ReplyIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
+            <div className="space-y-5">
+              {post.comments.slice(-2).map(renderComment)}
             </div>
           </div>
         ) : null}
 
-        <form onSubmit={handleReply} className="border-t border-black/10 pt-4">
+        <form onSubmit={handleReply} className={cn("pt-2", post.comments.length === 0 && "border-t border-black/10 pt-4")}>
           {replyTo ? (
-            <div className="mb-2 flex items-center gap-2 rounded-xl border border-[#173622]/20 bg-[#f5f8f4] px-3 py-2 text-[10px] text-[#667068]">
+            <div className="mb-2 flex items-center gap-2 !rounded-2xl border border-[#173622]/20 bg-[#f5f8f4] px-3 py-2 text-[10px] text-[#667068]">
               <span>Reageer op</span>
               <strong className="text-[#263129]">{replyTo.name}</strong>
               <span className="min-w-0 flex-1 truncate">{replyTo.content}</span>
@@ -616,13 +636,13 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
             spaceId={post.space.id}
             placeholder="Schrijf een reactie..."
             ariaLabel="Schrijf een reactie. Typ apenstaartje om iemand te taggen."
-            className="h-11 min-w-0 flex-1 rounded-xl border border-black/10 bg-[#f7f9f7] px-4 text-sm outline-none transition placeholder:text-[#929a94] focus:border-[#173622]/40 focus:bg-white"
+            className="h-12 w-full min-w-0 border border-black/10 bg-[#f6f8f6] px-5 text-sm outline-none transition placeholder:text-[#929a94] focus:border-[#173622]/40 focus:bg-white community-round-field !rounded-2xl"
           />
           <button
             type="submit"
             disabled={!reply.trim() || isReplying}
             aria-label="Reactie plaatsen"
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#173622] text-white transition hover:bg-[#21492e] disabled:cursor-not-allowed disabled:opacity-35"
+            className="flex h-11 w-11 shrink-0 items-center justify-center bg-[#173622] text-white transition hover:bg-[#21492e] disabled:cursor-not-allowed disabled:opacity-35 !rounded-full"
           >
             {isReplying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </button>

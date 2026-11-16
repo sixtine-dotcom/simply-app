@@ -24,6 +24,25 @@ export interface SpaceWithMeta {
   } | null;
 }
 
+export interface ReactionSummary {
+  emoji: string;
+  count: number;
+  reacted: boolean;
+}
+
+export type FeedSort = "activity" | "newest" | "popular";
+
+function summarizeReactions(reactions: Array<{ emoji: string; userId: string }>, userId: string): ReactionSummary[] {
+  const map = new Map<string, ReactionSummary>();
+  for (const reaction of reactions) {
+    const entry = map.get(reaction.emoji) ?? { emoji: reaction.emoji, count: 0, reacted: false };
+    entry.count += 1;
+    if (reaction.userId === userId) entry.reacted = true;
+    map.set(reaction.emoji, entry);
+  }
+  return Array.from(map.values());
+}
+
 export interface PostWithDetails {
   id: string;
   title: string | null;
@@ -71,7 +90,10 @@ export interface PostWithDetails {
       type: string;
       duration: number | null;
     }[];
+    reactions: ReactionSummary[];
   }>;
+  reactions: ReactionSummary[];
+  lastActivityAt: Date;
   poll: {
     totalVotes: number;
     userVote: number | null;
@@ -224,9 +246,12 @@ export async function getPosts(
     spaceSlug?: string;
     limit?: number;
     cursor?: string;
+    sort?: FeedSort;
   } = {}
 ): Promise<{ posts: PostWithDetails[]; nextCursor: string | null }> {
-  const { spaceId, spaceSlug, limit = 20, cursor } = options;
+  const { spaceId, spaceSlug, limit = 20, cursor, sort = "newest" } = options;
+  // Voor "recente gesprekken" en "populair" halen we een ruimer venster op en sorteren daarna.
+  const fetchLimit = sort === "newest" ? limit : limit * 3;
 
   // Build where clause
   let where: any = {};
@@ -248,8 +273,9 @@ export async function getPosts(
   const posts = await db.post.findMany({
     where,
     orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }],
-    take: limit + 1,
+    take: fetchLimit + 1,
     include: {
+      reactions: { select: { emoji: true, userId: true } },
       author: {
         select: {
           id: true,
@@ -288,6 +314,7 @@ export async function getPosts(
             },
           },
           attachments: true,
+          reactions: { select: { emoji: true, userId: true } },
         },
       },
       _count: {
@@ -310,17 +337,38 @@ export async function getPosts(
   });
   const likedPostIds = new Set(userLikes.map((l) => l.postId));
 
-  const hasMore = posts.length > limit;
-  const postsToReturn = hasMore ? posts.slice(0, limit) : posts;
+  const hasMore = posts.length > fetchLimit;
+  const windowPosts = hasMore ? posts.slice(0, fetchLimit) : posts;
 
-  return {
-    posts: postsToReturn.map((post) => ({
+  const enriched = windowPosts.map((post) => {
+    const lastComment = post.comments[post.comments.length - 1];
+    return {
       ...post,
+      comments: post.comments.map((comment) => ({
+        ...comment,
+        reactions: summarizeReactions(comment.reactions, userId),
+      })),
+      reactions: summarizeReactions(post.reactions, userId),
+      lastActivityAt: lastComment && lastComment.createdAt > post.createdAt ? lastComment.createdAt : post.createdAt,
       poll: buildPoll(post, userId),
       pollOptions: parsePollOptions(post.pollOptions),
       isLiked: likedPostIds.has(post.id),
-    })),
-    nextCursor: hasMore
+    };
+  });
+
+  if (sort !== "newest") {
+    const score = (post: (typeof enriched)[number]) =>
+      sort === "activity"
+        ? post.lastActivityAt.getTime()
+        : post._count.likes + post._count.comments + post.reactions.reduce((sum, r) => sum + r.count, 0);
+    enriched.sort((a, b) => Number(b.isPinned) - Number(a.isPinned) || score(b) - score(a));
+  }
+
+  const postsToReturn = enriched.slice(0, limit);
+
+  return {
+    posts: postsToReturn,
+    nextCursor: hasMore && sort === "newest"
       ? postsToReturn[postsToReturn.length - 1].createdAt.toISOString()
       : null,
   };
@@ -721,4 +769,34 @@ async function isSpaceBlockedByRequiredForm(userId: string, spaceId: string) {
       || enrollment.startDate > now
       || Boolean(enrollment.endDate && enrollment.endDate < now);
   });
+}
+
+/**
+ * Toggle an emoji reaction on a post
+ */
+export async function togglePostReaction(postId: string, userId: string, emoji: string) {
+  const existing = await db.postReaction.findUnique({
+    where: { postId_userId_emoji: { postId, userId, emoji } },
+  });
+  if (existing) {
+    await db.postReaction.delete({ where: { id: existing.id } });
+    return { reacted: false };
+  }
+  await db.postReaction.create({ data: { postId, userId, emoji } });
+  return { reacted: true };
+}
+
+/**
+ * Toggle an emoji reaction (or like) on a comment
+ */
+export async function toggleCommentReaction(commentId: string, userId: string, emoji: string) {
+  const existing = await db.commentReaction.findUnique({
+    where: { commentId_userId_emoji: { commentId, userId, emoji } },
+  });
+  if (existing) {
+    await db.commentReaction.delete({ where: { id: existing.id } });
+    return { reacted: false };
+  }
+  await db.commentReaction.create({ data: { commentId, userId, emoji } });
+  return { reacted: true };
 }

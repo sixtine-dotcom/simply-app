@@ -7,9 +7,11 @@ import { db } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { PostCard } from "@/components/community/post-card";
 import { PostComposer } from "@/components/community/post-composer";
+import { FeedSortSelect, parseFeedSort } from "@/components/community/feed-sort-select";
 
-export default async function SpacePage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function SpacePage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ sort?: string }> }) {
   const { slug } = await params;
+  const sort = parseFeedSort((await searchParams).sort);
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
@@ -28,7 +30,7 @@ export default async function SpacePage({ params }: { params: Promise<{ slug: st
   }
 
   const [{ posts }, canPost] = await Promise.all([
-    getPosts(user.id, { spaceSlug: slug, limit: 50 }),
+    getPosts(user.id, { spaceSlug: slug, limit: 50, sort }),
     canUserPostInSpace(user.id, space.id),
   ]);
 
@@ -56,9 +58,9 @@ export default async function SpacePage({ params }: { params: Promise<{ slug: st
           {space.description ? <p className="mt-1.5 max-w-2xl text-xs leading-5 text-slate-500">{space.description}</p> : null}
         </header>
 
-        <main className="space-y-3">
+        <main className="space-y-4">
           {canPost ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-3">
+            <div className="border border-slate-200 bg-white p-3 !rounded-2xl">
               <PostComposer
                 spaces={[{ id: space.id, name: space.name, slug: space.slug, iconEmoji: null }]}
                 defaultSpaceId={space.id}
@@ -66,15 +68,17 @@ export default async function SpacePage({ params }: { params: Promise<{ slug: st
               />
             </div>
           ) : space.isHostOnly ? (
-            <p className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
+            <p className="flex items-center gap-2 !rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
               <Megaphone className="h-3.5 w-3.5" /> Alleen Simply in Balance kan in dit kanaal publiceren.
             </p>
           ) : null}
 
+          <FeedSortSelect value={sort} />
+
           {posts.length ? posts.map((post) => (
             <PostCard key={post.id} post={post} currentUserId={user.id} currentUserRole={user.role} currentUser={user} />
           )) : (
-            <div className="rounded-2xl border border-slate-200 bg-white px-5 py-10 text-center">
+            <div className="border border-slate-200 bg-white px-5 py-10 text-center !rounded-2xl">
               <MessageSquare className="mx-auto h-5 w-5 text-slate-400" />
               <p className="mt-3 text-sm font-medium">Nog geen berichten</p>
               {canPost ? <p className="mt-1 text-xs text-slate-500">Deel het eerste bericht in dit kanaal.</p> : null}

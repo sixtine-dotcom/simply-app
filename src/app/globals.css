@@ -331,3 +331,17 @@ html {
 .form-choice-enter {
   animation: form-step-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+/* Community: afgeronde, Huddle-achtige vlakken. De herhaalde klasse geeft
+   genoeg specificiteit om de compacte 0.2rem-regels hierboven te overschrijven. */
+.client-compact .community-round-card.community-round-card.community-round-card {
+  border-radius: 1rem !important;
+}
+
+.client-compact .community-round-field.community-round-field.community-round-field {
+  border-radius: 1rem !important;
+}
+
+.client-compact .community-round-pill.community-round-pill.community-round-pill {
+  border-radius: 9999px !important;
+}

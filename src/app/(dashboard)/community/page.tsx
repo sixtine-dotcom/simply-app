@@ -6,14 +6,16 @@ import { getPosts, getUserSpaces } from "@/lib/community";
 import { db } from "@/lib/db";
 import { PostCard } from "@/components/community/post-card";
 import { PostComposer } from "@/components/community/post-composer";
+import { FeedSortSelect, parseFeedSort } from "@/components/community/feed-sort-select";
 
-export default async function CommunityPage() {
+export default async function CommunityPage({ searchParams }: { searchParams: Promise<{ sort?: string }> }) {
+  const sort = parseFeedSort((await searchParams).sort);
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
   const [spaces, { posts }] = await Promise.all([
     getUserSpaces(user.id),
-    getPosts(user.id, { limit: 20 }),
+    getPosts(user.id, { limit: 20, sort }),
   ]);
   const defaultSpace = spaces.find((space) => !space.isHostOnly);
   const spaceIds = spaces.map((space) => space.id);
@@ -57,11 +59,15 @@ export default async function CommunityPage() {
               />
             ) : null}
 
-            <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <FeedSortSelect value={sort} />
+            </div>
+
+            <div className="space-y-4">
               {posts.length ? posts.map((post) => (
                 <PostCard key={post.id} post={post} currentUserId={user.id} currentUserRole={user.role} currentUser={user} showSpace />
               )) : (
-                <div className="rounded-2xl border border-black/10 bg-white px-5 py-10 text-center">
+                <div className="border border-black/10 bg-white px-5 py-10 text-center !rounded-2xl">
                   <MessageSquare className="mx-auto h-5 w-5 text-slate-400" />
                   <p className="mt-3 text-sm font-medium text-slate-800">Nog geen berichten</p>
                   <p className="mt-1 text-xs text-slate-500">Nieuwe communityberichten verschijnen hier.</p>
