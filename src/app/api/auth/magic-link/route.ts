@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { createMagicLink, createAuditLog } from "@/lib/auth";
 import { sendMagicLinkEmail, sendWelcomeEmail } from "@/lib/email";
+import { hasProvisionedAccountAccess } from "@/lib/account-access";
 import { isEmailAllowedDuringLaunch } from "@/lib/launch-lock";
 
 const requestSchema = z.object({
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
       where: { email: normalizedEmail },
     });
 
-    if (!user) {
+    if (!user || !(await hasProvisionedAccountAccess(user))) {
       // For security, don't reveal if user exists or not
       // But we also can't send a magic link to non-existent users
       return NextResponse.json(

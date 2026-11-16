@@ -673,6 +673,7 @@ export async function POST(request: NextRequest) {
 
       const registrationToken = await createRegistrationToken(email, {
         accountType: "client",
+        source: "admin_onboarding",
       });
       const appUrl = process.env.APP_URL || "http://localhost:3000";
       const registrationLink = `${appUrl}/register/complete?token=${registrationToken}`;

@@ -2,13 +2,12 @@ import { getTenantBrandingFromHeaders } from "@/lib/branding";
 import { MagicLinkLoginForm } from "./magic-link-login-form";
 
 type LoginPageProps = {
-  searchParams?: {
-    next?: string;
-  };
+  searchParams?: Promise<{ next?: string; message?: string }>;
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const nextPath = searchParams?.next || "/";
+  const query = await searchParams;
+  const nextPath = query?.next || "/";
   const branding = await getTenantBrandingFromHeaders();
 
   return (
@@ -78,6 +77,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               </div>
             </div>
 
+            {query?.message === "purchase-required" ? (
+              <p className="mb-4 text-sm leading-6 text-slate-700" role="status">
+                Je krijgt toegang na aankoop van een cursus of traject. Gebruik de activatielink uit je e-mail. Al geactiveerd? Vraag hieronder een inloglink aan.
+              </p>
+            ) : null}
             <MagicLinkLoginForm nextPath={nextPath} />
 
             <div className="mt-4 flex items-center justify-between gap-3 text-xs text-slate-500">

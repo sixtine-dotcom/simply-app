@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { db } from "@/lib/db";
-import { createMagicLink, createAuditLog } from "@/lib/auth";
+import { createMagicLink, createRegistrationToken, createAuditLog } from "@/lib/auth";
 import { syncEnrollmentToRecurringGroupPlans } from "@/lib/coaching";
-import { sendWelcomeEmail, sendCourseAccessEmail } from "@/lib/email";
+import { sendRegistrationEmail, sendCourseAccessEmail } from "@/lib/email";
 
 // Verify Shopify webhook signature
 function verifyShopifyWebhook(body: string, signature: string): boolean {
@@ -18,7 +18,9 @@ function verifyShopifyWebhook(body: string, signature: string): boolean {
     .update(body, "utf8")
     .digest("base64");
 
-  return crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(signature));
+  const expected = Buffer.from(hmac);
+  const supplied = Buffer.from(signature);
+  return expected.length === supplied.length && crypto.timingSafeEqual(expected, supplied);
 }
 
 interface ShopifyCustomer {
@@ -46,6 +48,7 @@ interface ShopifyOrder {
   id: number;
   name?: string;
   currency?: string;
+  financial_status?: string;
   customer: ShopifyCustomer;
   line_items: ShopifyLineItem[];
 }
@@ -121,9 +124,11 @@ async function getShopifyTenantId() {
 async function syncShopifyCustomer(customer: ShopifyCustomer) {
   if (!customer?.email) return null;
   const email = customer.email.trim().toLowerCase();
+  const existing = await db.user.findUnique({ where: { email } });
+  // A Shopify address book/newsletter account is not a course purchase.
+  if (!existing || existing.deletedAt) return null;
   const tenantId = await getShopifyTenantId();
   const consent = marketingConsentValue(customer);
-  const existing = await db.user.findUnique({ where: { email } });
   const data = {
     firstName: customer.first_name || existing?.firstName || "Klant",
     lastName: customer.last_name || existing?.lastName || "",
@@ -136,8 +141,7 @@ async function syncShopifyCustomer(customer: ShopifyCustomer) {
     } : {}),
     ...(!existing?.tenantId && tenantId ? { tenantId } : {}),
   };
-  if (existing) return db.user.update({ where: { id: existing.id }, data });
-  return db.user.create({ data: { email, role: "CLIENT", tenantId, ...data } });
+  return db.user.update({ where: { id: existing.id }, data });
 }
 
 async function handleOrderPaid(order: ShopifyOrder) {
@@ -148,7 +152,18 @@ async function handleOrderPaid(order: ShopifyOrder) {
     return;
   }
 
-  const email = customer.email.toLowerCase();
+  if (order.financial_status !== "paid") return;
+  const email = customer.email.trim().toLowerCase();
+  const mappedItems = (await Promise.all(line_items.map(async (item) => {
+    if (!item.product_id) return null;
+    const mapping = await db.shopifyProductMapping.findUnique({
+      where: { shopifyProductId: item.product_id.toString() },
+      include: { course: { select: { title: true, trajectoryStartDate: true, trajectoryEndDate: true } } },
+    });
+    return mapping ? { item, mapping } : null;
+  }))).filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+  // Only a paid product mapped to a course may provision an app account.
+  if (mappedItems.length === 0) return;
 
   // De Shopify-shop hoort in deze installatie bij één actieve organisatie.
   // Zonder tenantId kan de klant geen toegewezen intakeformulieren zien.
@@ -157,7 +172,8 @@ async function handleOrderPaid(order: ShopifyOrder) {
   // Find or create user
   let user = await db.user.findUnique({ where: { email } });
 
-  const isNewUser = !user;
+  if (user?.deletedAt) return;
+  const needsActivation = !user?.lastLoginAt;
 
   if (!user) {
     user = await db.user.create({
@@ -197,18 +213,8 @@ async function handleOrderPaid(order: ShopifyOrder) {
     });
   }
 
-  // Create enrollments for each product that has a mapping; collect course titles for emails
-  const newCourseTitles: string[] = [];
-  for (const item of line_items) {
-    const mapping = await db.shopifyProductMapping.findUnique({
-      where: { shopifyProductId: item.product_id.toString() },
-      include: {
-        course: {
-          select: { title: true, trajectoryStartDate: true, trajectoryEndDate: true },
-        },
-      },
-    });
-
+  // Create access only for products mapped to a course.
+  for (const { item, mapping } of mappedItems) {
     if (mapping) {
       const existingEnrollment = await db.enrollment.findUnique({
         where: {
@@ -245,8 +251,6 @@ async function handleOrderPaid(order: ShopifyOrder) {
           courseId: mapping.courseId,
         });
 
-        newCourseTitles.push(mapping.course.title);
-
         await createAuditLog("enrollment.created", user.id, {
           courseId: mapping.courseId,
           source: "shopify",
@@ -256,16 +260,25 @@ async function handleOrderPaid(order: ShopifyOrder) {
     }
   }
 
-  // Emails: new user → welcome met cursus; bestaande user met nieuwe toegang → course access
-  if (isNewUser && newCourseTitles.length > 0) {
-    const token = await createMagicLink(email);
-    await sendWelcomeEmail(email, user.firstName, token, { courseTitles: newCourseTitles });
-  } else if (isNewUser) {
-    const token = await createMagicLink(email);
-    await sendWelcomeEmail(email, user.firstName, token);
-  } else if (newCourseTitles.length > 0) {
-    const token = await createMagicLink(email);
-    await sendCourseAccessEmail(email, user.firstName, token, newCourseTitles);
+  // Retry failed emails on webhook replay; successful deliveries are recorded
+  // per order so a sequential replay does not send another invitation.
+  const mailAction = needsActivation ? "auth.purchase_activation_sent" : "auth.course_access_sent";
+  const alreadySent = await db.auditLog.findFirst({
+    where: { userId: user.id, action: { in: ["auth.purchase_activation_sent", "auth.course_access_sent"] }, metadata: { path: ["orderId"], equals: order.id.toString() } },
+    select: { id: true },
+  });
+  if (!alreadySent) {
+    if (needsActivation) {
+      const token = await createRegistrationToken(email, { accountType: "client", source: "shopify_paid", orderId: order.id.toString(), courseIds: mappedItems.map(({ mapping }) => mapping.courseId) });
+      const sent = await sendRegistrationEmail(email, token);
+      if (!sent.success) throw new Error("Purchase activation email failed; Shopify should retry");
+    } else {
+      const token = await createMagicLink(email);
+      const titles = Array.from(new Set(mappedItems.map(({ mapping }) => mapping.course.title)));
+      const sent = await sendCourseAccessEmail(email, user.firstName, token, titles);
+      if (!sent.success) throw new Error("Course access email failed; Shopify should retry");
+    }
+    await createAuditLog(mailAction, user.id, { orderId: order.id.toString() });
   }
 }
 

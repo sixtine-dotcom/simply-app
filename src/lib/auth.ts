@@ -3,7 +3,8 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import crypto from "crypto";
 import { auth, currentUser as clerkCurrentUser } from "@clerk/nextjs/server";
-import { getPlanDefinition } from "./billing";
+import { isTrustedRegistrationInvitation } from "./registration-access";
+import { hasProvisionedAccountAccess } from "./account-access";
 import { getTenantContextFromHeaders } from "./tenant";
 
 const SESSION_COOKIE_NAME = "simply_session";
@@ -147,6 +148,11 @@ export async function createRegistrationToken(
   email: string,
   metadata?: Record<string, unknown>
 ): Promise<string> {
+  if (!isTrustedRegistrationInvitation(metadata)) {
+    throw new Error("An activation link requires a server-authorized invitation");
+  }
+  const invitedUser = await db.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+  if (!invitedUser || invitedUser.deletedAt) throw new Error("The invited account does not exist");
   const token = generateToken();
   const hashedToken = hashToken(token);
 
@@ -190,6 +196,22 @@ export async function verifyRegistrationToken(token: string): Promise<{
     return { success: false, error: "Deze link is verlopen" };
   }
 
+  if (!isTrustedRegistrationInvitation(verificationToken.metadata)) {
+    return { success: false, error: "Deze link geeft geen toegang. Gebruik de activatiemail van je aankoop." };
+  }
+  const invitedUser = await db.user.findUnique({ where: { email: verificationToken.email } });
+  if (!invitedUser || invitedUser.deletedAt) return { success: false, error: "Account niet beschikbaar" };
+  const metadata = verificationToken.metadata as Record<string, unknown>;
+  if (metadata.source === "shopify_paid") {
+    if (typeof metadata.orderId !== "string") return { success: false, error: "Aankoop ontbreekt" };
+    const courseIds = Array.isArray(metadata.courseIds) ? metadata.courseIds.filter((id): id is string => typeof id === "string") : [];
+    const purchase = await db.enrollment.findFirst({ where: {
+      userId: invitedUser.id,
+      OR: [{ shopifyOrderId: metadata.orderId }, ...(courseIds.length ? [{ courseId: { in: courseIds } }] : [])],
+    } });
+    if (!purchase) return { success: false, error: "Deze aankoop geeft geen toegang meer" };
+  }
+
   return {
     success: true,
     email: verificationToken.email,
@@ -200,7 +222,7 @@ export async function verifyRegistrationToken(token: string): Promise<{
   };
 }
 
-// Mark registration token as used and create user + session
+// Activate a provisioned account; never create an account from a public link
 export async function completeRegistration(
   token: string,
   firstName: string,
@@ -212,130 +234,24 @@ export async function completeRegistration(
   if (!result.success || !result.email) {
     return { success: false, error: result.error };
   }
-  const email = result.email;
-
   const hashedToken = hashToken(token);
-  const verificationToken = await db.verificationToken.findUnique({
-    where: { token: hashedToken },
-  });
-  if (!verificationToken) return { success: false, error: "Ongeldige link" };
-
-  const registrationMode =
-    result.metadata?.accountType === "tenant_admin" ? "tenant_admin" : "client";
-  const tenantName =
-    typeof result.metadata?.tenantName === "string"
-      ? result.metadata.tenantName.trim()
-      : "";
-  const tenantSlug =
-    typeof result.metadata?.tenantSlug === "string"
-      ? result.metadata.tenantSlug.trim()
-      : "";
-
-  const existing = await db.user.findUnique({
-    where: { email: result.email },
-  });
-  if (existing && registrationMode === "tenant_admin") {
-    return { success: false, error: "Dit email adres heeft al een account. Log in." };
-  }
-
-  const user = await db.$transaction(async (tx) => {
-    if (registrationMode === "tenant_admin") {
-      if (!tenantName || !tenantSlug) {
-        throw new Error("Tenantgegevens ontbreken in de registratie.");
-      }
-
-      const existingTenant = await tx.tenant.findUnique({
-        where: { slug: tenantSlug },
-        select: { id: true },
-      });
-
-      if (existingTenant) {
-        throw new Error("Deze platform slug is al in gebruik.");
-      }
-
-      const tenant = await tx.tenant.create({
-        data: {
-          name: tenantName,
-          slug: tenantSlug,
-          status: "TRIAL",
-          plan: "STARTER",
-          platformName: tenantName,
-          trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-          settings: {
-            create: {
-              platformName: tenantName,
-              emailSenderName: tenantName,
-              primaryColor: "#385739",
-              secondaryColor: "#B18A4A",
-            },
-          },
-          subscriptions: {
-            create: {
-              ...(() => {
-                const starterPlan = getPlanDefinition("STARTER");
-                return {
-                  billingInterval: "monthly",
-                  currency: "EUR",
-                  priceCents: starterPlan.monthlyPriceCents,
-                  platformFeePercent: starterPlan.platformFeePercent,
-                };
-              })(),
-              plan: "STARTER",
-              status: "trialing",
-              currentPeriodStart: new Date(),
-              currentPeriodEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-            },
-          },
-        },
-      });
-
-      return tx.user.create({
-        data: {
-          email,
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          phone: phone.trim() || null,
-          bio: bio?.trim() || null,
-          role: "ADMIN",
-          tenantId: tenant.id,
-          emailVerified: new Date(),
-        },
-      });
-    }
-
-    if (existing) {
-      return tx.user.update({
-        where: { id: existing.id },
-        data: {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          phone: phone.trim() || null,
-          bio: bio?.trim() || null,
-          emailVerified: existing.emailVerified ?? new Date(),
-        },
-      });
-    }
-
-    return tx.user.create({
+  return db.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({ where: { email: result.email! } });
+    if (!user || user.deletedAt) return { success: false, error: "Account niet beschikbaar" };
+    const claimed = await tx.verificationToken.updateMany({
+      where: { token: hashedToken, type: "registration", usedAt: null, expiresAt: { gt: new Date() } },
+      data: { usedAt: new Date() },
+    });
+    if (claimed.count !== 1) return { success: false, error: "Deze link is al gebruikt of verlopen" };
+    const activatedUser = await tx.user.update({
+      where: { id: user.id },
       data: {
-        email,
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        phone: phone.trim() || null,
-        bio: bio?.trim() || null,
-        role: "CLIENT",
-        emailVerified: new Date(),
+        firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim() || null,
+        bio: bio?.trim() || null, emailVerified: user.emailVerified ?? new Date(),
       },
     });
+    return { success: true, user: activatedUser };
   });
-
-  // Mark token as used
-  await db.verificationToken.update({
-    where: { id: verificationToken.id },
-    data: { usedAt: new Date() },
-  });
-
-  return { success: true, user };
 }
 
 // Verify a magic link token
@@ -346,7 +262,7 @@ export async function verifyMagicLink(token: string) {
     where: { token: hashedToken },
   });
 
-  if (!verificationToken) {
+  if (!verificationToken || verificationToken.type !== "magic_link") {
     return { success: false, error: "Invalid token" };
   }
 
@@ -372,7 +288,7 @@ export async function verifyMagicLink(token: string) {
   return {
     success: true,
     email: verificationToken.email,
-    user,
+    user: user && await hasProvisionedAccountAccess(user) ? user : null,
   };
 }
 
@@ -539,6 +455,7 @@ async function getAuthenticatedUser(): Promise<AuthUser> {
     });
 
     if (session) {
+      if (!(await hasProvisionedAccountAccess(session.user))) return null;
       if (session.expiresAt < new Date()) {
         await clearSessionCookie();
       } else {
@@ -562,7 +479,9 @@ async function getAuthenticatedUser(): Promise<AuthUser> {
           where: { email: normalizedEmail },
         });
 
-        if (existingUser) {
+        if (existingUser && await hasProvisionedAccountAccess(existingUser) && clerkUser?.emailAddresses.some(
+          (entry) => entry.emailAddress.toLowerCase() === normalizedEmail && entry.verification?.status === "verified"
+        )) {
           await db.user.update({
             where: { id: existingUser.id },
             data: { lastLoginAt: new Date() },
@@ -570,16 +489,9 @@ async function getAuthenticatedUser(): Promise<AuthUser> {
           return existingUser;
         }
 
-        return db.user.create({
-          data: {
-            email: normalizedEmail,
-            firstName: clerkUser?.firstName?.trim() || "Gebruiker",
-            lastName: clerkUser?.lastName?.trim() || "",
-            role: "CLIENT",
-            lastLoginAt: new Date(),
-            emailVerified: new Date(),
-          },
-        });
+        // An external identity never creates an app account. Shopify or an
+        // authenticated administrator must have provisioned it first.
+        return null;
       }
     }
   }

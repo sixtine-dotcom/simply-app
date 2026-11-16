@@ -27,7 +27,7 @@ function CompleteContent() {
   useEffect(() => {
     if (!token) {
       setStatus("error");
-      setError("Geen link gevonden. Vraag een nieuwe aan op de registratiepagina.");
+      setError("Gebruik de activatielink uit de e-mail die je na je aankoop hebt ontvangen.");
       return;
     }
 
@@ -123,7 +123,7 @@ function CompleteContent() {
           </CardHeader>
           <CardContent className="text-center space-y-2">
             <Button asChild>
-              <Link href="/register">Nieuwe link aanvragen</Link>
+              <Link href="/login">Inloglink aanvragen</Link>
             </Button>
             <p className="text-sm text-muted-foreground">
               <Link href="/login" className="text-primary hover:underline">Naar inloggen</Link>

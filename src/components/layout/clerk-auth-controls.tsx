@@ -1,6 +1,6 @@
 "use client";
 
-import { SignInButton, SignUpButton, UserButton, useAuth } from "@clerk/nextjs";
+import { SignInButton, UserButton, useAuth } from "@clerk/nextjs";
 
 export function ClerkAuthControls() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -10,7 +10,6 @@ export function ClerkAuthControls() {
     return (
       <>
         <SignInButton />
-        <SignUpButton />
       </>
     );
   }
