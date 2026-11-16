@@ -15,17 +15,18 @@ async function requireAdminApi() {
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const auth = await requireAdminApi();
     if (auth.response) return auth.response;
 
     const user = auth.user;
-    const post = await cancelScheduledCommunityPost(params.id);
+    const post = await cancelScheduledCommunityPost(id);
 
     await createAuditLog("community_post.schedule_cancelled", user.id, {
-      scheduledPostId: params.id,
+      scheduledPostId: id,
     });
 
     return NextResponse.json({ post });

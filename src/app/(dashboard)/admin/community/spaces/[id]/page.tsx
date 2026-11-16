@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -124,16 +124,12 @@ type QuestionInsights = {
   }>;
 };
 
-export default function EditSpacePage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default function EditSpacePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeTab = getTab(searchParams.get("tab"));
   const { toast } = useToast();
-  const spaceId = params.id;
+  const { id: spaceId } = useParams<{ id: string }>();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);

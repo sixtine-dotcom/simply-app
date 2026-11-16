@@ -12,9 +12,10 @@ async function requireTenantAdmin() {
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const user = await requireTenantAdmin();
     if (!user) {
       return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
@@ -25,7 +26,7 @@ export async function GET(
       return NextResponse.json({ error: "Tenant niet gevonden" }, { status: 404 });
     }
 
-    const invoice = data.invoices.find((entry) => entry.id === params.id);
+    const invoice = data.invoices.find((entry) => entry.id === id);
     if (!invoice) {
       return NextResponse.json({ error: "Factuur niet gevonden" }, { status: 404 });
     }
@@ -34,7 +35,7 @@ export async function GET(
       tenantName: data.tenant.name,
       profile: data.profile,
       invoices: data.invoices,
-      invoiceId: params.id,
+      invoiceId: id,
     });
 
     return new NextResponse(html, {

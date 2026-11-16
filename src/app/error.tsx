@@ -24,8 +24,8 @@ export default function AppError({
         </p>
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Button onClick={reset}>Opnieuw proberen</Button>
-          <Button variant="outline" asChild>
-            <a href="/">Naar home</a>
+          <Button variant="outline" onClick={() => window.location.assign("/")}>
+            Naar home
           </Button>
         </div>
       </div>

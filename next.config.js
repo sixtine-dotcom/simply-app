@@ -33,6 +33,7 @@ const nextConfig = {
   },
   // Gebruik lokaal een aparte cache zodat `next build` een draaiende dev-server niet beschadigt.
   distDir: process.env.NEXT_DIST_DIR || '.next',
+  outputFileTracingRoot: __dirname,
   async rewrites() {
     const assets = require('./src/lib/static-assets.json');
     return { beforeFiles: [], afterFiles: [], fallback: Object.entries(assets).map(([source, destination]) => ({ source, destination })) };
@@ -40,11 +41,11 @@ const nextConfig = {
   images: {
     remotePatterns,
   },
-  experimental: {
-    // Carousel slides drawn in the app read their fonts from disk (src/lib/carousel-render).
-    outputFileTracingIncludes: {
-      '/api/admin/carousels/**': ['./src/lib/carousel-render/fonts/**', './src/lib/carousel-render/briefing/**'],
-    },
+  // Load the native image library at runtime instead of bundling its binaries.
+  serverExternalPackages: ['sharp'],
+  // Carousel slides drawn in the app read their fonts from disk (src/lib/carousel-render).
+  outputFileTracingIncludes: {
+    '/api/admin/carousels/**': ['./src/lib/carousel-render/fonts/**', './src/lib/carousel-render/briefing/**'],
   },
 };
 

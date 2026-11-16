@@ -110,3 +110,13 @@ coverage/
 
 # Existing Canva examples supplied with the fixed Open Design brief.
 !src/lib/carousel-render/briefing/referenties/*.jpg
+
+# Native app icons and launch artwork must survive a fresh source checkout.
+!android/app/src/main/res/**/*.png
+!ios/App/App/Assets.xcassets/**/*.png
+
+# Keep release signing material private.
+*.jks
+*.keystore
+android/key.properties
+android/keystore.properties

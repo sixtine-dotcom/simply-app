@@ -1,5 +1,16 @@
 apply plugin: 'com.android.application'
 
+def releaseKeys = new Properties()
+def releaseKeysFile = rootProject.file('keystore.properties')
+if (releaseKeysFile.exists()) {
+    releaseKeysFile.withInputStream { releaseKeys.load(it) }
+}
+def uploadStore = System.getenv('SIMPLY_ANDROID_KEYSTORE') ?: releaseKeys.getProperty('storeFile')
+def uploadStorePassword = System.getenv('SIMPLY_ANDROID_STORE_PASSWORD') ?: releaseKeys.getProperty('storePassword')
+def uploadKeyAlias = System.getenv('SIMPLY_ANDROID_KEY_ALIAS') ?: releaseKeys.getProperty('keyAlias')
+def uploadKeyPassword = System.getenv('SIMPLY_ANDROID_KEY_PASSWORD') ?: releaseKeys.getProperty('keyPassword')
+def hasReleaseSigning = uploadStore && uploadStorePassword && uploadKeyAlias && uploadKeyPassword
+
 android {
     namespace = "be.simplyapp.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,11 +27,28 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile rootProject.file(uploadStore)
+                storePassword uploadStorePassword
+                keyAlias uploadKeyAlias
+                keyPassword uploadKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            if (hasReleaseSigning) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+    }
+}
+
+gradle.taskGraph.whenReady { graph ->
+    if (graph.allTasks.any { it.name == 'bundleRelease' } && !hasReleaseSigning) {
+        throw new GradleException('Release signing ontbreekt: configureer android/keystore.properties of SIMPLY_ANDROID_* om een uploadbaar AAB te maken.')
     }
 }
 

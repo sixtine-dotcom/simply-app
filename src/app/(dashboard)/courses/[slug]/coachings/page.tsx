@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Video, PlayCircle, Loader2, Download } from "lucide-react";
@@ -26,12 +27,8 @@ interface CourseRecordingsData {
   };
 }
 
-export default function CourseCoachingsPage({
-  params,
-}: {
-  params: { slug: string };
-}) {
-  const slug = params.slug;
+export default function CourseCoachingsPage() {
+  const { slug } = useParams<{ slug: string }>();
   const [data, setData] = useState<CourseRecordingsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState<string | null>(null);

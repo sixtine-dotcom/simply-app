@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Download, MonitorSmartphone, Share, Smartphone } from "lucide-react";
 
@@ -84,10 +85,10 @@ export function InstallPanel() {
                 {installLabel}
               </Button>
               <Button asChild variant="outline" size="lg" className="h-12 rounded-2xl">
-                <a href="/login">
+                <Link href="/login">
                   <Smartphone className="mr-2 h-4 w-4" />
                   Open leeromgeving
-                </a>
+                </Link>
               </Button>
             </div>
           </div>

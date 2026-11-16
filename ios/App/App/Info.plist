@@ -24,6 +24,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Simply gebruikt je camera om deel te nemen aan je coachingsessie en om foto's te maken die je zelf wilt uploaden.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Simply gebruikt je microfoon zodat je tijdens je coachingsessie met je coach kunt praten.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

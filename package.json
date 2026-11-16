@@ -19,20 +19,22 @@
     "r2:verify": "tsx scripts/verify-r2.ts",
     "android:sync": "cap sync android",
     "android:open": "cap open android",
-    "android:build": "cd android && ./gradlew bundleRelease",
+    "android:build": "sh scripts/android-build.sh release",
     "ios:sync": "cap sync ios",
     "ios:open": "cap open ios",
     "test:scheduling": "tsx scripts/tests/social-scheduling.ts",
-    "vercel-build": "prisma migrate deploy && next build"
+    "vercel-build": "prisma migrate deploy && next build",
+    "mobile:check": "node scripts/mobile-readiness.mjs",
+    "android:build:debug": "sh scripts/android-build.sh debug"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1037.0",
     "@aws-sdk/s3-request-presigner": "^3.1037.0",
-    "@capacitor/android": "^8.4.1",
-    "@capacitor/cli": "^8.4.1",
-    "@capacitor/core": "^8.4.1",
-    "@capacitor/ios": "^8.4.1",
-    "@clerk/nextjs": "^6.12.0",
+    "@capacitor/android": "8.6.2",
+    "@capacitor/cli": "8.6.2",
+    "@capacitor/core": "8.6.2",
+    "@capacitor/ios": "8.6.2",
+    "@clerk/nextjs": "6.39.9",
     "@daily-co/daily-js": "^0.50.0",
     "@prisma/client": "^5.10.0",
     "@radix-ui/react-avatar": "^1.0.4",
@@ -56,13 +58,14 @@
     "ical-generator": "^8.0.0",
     "lottie-web": "^5.13.0",
     "lucide-react": "^0.344.0",
-    "next": "14.1.0",
+    "next": "15.5.29",
     "openai": "^6.45.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "recharts": "^2.10.3",
     "remotion": "^4.0.529",
     "resend": "^3.2.0",
+    "sharp": "0.35.5",
     "tailwind-merge": "^2.2.1",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.22.4"
@@ -73,12 +76,15 @@
     "@types/react-dom": "^18.2.0",
     "autoprefixer": "^10.4.17",
     "eslint": "^8.56.0",
-    "eslint-config-next": "14.1.0",
+    "eslint-config-next": "15.5.29",
     "postcss": "^8.4.35",
     "prisma": "^5.10.0",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.7.1",
     "typescript": "^5.3.0",
     "wrangler": "^4.104.0"
+  },
+  "overrides": {
+    "postcss": "$postcss"
   }
 }

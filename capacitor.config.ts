@@ -7,7 +7,8 @@ const config: CapacitorConfig = {
   appendUserAgent: 'SimplyAppNative/1.0',
   server: {
     url: 'https://simplyapp.be',
-    cleartext: false
+    cleartext: false,
+    errorPath: 'offline.html'
   }
 };
 

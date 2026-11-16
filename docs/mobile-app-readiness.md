@@ -2,7 +2,7 @@
 
 ## Wat al klaarstaat
 
-- Capacitor 8 voor iOS en Android.
+- Capacitor 8.6.2 voor iOS en Android (bijgewerkt op 16 november 2026).
 - App-ID: `be.simplyapp.app`.
 - Appnaam: `Simply App`.
 - Productiewebsite in de native app: `https://simplyapp.be`.
@@ -20,8 +20,8 @@
 ## Lokale blockers voor een echte native build
 
 - Volledige Xcode ontbreekt; alleen Command Line Tools zijn actief.
-- Java/JDK ontbreekt.
-- Android Studio en Android SDK ontbreken.
+- Java/JDK wordt met Android Studio meegeleverd.
+- Android Studio is geïnstalleerd; Android SDK en eerste Setup Wizard/licentieacceptatie ontbreken nog.
 - Er zijn nog geen Apple signing team/provisioning-profielen ingesteld.
 - Er is nog geen Android release-keystore/Play App Signing-configuratie.
 
@@ -47,3 +47,7 @@
 - iPhone- en Android-tests op echte toestellen.
 - TestFlight-build en Play Internal Testing-build.
 - Review van lege pagina's, foutmeldingen, testinhoud en niet-werkende links.
+
+## Actuele testrelease
+
+Zie `testen-en-lanceren.md` voor de stappen voor Sixtine en `RELEASE-2026-11-16.md` voor de uitgevoerde technische voorbereiding. Camera-/microfoontoestemmingen en een offline foutscherm zijn toegevoegd; echte toesteltests blijven nodig.
