@@ -49,7 +49,7 @@ function StatusCell({ item }: { item: VideoListItem }) {
       </span>
     );
   if (item.status === "APPROVED" && item.mode === "COURSE")
-    return item.finalReady ? pill("Klaar voor cursus", "bg-emerald-100 text-emerald-800") : pill("Eindversie wordt gemaakt", "bg-amber-100 text-amber-800");
+    return item.finalReady ? pill("Nagekeken", "bg-emerald-100 text-emerald-800") : pill("Eindversie wordt gemaakt", "bg-amber-100 text-amber-800");
   return <StatusBadge status={item.status} />;
 }
 

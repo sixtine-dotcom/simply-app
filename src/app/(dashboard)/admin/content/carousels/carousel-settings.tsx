@@ -174,8 +174,7 @@ export function CarouselSettingsDialog({ open, onOpenChange, onSaved }: { open: 
             </label>
             <p className="text-muted-foreground">
               Ontwerp in Canva: je Canva-sjabloon <strong>Carousel sjabloon – automatisch (niet verwijderen)</strong>. Pas je dat aan in Canva, dan volgen alle nieuwe
-              carousels. Achtergrondfoto&apos;s: je eigen foto&apos;s in de map <strong>carousels/fotos</strong> op je Mac komen eerst, anders een passende
-              (donkere) foto van Unsplash.
+              carousels. Voor Open Design upload je eigen foto&apos;s bij de carousel onder <strong>Jouw foto’s</strong>. Die collectie kun je voor volgende carousels opnieuw gebruiken.
             </p>
             {message ? <p className="text-red-600">{message}</p> : null}
           </div>

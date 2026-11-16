@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { FORM_QUESTION_TYPE_OPTIONS, slugifyFormValue } from "@/lib/forms";
+import { CONTACT_INFO_FIELDS, DEFAULT_CONTACT_INFO_FIELDS } from "@/lib/form-fields";
 
 type BuilderData = {
   form: {
@@ -175,7 +176,7 @@ export function FormBuilder({
   const addQuestion = (type: FormQuestionType = "SHORT_TEXT") => {
     const defaultOptions =
       ["MULTIPLE_CHOICE", "CHECKBOXES", "DROPDOWN"].includes(type) ? [""] :
-      type === "CONTACT_INFO" ? ["firstName", "lastName", "email"] :
+      type === "CONTACT_INFO" ? [...DEFAULT_CONTACT_INFO_FIELDS] :
       type === "FILE_UPLOAD" ? ["image", "video"] :
       [];
     setQuestions((current) => [
@@ -575,7 +576,7 @@ export function FormBuilder({
                                     ? question.options
                                     : [""]
                                   : event.target.value === "CONTACT_INFO"
-                                  ? ["firstName", "lastName", "email"]
+                                  ? [...DEFAULT_CONTACT_INFO_FIELDS]
                                   : event.target.value === "FILE_UPLOAD"
                                   ? ["image", "video"]
                                   : [],
@@ -1070,10 +1071,7 @@ function renderPreviewLabel(question: {
   }
 
   if (question.type === "CONTACT_INFO") {
-    const labels: Record<string, string> = {
-      firstName: "Voornaam", lastName: "Achternaam", email: "E-mail",
-      phone: "Telefoon", company: "Bedrijf",
-    };
+    const labels: Record<string, string> = Object.fromEntries(CONTACT_INFO_FIELDS.map((field) => [field.key, field.label]));
     return question.options.length > 0
       ? question.options.map((f) => labels[f] || f).join(" · ")
       : "Contactvelden";
@@ -1142,13 +1140,7 @@ function ContactInfoFieldSelector({
   selected: string[];
   onChange: (fields: string[]) => void;
 }) {
-  const fields = [
-    { value: "firstName", label: "Voornaam" },
-    { value: "lastName", label: "Achternaam" },
-    { value: "email", label: "E-mailadres" },
-    { value: "phone", label: "Telefoonnummer" },
-    { value: "company", label: "Bedrijfsnaam" },
-  ];
+  const fields = CONTACT_INFO_FIELDS.map((field) => ({ value: field.key, label: field.label }));
 
   const toggle = (value: string) => {
     if (selected.includes(value)) {

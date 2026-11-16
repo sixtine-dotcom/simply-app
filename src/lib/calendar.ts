@@ -40,6 +40,7 @@ export function generateSessionICS(session: {
     .join("\n\n");
 
   const event = calendar.createEvent({
+    id: `coaching-${session.id}@simplyapp`,
     start: session.scheduledAt,
     end: endTime,
     summary: session.title || `Coaching sessie met ${session.coach.firstName}`,

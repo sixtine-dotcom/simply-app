@@ -13,5 +13,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     captionExamples: settings?.captionExamples ?? "",
     captionGuidelines: settings?.captionGuidelines ?? "",
+    editingGuidelines: settings?.editingGuidelines ?? "",
   });
 }

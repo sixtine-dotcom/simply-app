@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { getContactInfoFields, getContactFieldError, getQuestionAnswerError, hasFormAnswer as hasAnswer } from "@/lib/form-fields";
 
 type Question = {
   id: string;
@@ -64,14 +65,8 @@ function splitParagraphs(text: string | null | undefined) {
     .filter(Boolean);
 }
 
-function hasAnswer(value: unknown) {
-  if (Array.isArray(value)) return value.length > 0;
-  return value !== null && value !== undefined && String(value).trim() !== "";
-}
-
 function isQuestionAnswered(question: Question, value: unknown) {
-  if (!question.isRequired) return true;
-  return hasAnswer(value);
+  return !getQuestionAnswerError(question, value);
 }
 
 export function FormRunner({ form, initialAnswers, userFirstName }: FormRunnerProps) {
@@ -127,7 +122,6 @@ export function FormRunner({ form, initialAnswers, userFirstName }: FormRunnerPr
 
     const payload = answersOverride ?? answers;
     const requiredMissing = form.questions.some((question) => {
-      if (!question.isRequired) return false;
       return !isQuestionAnswered(question, payload[question.id]);
     });
 
@@ -233,6 +227,15 @@ export function FormRunner({ form, initialAnswers, userFirstName }: FormRunnerPr
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Enter") return;
       const target = event.target as HTMLElement | null;
+      if (target?.hasAttribute("data-contact-field")) {
+        const fields = Array.from(target.closest("[data-contact-info]")?.querySelectorAll<HTMLInputElement>("input[data-contact-field]") || []);
+        const nextField = fields[fields.indexOf(target as HTMLInputElement) + 1];
+        if (nextField) {
+          event.preventDefault();
+          nextField.focus();
+          return;
+        }
+      }
       const isTextarea = target?.tagName === "TEXTAREA";
       if (isTextarea && event.shiftKey) return;
       if (target?.tagName === "BUTTON") return;
@@ -257,7 +260,7 @@ export function FormRunner({ form, initialAnswers, userFirstName }: FormRunnerPr
           : form.submitButtonLabel || "Versturen";
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-[#f3f3f1] text-[#191919] md:left-72">
+    <div className="fixed inset-0 z-[60] flex flex-col bg-[#f3f3f1] text-[#191919] md:left-72 md:z-40">
       <div className="border-b border-black/[0.06] bg-white/80 px-4 py-3 backdrop-blur-md sm:px-6">
         <div className="mx-auto flex max-w-3xl items-center gap-3">
           <Link
@@ -497,7 +500,7 @@ function QuestionScreen({
       ) : null}
 
       <div className={cn("mt-8", showValidation && !isQuestionAnswered(question, value) && "rounded-2xl ring-2 ring-red-300/70 ring-offset-4")}>
-        {renderField(question, value, onChange, onSelectChoice, inputRef)}
+        {renderField(question, value, onChange, onSelectChoice, inputRef, showValidation)}
       </div>
 
       {question.helperText ? (
@@ -505,7 +508,7 @@ function QuestionScreen({
       ) : null}
 
       {showValidation && !isQuestionAnswered(question, value) ? (
-        <p className="mt-3 text-sm font-medium text-red-600">Vul een antwoord in om verder te gaan.</p>
+        <p role="alert" className="mt-3 text-sm font-medium text-red-600">{getQuestionAnswerError(question, value)}</p>
       ) : null}
     </div>
   );
@@ -516,8 +519,43 @@ function renderField(
   value: unknown,
   onChange: (value: unknown) => void,
   onSelectChoice: (value: unknown) => void,
-  inputRef: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>
+  inputRef: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>,
+  showValidation: boolean
 ) {
+  if (question.type === "CONTACT_INFO") {
+    const fields = getContactInfoFields(question.options);
+    const contact = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+    return (
+      <div data-contact-info className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+        {fields.map((field, index) => {
+          const error = showValidation ? getContactFieldError(field.key, contact[field.key], question.isRequired) : null;
+          const id = `${question.id}-${field.key}`;
+          return (
+            <div key={field.key} className={field.key === "company" ? "sm:col-span-2" : undefined}>
+              <label htmlFor={id} className="block text-sm font-medium text-[#444]">
+                {field.label}{question.isRequired ? <span aria-hidden="true" className="ml-1 text-[#173622]">*</span> : null}
+              </label>
+              <input
+                ref={index === 0 ? inputRef as React.RefObject<HTMLInputElement> : undefined}
+                id={id}
+                name={field.key}
+                type={field.type}
+                autoComplete={field.autoComplete}
+                data-contact-field
+                required={question.isRequired}
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? `${id}-error` : undefined}
+                value={typeof contact[field.key] === "string" ? contact[field.key] as string : ""}
+                onChange={(event) => onChange({ ...contact, [field.key]: event.target.value })}
+                className={cn("mt-1 w-full min-w-0 border-0 border-b-2 bg-transparent py-2 text-xl text-[#191919] outline-none transition focus:border-[#173622]", error ? "border-red-400" : "border-black/15")}
+              />
+              {error ? <p id={`${id}-error`} className="mt-1 text-sm text-red-600">{error}</p> : null}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
   if (question.type === "LONG_TEXT") {
     return (
       <textarea

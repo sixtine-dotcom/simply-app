@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createAuditLog, getCurrentUser } from "@/lib/auth";
 import { getAssignedFormForUserBySlug, upsertFormResponse } from "@/lib/forms";
 import { syncNutritionPlanForEnrollment } from "@/lib/nutrition-plan-assignment";
+import { FormAnswerValidationError } from "@/lib/form-fields";
 
 const submitSchema = z.object({
   submit: z.boolean().default(true),
@@ -73,6 +74,7 @@ export async function POST(
 
     return NextResponse.json({ response });
   } catch (error) {
+    if (error instanceof FormAnswerValidationError) return NextResponse.json({ error: error.message }, { status: 400 });
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors[0].message }, { status: 400 });
     }

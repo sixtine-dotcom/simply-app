@@ -1973,6 +1973,7 @@ model VideoStudioSettings {
   tenantId          String?  @unique
   captionExamples   String?  @db.Text
   captionGuidelines String?  @db.Text
+  editingGuidelines String?  @db.Text
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
@@ -2028,6 +2029,10 @@ model Carousel {
   source             String    @default("AI")
   // The filled Canva design (AI carousels).
   canvaDesignId      String?
+  // Local Open Design project and the approved text used to create it.
+  openDesignProjectId String?
+  openDesignTextHash  String?
+  openDesignRunId     String?
   // "Schrijf een caption": the Mac writes one from the slides.
   captionRequestedAt DateTime?
   // Feedback for "Opnieuw laten schrijven": the Mac rewrites the current caption with it.
@@ -2048,6 +2053,17 @@ model Carousel {
   updatedAt          DateTime  @updatedAt
 
   @@index([tenantId, scheduledAt])
+}
+
+model CarouselBrandPhoto {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  name      String
+  url       String
+  cutoutUrl String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
 }
 
 model CarouselSettings {

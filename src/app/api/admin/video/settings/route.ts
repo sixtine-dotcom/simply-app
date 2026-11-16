@@ -6,6 +6,7 @@ import { requireVideoAdmin } from "@/lib/video-studio";
 const schema = z.object({
   captionExamples: z.string().max(60000).nullable(),
   captionGuidelines: z.string().max(4000).nullable(),
+  editingGuidelines: z.string().max(4000).nullable(),
 });
 
 // Tone of voice for AI captions: example captions and extra guidelines.

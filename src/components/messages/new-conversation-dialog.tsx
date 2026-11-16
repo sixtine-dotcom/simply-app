@@ -44,7 +44,8 @@ export function NewConversationDialog({ users }: NewConversationDialogProps) {
       });
 
       if (!response.ok) {
-        throw new Error("Kon gesprek niet starten");
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Kon gesprek niet starten");
       }
 
       const { conversationId } = await response.json();
@@ -63,7 +64,7 @@ export function NewConversationDialog({ users }: NewConversationDialogProps) {
 
   if (!isOpen) {
     return (
-      <Button size="sm" onClick={() => setIsOpen(true)}>
+      <Button size="sm" aria-label="Nieuw privégesprek" onClick={() => setIsOpen(true)}>
         <Plus className="h-4 w-4" />
       </Button>
     );

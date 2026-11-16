@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getCurrentUser, createAuditLog } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
+import { MessageAccessError } from "@/lib/message-policy";
 import { getOrCreateConversation, getUserConversations } from "@/lib/messages";
 
 const createConversationSchema = z.object({
@@ -29,6 +30,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ conversationId });
   } catch (error) {
+    if (error instanceof MessageAccessError) return NextResponse.json({ error: error.message }, { status: 403 });
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: error.errors[0].message },

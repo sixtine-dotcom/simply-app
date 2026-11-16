@@ -1,12 +1,14 @@
 // Shared by the Carousel Studio pages and API routes (no server-only imports here).
 
+export type CarouselBrandPhoto = { id: string; name: string; url: string; cutoutUrl?: string | null };
+
 export type CarouselSlide = {
   type: "hook" | "body" | "cta" | "proof";
   title?: string;
   kicker?: string;
   text?: string;
   keyword?: string;
-  /** Own photo for this slide (templates made in the app); otherwise the carousel's background photo. */
+  /** Own photo for this slide (in the app and Open Design); otherwise the carousel's background photo. */
   photo?: string;
 };
 
@@ -59,7 +61,7 @@ export const CAROUSEL_STATUS_LABELS: Record<string, string> = {
   // AI carousels: text first, then Canva (filled on request in Claude), then the slides.
   WRITING: "AI schrijft…",
   DRAFT: "Tekst na te kijken",
-  TEXT_APPROVED: "Klaar voor Canva",
+  TEXT_APPROVED: "Tekst goedgekeurd",
   CANVA_REQUESTED: "Wordt gemaakt in Canva…",
   IN_CANVA: "In Canva",
   CANVA_EXPORT: "Slides worden opgehaald…",

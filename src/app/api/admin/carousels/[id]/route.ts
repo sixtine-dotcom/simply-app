@@ -4,7 +4,6 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireVideoAdmin } from "@/lib/video-studio";
 import { startCarouselCanvaExport } from "@/lib/canva-export";
-import { renderCarouselToR2, renderInputForCarousel } from "@/lib/carousel-render";
 
 export const dynamic = "force-dynamic";
 // Drawing up to 10 slides in the app ("render-app") takes a few seconds.
@@ -89,7 +88,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   } else if (input.action === "new-photo") {
     data = { photoUrl: null, ...(input.query ? { photoQuery: input.query } : {}), renderRequestedAt: new Date() };
   } else if (input.action === "set-photo") {
-    data = { photoUrl: input.photoUrl, renderRequestedAt: new Date() };
+    data = {
+      photoUrl: input.photoUrl,
+      renderRequestedAt: null,
+      ...(carousel.status === "APPROVED" ? { status: "READY", publishStatus: null } : {}),
+    };
   } else if (input.action === "reorder") {
     data = { imageUrls: input.imageUrls };
   } else if (input.action === "refresh-canva") {
@@ -108,6 +111,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (carousel.source === "UPLOAD") return NextResponse.json({ error: "Geüploade carousels hebben al slides" }, { status: 400 });
     if (["WRITING", "DRAFT"].includes(carousel.status)) return NextResponse.json({ error: "Keur eerst de tekst goed" }, { status: 400 });
     try {
+      // Rendering needs the native `sharp` module. Load it only for this
+      // action, so ordinary save/approve/schedule requests never depend on
+      // the local image-processing runtime.
+      const { renderCarouselToR2, renderInputForCarousel } = await import("@/lib/carousel-render");
       const renderInput = await renderInputForCarousel(carousel, input.template);
       if (renderInput.slides.length < 2) return NextResponse.json({ error: "Een carousel heeft minstens 2 slides nodig" }, { status: 400 });
       const imageUrls = await renderCarouselToR2(renderInput, `carousel-studio/${carousel.tenantId ?? "default"}/${carousel.id}`);
@@ -132,7 +139,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   } else if (input.action === "approve") {
     if (!carousel.imageUrls) return NextResponse.json({ error: "Wacht tot de slides klaar zijn" }, { status: 400 });
     if (!carousel.caption?.trim()) return NextResponse.json({ error: "Er is nog geen caption" }, { status: 400 });
-    data = { status: "APPROVED", publishStatus: carousel.scheduledAt ? "SCHEDULED" : null, publishError: null };
+    const hasFutureMoment = Boolean(carousel.scheduledAt && carousel.scheduledAt.getTime() >= Date.now() - 60_000);
+    data = { status: "APPROVED", publishStatus: hasFutureMoment ? "SCHEDULED" : null, publishError: null };
   } else if (input.action === "unapprove") {
     data = { status: "READY", publishStatus: null };
   } else if (input.action === "reschedule") {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { getConversationMessages, sendMessage } from "@/lib/messages";
+import { MessageAccessError } from "@/lib/message-policy";
 
 const sendMessageSchema = z.object({
   content: z.string().min(1, "Bericht is verplicht").max(5000),
@@ -41,7 +42,7 @@ export async function POST(
       );
     }
 
-    if (error instanceof Error && error.message === "Geen toegang tot dit gesprek") {
+    if (error instanceof MessageAccessError) {
       return NextResponse.json({ error: error.message }, { status: 403 });
     }
 
@@ -73,7 +74,7 @@ export async function GET(
 
     return NextResponse.json(result);
   } catch (error) {
-    if (error instanceof Error && error.message === "Geen toegang tot dit gesprek") {
+    if (error instanceof MessageAccessError) {
       return NextResponse.json({ error: error.message }, { status: 403 });
     }
 

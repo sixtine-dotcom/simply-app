@@ -5,7 +5,7 @@ import { VIDEO_STATUS_LABELS, VideoProjectStatus, VideoStep } from "@/lib/video-
 const STATUS_STYLES: Record<VideoProjectStatus, string> = {
   WAITING_FOR_FOOTAGE: "bg-slate-100 text-slate-700",
   PROCESSING: "bg-amber-100 text-amber-800",
-  READY_FOR_REVIEW: "bg-emerald-100 text-emerald-800",
+  READY_FOR_REVIEW: "bg-orange-100 text-orange-800",
   APPLYING_FEEDBACK: "bg-amber-100 text-amber-800",
   APPROVED: "bg-[#385739] text-white",
   FAILED: "bg-red-100 text-red-700",

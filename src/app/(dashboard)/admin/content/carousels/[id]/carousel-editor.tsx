@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, ImageIcon, Loader2, Plus, RefreshCw, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { CAROUSEL_STATUS_LABELS, CAROUSEL_TEMPLATE_OPTIONS, CarouselSlide, PUBLISH_STATUS_LABELS, SLIDE_TYPE_LABELS, boldWords } from "@/lib/carousel-shared";
+import { CAROUSEL_STATUS_LABELS, CAROUSEL_TEMPLATE_OPTIONS, CarouselBrandPhoto, CarouselSlide, PUBLISH_STATUS_LABELS, SLIDE_TYPE_LABELS, boldWords } from "@/lib/carousel-shared";
 import { uploadCarouselImage } from "../carousel-settings";
+import { OpenDesignPanel } from "./open-design-panel";
+import { BrandPhotosPanel, uploadBrandPhoto } from "./brand-photos-panel";
 
 export type EditorCarousel = {
   id: string;
@@ -20,6 +22,7 @@ export type EditorCarousel = {
   source: string;
   captionRequestedAt: string | null;
   canvaDesignId: string | null;
+  openDesignProjectId: string | null;
   updatedAt: string;
   imageUrls: string[] | null;
   renderedAt: string | null;
@@ -68,7 +71,7 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [photoQuery, setPhotoQuery] = useState("");
+  const [brandPhotos, setBrandPhotos] = useState<CarouselBrandPhoto[]>([]);
   const [captionFeedback, setCaptionFeedback] = useState("");
   const [moment, setMoment] = useState(toLocalInput(initial.scheduledAt));
   // Existing carousels (uploaded images or a Canva link): no text editing, the slides are as designed.
@@ -219,19 +222,6 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
     return ok;
   }
 
-  async function ownPhoto(files: FileList | null) {
-    const file = files?.[0];
-    if (!file) return;
-    setBusy("photo");
-    try {
-      const url = await uploadCarouselImage(file);
-      await act("set-photo", { photoUrl: url });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Uploaden mislukt");
-      setBusy(null);
-    }
-  }
-
   /** Extra explanation slide, just before the call-to-action (max 10 slides). */
   const addSlide = () => {
     setSlides((all) => {
@@ -252,13 +242,15 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
     setDirty(true);
   };
 
-  /** Own photo for one slide (used by the templates made in the app). */
+  /** Own photo for one slide (in the app and Open Design). */
   async function setSlidePhoto(index: number, file: File | undefined) {
     if (!file) return;
     setBusy(`slide-photo-${index}`);
     setError(null);
     try {
-      editSlide(index, { photo: await uploadCarouselImage(file) });
+      const photo = await uploadBrandPhoto(file);
+      setBrandPhotos((all) => [photo, ...all]);
+      editSlide(index, { photo: photo.url });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Uploaden mislukt");
     }
@@ -271,7 +263,7 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-start gap-3">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-[1_1_20rem]">
           <Link href="/admin/content/carousels" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" /> Carousels
           </Link>
@@ -358,11 +350,14 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
           ) : !locked ? (
             carousel.status === "APPROVED" ? (
               <Button variant="outline" disabled={busy !== null} onClick={() => void act("unapprove")}>
-                Toch niet inplannen
+                Goedkeuring intrekken
               </Button>
             ) : (
-              <Button disabled={busy !== null || rendering || dirty || !carousel.imageUrls} onClick={() => void act("approve")} title={dirty ? "Sla eerst je wijzigingen op" : undefined}>
-                <Check className="mr-1.5 h-4 w-4" /> Goedkeuren &amp; inplannen
+              <Button
+                disabled={busy !== null || rendering || !carousel.imageUrls}
+                onClick={() => void act("approve")}
+              >
+                <Check className="mr-1.5 h-4 w-4" /> Goedkeuren
               </Button>
             )
           ) : null}
@@ -394,6 +389,28 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
         <p className="rounded-2xl bg-red-50 p-3 text-sm text-red-700">{error ?? carousel.publishError ?? carousel.errorMessage}</p>
       ) : null}
 
+      {!uploaded && !locked ? (
+        <BrandPhotosPanel
+          photos={brandPhotos}
+          selected={carousel.photoUrl}
+          disabled={busy !== null}
+          dirty={dirty}
+          onSelect={(url) => act("set-photo", { photoUrl: url })}
+          onBusy={(value) => setBusy(value ? "brand-photos" : null)}
+          onPhotos={setBrandPhotos}
+        />
+      ) : null}
+
+      {!uploaded && !locked && ["TEXT_APPROVED", "READY", "APPROVED", "IN_CANVA"].includes(carousel.status) ? (
+        <OpenDesignPanel
+          carousel={carousel}
+          disabled={busy !== null}
+          dirty={dirty}
+          onBusy={(value) => setBusy(value ? "open-design" : null)}
+          onUpdated={setCarousel}
+        />
+      ) : null}
+
       {/* The rendered slides, as they will appear on Instagram. */}
       <div className="flex snap-x gap-3 overflow-x-auto pb-2">
         {textStage && !carousel.imageUrls?.length ? (
@@ -403,7 +420,9 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
               : carousel.status === "DRAFT"
               ? "Lees de tekst hieronder na, pas aan waar nodig en klik op Tekst goedkeuren."
               : carousel.status === "TEXT_APPROVED"
-                ? "Tekst goedgekeurd. Hieronder zie je een voorbeeld. Klik op Maak slides in de app (meteen klaar), of op Maak in Canva voor je Canva-sjabloon."
+                ? carousel.openDesignProjectId
+                  ? "Je ontwerp staat in Open Design. Klik op Open ontwerp om het af te werken en daarna op Haal slides op om ze hier te bekijken."
+                  : "Tekst goedgekeurd. Maak een ontwerp in Open Design via het blok hierboven. Je kunt ook slides in de app maken of je Canva-sjabloon gebruiken."
                 : makingCanva
                 ? "Je Canva-sjabloon wordt ingevuld (binnen ± 5 minuten, als de Claude-app openstaat). Daarna verschijnt Open in Canva."
                 : carousel.status === "CANVA_EXPORT"
@@ -426,7 +445,7 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
             <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(e) => void dropSlides(e.target.files)} />
           </label>
         ) : null}
-        {carousel.status === "TEXT_APPROVED" && !carousel.imageUrls?.length && !dirty
+        {carousel.status === "TEXT_APPROVED" && !carousel.openDesignProjectId && !carousel.imageUrls?.length && !dirty
           ? carousel.slides.map((_, i) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -489,27 +508,7 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
         )}
       </div>
 
-      {false ? (
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <ImageIcon className="h-4 w-4 text-muted-foreground" />
-          <span>Achtergrondfoto:</span>
-          <input
-            value={photoQuery}
-            onChange={(e) => setPhotoQuery(e.target.value)}
-            placeholder={carousel.photoQuery ? `bv. ${carousel.photoQuery}` : "zoekterm (Engels), bv. green smoothie"}
-            className="h-9 w-64 rounded-lg border border-slate-200 px-3"
-          />
-          <Button size="sm" variant="outline" disabled={busy !== null || rendering} onClick={() => void act("new-photo", photoQuery.trim() ? { query: photoQuery.trim() } : {})}>
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Andere foto
-          </Button>
-          <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 hover:bg-slate-50">
-            {busy === "photo" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Eigen foto
-            <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => void ownPhoto(e.target.files)} />
-          </label>
-        </div>
-      ) : null}
-
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         {uploaded ? (
           <section className="rounded-2xl border border-white/70 bg-white/85 p-4 text-sm text-muted-foreground">
             {fromCanvaLink ? (
@@ -528,7 +527,7 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
           <section className="space-y-2">
             <h2 className="font-semibold text-slate-950">Tekst per slide</h2>
             <p className="text-sm text-muted-foreground">
-              Voor slides in de app kies je per slide een eigen foto en eventueel een titel en kicker; zet **woorden** tussen sterretjes voor cursief (titel) of vet (tekst). Een extra slide komt vóór de call-to-action (maximaal 10).
+              Kies eventueel per slide een andere eigen foto voor de app of Open Design. Zet **woorden** tussen sterretjes voor nadruk. Een extra slide komt vóór de call-to-action (maximaal 10).
             </p>
             <div className="divide-y divide-slate-100 rounded-2xl bg-white/85">
               {slides.map((slide, i) => {
@@ -540,6 +539,19 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
                       <p className={slide.type === "hook" && value.length > 55 ? "font-medium text-red-600" : undefined}>
                         {value.length} tekens{slide.type === "hook" && value.length > 55 ? " · te lang" : ""}
                       </p>
+                      {brandPhotos.length && !locked ? (
+                        <select
+                          aria-label={`Foto voor slide ${i + 1}`}
+                          value={slide.photo ?? ""}
+                          disabled={busy !== null}
+                          onChange={(e) => editSlide(i, { photo: e.target.value || undefined })}
+                          className="mt-1 w-full min-w-0 rounded border border-slate-200 bg-white py-1 text-xs"
+                        >
+                          <option value="">Carouselfoto</option>
+                          {slide.photo && !brandPhotos.some((photo) => (photo.cutoutUrl || photo.url) === slide.photo) ? <option value={slide.photo}>Eigen slidefoto</option> : null}
+                          {brandPhotos.map((photo) => <option key={photo.id} value={photo.cutoutUrl || photo.url}>{photo.name}{photo.cutoutUrl ? " · vrijstaand" : ""}</option>)}
+                        </select>
+                      ) : null}
                       {!locked ? (
                         slide.photo ? (
                           <span className="mt-1 flex items-center gap-1">
@@ -558,7 +570,7 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
                       ) : null}
                     </div>
                     {slide.type === "hook" ? (
-                      <div className="space-y-1">
+                      <div className="min-w-0 space-y-1">
                         <AutoTextarea
                           disabled={locked}
                           value={slide.title ?? ""}
@@ -575,7 +587,7 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
                         />
                       </div>
                     ) : (
-                    <div className="space-y-1">
+                    <div className="min-w-0 space-y-1">
                       {/* Title and kicker: only used by the templates made in the app (Canva fills the text only). */}
                       <div className="grid grid-cols-[1fr_2fr] gap-1">
                         <input
@@ -583,14 +595,14 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
                           value={slide.kicker ?? ""}
                           onChange={(e) => editSlide(i, { kicker: e.target.value || undefined })}
                           placeholder="Kicker (cursief, optioneel)"
-                          className="rounded-md border border-transparent bg-transparent px-2 py-1 text-xs italic hover:border-slate-200 focus:border-slate-300 focus:outline-none"
+                          className="min-w-0 w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-xs italic hover:border-slate-200 focus:border-slate-300 focus:outline-none"
                         />
                         <input
                           disabled={locked}
                           value={slide.title ?? ""}
                           onChange={(e) => editSlide(i, { title: e.target.value || undefined })}
                           placeholder="Titel in grote letters (optioneel, voor slides in de app)"
-                          className="rounded-md border border-transparent bg-transparent px-2 py-1 text-xs font-medium hover:border-slate-200 focus:border-slate-300 focus:outline-none"
+                          className="min-w-0 w-full rounded-md border border-transparent bg-transparent px-2 py-1 text-xs font-medium hover:border-slate-200 focus:border-slate-300 focus:outline-none"
                         />
                       </div>
                       <AutoTextarea
@@ -678,7 +690,7 @@ export function CarouselEditor({ initial }: { initial: EditorCarousel }) {
               <h2 className="font-semibold text-slate-950">Moment</h2>
               <input type="datetime-local" value={moment} onChange={(e) => setMoment(e.target.value)} className="h-9 w-full rounded-lg border border-slate-200 px-3" />
               <Button size="sm" variant="outline" disabled={busy !== null || !moment} onClick={() => void act("reschedule", { scheduledAt: new Date(moment).toISOString() })}>
-                Moment wijzigen
+                Inplannen
               </Button>
             </div>
           ) : null}

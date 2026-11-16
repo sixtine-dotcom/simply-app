@@ -6,6 +6,7 @@ import {
   Role,
 } from "@prisma/client";
 import { db } from "@/lib/db";
+import { CONTACT_INFO_FIELDS, getContactInfoFields, getQuestionAnswerError, FormAnswerValidationError } from "@/lib/form-fields";
 
 export const FORM_QUESTION_TYPE_OPTIONS = [
   { value: "SHORT_TEXT", label: "Korte tekst" },
@@ -35,6 +36,8 @@ export function formatFormAnswerValue(value: unknown): string {
     return value.map((entry) => formatFormAnswerValue(entry)).filter(Boolean).join(", ");
   }
   if (typeof value === "object") {
+    const contact = CONTACT_INFO_FIELDS.filter((field) => typeof (value as Record<string, unknown>)[field.key] === "string");
+    if (contact.length) return contact.map((field) => `${field.label}: ${(value as Record<string, string>)[field.key]}`).join("\n");
     return JSON.stringify(value);
   }
   return String(value);
@@ -75,9 +78,11 @@ export function normalizeQuestionPayload(
     placeholder: question.placeholder?.trim() || null,
     helperText: question.helperText?.trim() || null,
     options:
-      question.type === "MULTIPLE_CHOICE" ||
+      question.type === "CONTACT_INFO"
+        ? getContactInfoFields(options).map((field) => field.key)
+        : question.type === "MULTIPLE_CHOICE" ||
       question.type === "CHECKBOXES" ||
-      question.type === "DROPDOWN"
+      question.type === "DROPDOWN" || question.type === "FILE_UPLOAD"
         ? options
         : [],
   };
@@ -612,6 +617,17 @@ export async function upsertFormResponse(params: {
   submit: boolean;
 }) {
   const { tenantId, formId, assignmentId, userId, answers, submit } = params;
+
+  const questions = await db.formQuestion.findMany({ where: { formId, form: { tenantId } }, orderBy: { position: "asc" } });
+  const questionIds = new Set(questions.map((question) => question.id));
+  if (answers.some((answer) => !questionIds.has(answer.questionId))) throw new FormAnswerValidationError("Een antwoord hoort niet bij dit formulier.");
+  if (submit) {
+    const values = new Map(answers.map((answer) => [answer.questionId, answer.value]));
+    for (const question of questions) {
+      const error = getQuestionAnswerError({ ...question, options: parseQuestionOptions(question.options) }, values.get(question.id));
+      if (error) throw new FormAnswerValidationError(`${question.title}: ${error}`);
+    }
+  }
 
   const response = await db.formResponse.upsert({
     where: {

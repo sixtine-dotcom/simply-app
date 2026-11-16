@@ -74,6 +74,7 @@ const adminNavItems = [
     title: "People",
     items: [
       { href: "/admin/users", label: "People" },
+      { href: "/messages", label: "Berichten" },
       { href: "/admin/forms", label: "Forms" },
       { href: "/admin/sessions", label: "Coaching" },
     ],

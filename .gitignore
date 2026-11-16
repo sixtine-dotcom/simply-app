@@ -107,3 +107,6 @@ coverage/
 
 # Fonts the in-app carousel renderer needs (SIL OFL, see LICENSE files there)
 !src/lib/carousel-render/fonts/*.woff
+
+# Existing Canva examples supplied with the fixed Open Design brief.
+!src/lib/carousel-render/briefing/referenties/*.jpg

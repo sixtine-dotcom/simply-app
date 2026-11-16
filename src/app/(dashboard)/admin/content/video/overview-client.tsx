@@ -124,6 +124,7 @@ export function ToneOfVoiceButton() {
   const [open, setOpen] = useState(false);
   const [examples, setExamples] = useState("");
   const [guidelines, setGuidelines] = useState("");
+  const [editingGuidelines, setEditingGuidelines] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -135,6 +136,7 @@ export function ToneOfVoiceButton() {
       .then((data) => {
         setExamples(data.settings?.captionExamples ?? "");
         setGuidelines(data.settings?.captionGuidelines ?? "");
+        setEditingGuidelines(data.settings?.editingGuidelines ?? "");
         setLoaded(true);
       })
       .catch(() => setMessage("Laden mislukt"));
@@ -146,7 +148,7 @@ export function ToneOfVoiceButton() {
     const res = await fetch("/api/admin/video/settings", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ captionExamples: examples || null, captionGuidelines: guidelines || null }),
+      body: JSON.stringify({ captionExamples: examples || null, captionGuidelines: guidelines || null, editingGuidelines: editingGuidelines || null }),
     });
     setSaving(false);
     if (res.ok) setOpen(false);
@@ -156,18 +158,28 @@ export function ToneOfVoiceButton() {
   return (
     <>
       <Button type="button" variant="outline" onClick={() => setOpen(true)}>
-        <MessageSquareQuote className="mr-1.5 h-4 w-4" /> Tone of voice captions
+        <MessageSquareQuote className="mr-1.5 h-4 w-4" /> Video-instellingen
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Tone of voice voor Instagram-captions</DialogTitle>
+            <DialogTitle>Vaste stijl voor video’s en captions</DialogTitle>
             <DialogDescription>
               Plak hier 5 tot 15 captions die je goed vindt, gescheiden door een lege regel of ---. Claude schrijft nieuwe
               captions in dezelfde stijl.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
+            <label className="block space-y-1 text-sm">
+              <span className="font-medium">Montagestijl</span>
+              <Textarea
+                rows={6}
+                value={editingGuidelines}
+                onChange={(event) => setEditingGuidelines(event.target.value)}
+                placeholder="Beschrijf welke cuts, captions en visuele elementen elke sociale video moet krijgen."
+              />
+              <span className="block text-xs text-muted-foreground">Deze instructies worden bij iedere nieuwe sociale video aan de montagepipeline meegegeven.</span>
+            </label>
             <label className="block space-y-1 text-sm">
               <span className="font-medium">Voorbeeldcaptions</span>
               <Textarea rows={12} value={examples} onChange={(event) => setExamples(event.target.value)} placeholder={loaded ? "Plak hier je captions…" : "Laden…"} />

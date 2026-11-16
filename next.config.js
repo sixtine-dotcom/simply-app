@@ -43,7 +43,7 @@ const nextConfig = {
   experimental: {
     // Carousel slides drawn in the app read their fonts from disk (src/lib/carousel-render).
     outputFileTracingIncludes: {
-      '/api/admin/carousels/**': ['./src/lib/carousel-render/fonts/**'],
+      '/api/admin/carousels/**': ['./src/lib/carousel-render/fonts/**', './src/lib/carousel-render/briefing/**'],
     },
   },
 };

@@ -5,6 +5,7 @@ import { getUserSessions } from "@/lib/coaching";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "lucide-react";
 import { SessionCard } from "@/components/coaching/session-card";
+import { AddSessionsToCalendar } from "@/components/coaching/add-sessions-to-calendar";
 
 export default async function CoachingPage() {
   const user = await getCurrentUser();
@@ -58,6 +59,8 @@ export default async function CoachingPage() {
             </span>
           )}
         </header>
+
+        {isClient && upcomingSessions.length > 0 ? <AddSessionsToCalendar /> : null}
 
         <main className="space-y-8">
           {upcomingSessions.length > 0 ? (

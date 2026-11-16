@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
-import { getUserConversations, getOrCreateConversation } from "@/lib/messages";
+import { getUserConversations, getOrCreateConversation, getMessagingContacts } from "@/lib/messages";
+import { isMessagingTeamRole } from "@/lib/message-policy";
 import { db } from "@/lib/db";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,9 @@ export default async function MessagesPage() {
     redirect("/login");
   }
 
-  // Voor klanten: zorg dat het gesprek met de coach altijd bestaat
+  const users = await getMessagingContacts(user.id);
+
+  // Voor klanten: zorg dat het toegestane gesprek met de coach altijd bestaat
   const coachIds: string[] = [];
   if (user.role === "CLIENT") {
     const enrollmentsWithCoach = await db.enrollment.findMany({
@@ -34,7 +37,7 @@ export default async function MessagesPage() {
 
     for (const enrollment of enrollmentsWithCoach) {
       const coachId = enrollment.course.coachId;
-      if (coachId && !coachIds.includes(coachId)) {
+      if (coachId && users.some((contact) => contact.id === coachId) && !coachIds.includes(coachId)) {
         coachIds.push(coachId);
         await getOrCreateConversation(user.id, coachId);
       }
@@ -49,22 +52,6 @@ export default async function MessagesPage() {
     const aTime = a.lastMessageAt?.getTime() ?? a.updatedAt.getTime();
     const bTime = b.lastMessageAt?.getTime() ?? b.updatedAt.getTime();
     return bTime - aTime;
-  });
-
-  // Get users for new conversation (exclude self)
-  const users = await db.user.findMany({
-    where: {
-      id: { not: user.id },
-      deletedAt: null,
-    },
-    select: {
-      id: true,
-      firstName: true,
-      lastName: true,
-      avatarUrl: true,
-      role: true,
-    },
-    orderBy: { firstName: "asc" },
   });
 
   return (
@@ -152,7 +139,7 @@ export default async function MessagesPage() {
                 Nog geen gesprekken
               </p>
               <p className="text-sm text-muted-foreground">
-                Start een nieuw gesprek met iemand uit de community!
+                {isMessagingTeamRole(user.role) ? "Stuur een individueel bericht naar een deelnemer." : "Hier kun je privé met het beheerteam of je coach communiceren."}
               </p>
             </div>
           )}
