@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-16T16:06:30.222411+00:00",
+  "title": "Design System: Simply App — grocery-list surface",
+  "extensions": {
+    "shadows": [],
+    "motion": [
+      {
+        "name": "control-transition",
+        "value": "background-color 160ms ease-out, color 160ms ease-out",
+        "purpose": "Grocery buttons; reduced-motion disables transitions."
+      },
+      {
+        "name": "spinner",
+        "value": "spin 1s linear infinite",
+        "purpose": "Pending add; reduced-motion disables animation."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide-min",
+        "value": "1500px"
+      },
+      {
+        "name": "compact-max",
+        "value": "1150px"
+      },
+      {
+        "name": "single-column-max",
+        "value": "900px"
+      },
+      {
+        "name": "shell-padding-max",
+        "value": "767px"
+      },
+      {
+        "name": "mobile-max",
+        "value": "600px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Grocery workspace only: primary action.",
+      "html": "<button class=\"ds-primary\">Toevoegen</button>",
+      "css": ".ds-primary{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:44px;border-radius:6px;padding:10px 16px;font:600 12px Montserrat,sans-serif;cursor:pointer;transition:background-color 160ms ease-out,color 160ms ease-out;background:#214f36;color:#fff;border:0}.ds-primary:hover{background:#163d27}.ds-primary:focus-visible{outline:2px solid #214f36;outline-offset:4px} @media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none;animation:none}}"
+    },
+    {
+      "name": "Secondary action",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Grocery workspace only: secondary action.",
+      "html": "<button class=\"ds-secondary\">Kopieer lijst</button>",
+      "css": ".ds-secondary{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:44px;border-radius:6px;padding:10px 16px;font:600 12px Montserrat,sans-serif;cursor:pointer;transition:background-color 160ms ease-out,color 160ms ease-out;background:#fff;color:#202620;border:1px solid #cfd5cc}.ds-secondary:hover{background:#f3f5f0}.ds-secondary:focus-visible{outline:2px solid #214f36;outline-offset:4px} @media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none;animation:none}}"
+    },
+    {
+      "name": "Product field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Grocery workspace only: product field.",
+      "html": "<label class=\"ds-label\" for=\"ds-product\">Product toevoegen</label><input class=\"ds-field\" id=\"ds-product\" placeholder=\"Bijvoorbeeld avocado\">",
+      "css": ".ds-label{display:block;margin-bottom:8px;color:#202620;font:600 11px/1.6 Montserrat,sans-serif}.ds-field{border:1px solid #cfd5cc;border-radius:6px;background:#fff;min-height:44px;padding:11px 12px;color:#202620;font:13px/1.5 Montserrat,sans-serif;caret-color:#214f36}.ds-field::placeholder{color:#636b64;opacity:1}.ds-field:focus-visible{outline:2px solid #214f36;outline-offset:4px} @media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none;animation:none}}"
+    },
+    {
+      "name": "List choice",
+      "kind": "nav",
+      "description": "Grocery workspace only: list choice.",
+      "html": "<nav aria-label=\"Je boodschappenlijsten\"><button class=\"ds-choice\" aria-pressed=\"true\">Deze week<span>4 nog nodig</span></button></nav>",
+      "css": ".ds-choice{display:block;width:100%;padding:16px 14px;text-align:left;border:0;border-radius:8px;background:#edf2eb;color:#204d32;font:600 13px/1.7 Montserrat,sans-serif;overflow-wrap:anywhere}.ds-choice span{display:block;margin-top:7px;color:#616a61;font:400 11px Montserrat,sans-serif}.ds-choice:hover{background:#f7f8f5}.ds-choice:focus-visible{outline:2px solid #214f36;outline-offset:4px} @media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none;animation:none}}"
+    },
+    {
+      "name": "Add panel",
+      "kind": "card",
+      "refersTo": "add-panel",
+      "description": "Grocery workspace only: add panel.",
+      "html": "<section class=\"ds-panel\">Product toevoegen</section>",
+      "css": ".ds-panel{background:#f5f7f2;border-radius:8px;padding:16px;color:#202620;font:600 11px/1.6 Montserrat,sans-serif} @media(prefers-reduced-motion:reduce){[class^=\"ds-\"]{transition:none;animation:none}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "User-selected impeccable.style reference: white space, strong list names, fine rules",
+    "overview": "Documents only the shipped /recipes/grocery-list workspace. Shared Montserrat and Simply green remain incumbent; untouched routes are not prescribed a redesign. Source: grocery-workspace.tsx, grocery-workspace.module.css, grocery-list/page.tsx and grocery-direction-contract.md.",
+    "keyCharacteristics": [
+      "Open white workspace",
+      "Active list name leads",
+      "Fine rules and restrained green",
+      "Inline Dutch task controls"
+    ],
+    "rules": [
+      {
+        "name": "Page scope",
+        "body": "Apply grocery-specific layout only to /recipes/grocery-list; evaluate future page improvements separately.",
+        "section": "layout"
+      }
+    ],
+    "dos": [
+      "Do retain visible focus, wrapping names, real checkboxes and recovery states."
+    ],
+    "donts": [
+      "Do not redesign untouched routes from this documentation.",
+      "Do not place a large introduction or permanently expanded recipe panel before the active list."
+    ]
+  }
+}
