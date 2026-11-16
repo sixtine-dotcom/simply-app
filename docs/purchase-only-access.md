@@ -28,3 +28,9 @@ Een echte aankoop-/mailtest met een afgesproken testorder blijft nodig. De autom
 `npx tsx scripts/tests/purchase-access.ts`
 
 Controleert ongeldige webhookhandtekeningen, onbetaalde orders, niet-gekoppelde producten, contact-only accounts, aankoopactivatie, herhaalde webhooks na activatie, mailherstel, oude registratie-links, token-doelbinding, eenmalig gebruik en expliciete beheerdersuitnodigingen.
+
+## Publicatie en volgorde
+
+De beveiligingsaanpassing is op 16 november 2026 succesvol gebouwd en op simplyapp.be gepubliceerd via deployment `dpl_F2J3rCXbAFs4QdgbpFRSYPA6YmsS` (`simply-6ubn0perw-sixtine-1828s-projects.vercel.app`). Broncode, gecontroleerde build en lokale browsertests zijn vastgelegd; er is nog geen echte Shopify-aankoop of klantmail als proef uitgevoerd.
+
+De eigenaar bouwt nog meerdere cursussen. Productkoppelingen hoeven nu niet gekozen te worden om openbare registratie af te sluiten. Configureer en test elke koppeling wanneer de bijbehorende cursus klaar is voor verkoop. Tot die tijd krijgen onbekende/niet-gekoppelde Shopify-producten geen automatische app-toegang.
