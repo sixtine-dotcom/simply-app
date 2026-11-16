@@ -23,7 +23,7 @@
     "ios:sync": "cap sync ios",
     "ios:open": "cap open ios",
     "test:scheduling": "tsx scripts/tests/social-scheduling.ts",
-    "vercel-build": "prisma migrate deploy && next build",
+    "vercel-build": "node scripts/vercel-build.mjs",
     "mobile:check": "node scripts/mobile-readiness.mjs",
     "android:build:debug": "sh scripts/android-build.sh debug"
   },
