@@ -82,7 +82,7 @@
   ],
   "narrative": {
     "northStar": "User-selected impeccable.style reference: white space, strong list names, fine rules",
-    "overview": "Documents only the shipped /recipes/grocery-list workspace. Shared Montserrat and Simply green remain incumbent; untouched routes are not prescribed a redesign. Source: grocery-workspace.tsx, grocery-workspace.module.css, grocery-list/page.tsx and grocery-direction-contract.md.",
+    "overview": "Documents only the shipped /recipes/grocery-list workspace. Shared Montserrat and Simply green remain incumbent; untouched routes are not prescribed a redesign. Source: grocery-workspace.tsx, grocery-workspace.module.css, grocery-list/page.tsx and grocery-direction-contract.md. Frontmatter primitives and isolated component previews record nominal module declarations. In the actual .client-compact shell, buttons inherit a 2.25rem minimum height and 0.2rem corners where that selector overrides module rules; input/select/textarea corners are forced to 0.2rem !important. Explicit icon heights remain 44px, checkbox label targets remain 64px or taller, and fields retain their 44px module minimum height.",
     "keyCharacteristics": [
       "Open white workspace",
       "Active list name leads",

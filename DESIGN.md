@@ -115,12 +115,12 @@ The grocery workspace has no box shadows. Fine 1px rules and pale green surfaces
 
 ## Shapes
 
-Controls and checkbox visuals use 6px corners; list choices, icon actions, and pale panels use 8px corners. Checkbox visuals are 24px square within a larger label target. Standard actions and fields have a 44px minimum height. Icon action boxes are normally 44px square.
+The frontmatter records module declarations: 6px control and checkbox corners, 8px list-choice/icon/panel corners, and 44px minimum heights for standard actions and fields. The incumbent `.client-compact` shell overrides some rendered values: its button rule sets `min-height: 2.25rem` and `border-radius: 0.2rem`, while its input/select/textarea rule forces `border-radius: 0.2rem !important`. These shell-computed exceptions must not be mistaken for uniform rendered 6px controls or 44px button minima. Fields retain the module’s 44px minimum height. Explicit 44px icon heights remain; mobile title-edit icons are 40px wide by 44px high. Checkbox visuals remain 24px square with 6px corners inside label targets at least 67px high on desktop and 64px on mobile. Panels retain their module corners.
 
 ## Components
 
 - **Actions:** green primary, bordered white secondary, quiet text, and icon buttons. Primary hover darkens; secondary hover uses a pale surface. Disabled controls use .55 opacity and a wait cursor.
-- **Fields:** white fill, 1px field border, visible labels, muted placeholders. Focus uses a 2px accent outline with 4px offset, including the custom checkbox visual.
+- **Fields:** white fill, 1px field border, visible labels, muted placeholders; the shell forces 0.2rem corners as described above. Focus uses a 2px accent outline with 4px offset, including the custom checkbox visual.
 - **List navigation:** desktop names with remaining counts and selected pale green fill; native select on mobile. Existing application navigation remains incumbent.
 - **Product rows:** real checkbox, wrapping product name, quantity, and inline edit action separated by bottom rules. Checked names strike through and use muted text. Toggling is optimistic and rolls back on failure.
 - **Inline forms:** rename, add, edit quantity/unit, and create list. Successful adding clears the form and restores focus to the product field after controls re-enable. Removal requires inline confirmation.
