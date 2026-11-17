@@ -6,7 +6,7 @@ import { deletePost, updatePost } from "@/lib/community";
 const updatePostSchema = z.object({
   title: z.string().max(160).optional().or(z.literal("")),
   content: z.string().min(1, "Post content is required").max(10000),
-});
+}).strict();
 
 export async function PATCH(
   request: NextRequest,

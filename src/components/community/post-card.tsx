@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,8 @@ import { FileText, Heart, Loader2, MessageCircle, MoreHorizontal, Pencil, Pin, P
 import { cn } from "@/lib/utils";
 import { PostPoll } from "@/components/community/post-poll";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { COMMENTS_CLOSED_MESSAGE, canManagePostComments } from "@/lib/community-comment-policy";
+import { PostCommentsControl, CommentsClosedNotice } from "@/components/community/post-comments-control";
 import { MentionField } from "@/components/community/mention-field";
 
 interface PostCardProps {
@@ -22,6 +24,7 @@ interface PostCardProps {
     title?: string | null;
     content: string;
     isPinned: boolean;
+    commentsClosed: boolean;
     createdAt: Date;
     author: {
       id: string;
@@ -89,6 +92,8 @@ interface PostCardProps {
 export function PostCard({ post, currentUserId, currentUserRole, currentUser, showSpace = true }: PostCardProps) {
   const router = useRouter();
   const { toast } = useToast();
+  const [commentsClosed, setCommentsClosed] = useState(post.commentsClosed);
+  useEffect(() => { setCommentsClosed(post.commentsClosed); }, [post.commentsClosed]);
   const [isLiked, setIsLiked] = useState(post.isLiked);
   const [likeCount, setLikeCount] = useState(post._count.likes);
   const [isLiking, setIsLiking] = useState(false);
@@ -230,7 +235,7 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
 
   const handleReply = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!reply.trim() || isReplying) return;
+    if (commentsClosed || !reply.trim() || isReplying) return;
 
     setIsReplying(true);
     try {
@@ -240,7 +245,10 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
         body: JSON.stringify({ content: reply.trim(), attachments: [], mentions: mentionedUserIds, parentId: replyTo?.id }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Je reactie kon niet worden geplaatst.");
+      if (!response.ok) {
+        if (data.error === COMMENTS_CLOSED_MESSAGE) { setCommentsClosed(true); router.refresh(); }
+        throw new Error(data.error || "Je reactie kon niet worden geplaatst.");
+      }
       setReply("");
       setMentionedUserIds([]);
       setReplyTo(null);
@@ -297,6 +305,7 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
           </div>
 
           <div className="relative flex items-center gap-1">
+            {canManagePostComments(currentUserRole) ? <PostCommentsControl postId={post.id} closed={commentsClosed} onChanged={setCommentsClosed} /> : null}
             {isPinned && (
               <Pin className="h-4 w-4 text-primary" />
             )}
@@ -518,7 +527,7 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
                           </div>
                           <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[#404741]">{comment.content}</p>
                         </div>
-                        <button
+                        {!commentsClosed ? <button
                           type="button"
                           onClick={() => setReplyTo({ id: comment.id, name: `${comment.author.firstName} ${comment.author.lastName}`, content: comment.content })}
                           aria-label={`Reageer op ${comment.author.firstName}`}
@@ -526,13 +535,13 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
                           className="absolute right-0 top-0 flex h-7 w-7 items-center justify-center rounded-lg text-[#737b75] opacity-0 transition hover:bg-[#edf2ed] hover:text-[#173622] focus:opacity-100 group-hover:opacity-100"
                         >
                           <ReplyIcon className="h-4 w-4" />
-                        </button>
+                        </button> : null}
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <form onSubmit={handleReply} className="flex shrink-0 items-center gap-3 border-t border-black/10 bg-white px-5 py-4">
+                {commentsClosed ? <div className="px-5"><CommentsClosedNotice /></div> : <form onSubmit={handleReply} className="flex shrink-0 items-center gap-3 border-t border-black/10 bg-white px-5 py-4">
                   {replyTo ? (
                     <div className="absolute inset-x-5 bottom-[68px] flex items-center gap-2 rounded-xl border border-[#173622]/20 bg-[#f5f8f4] px-3 py-2 text-[10px] text-[#667068]">
                       <span>Reageer op</span>
@@ -559,7 +568,7 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
                   <button type="submit" disabled={!reply.trim() || isReplying} aria-label="Reactie plaatsen" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#173622] text-white transition hover:bg-[#21492e] disabled:cursor-not-allowed disabled:opacity-35">
                     {isReplying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </button>
-                </form>
+                </form>}
               </DialogContent>
             </Dialog>
             <div className="space-y-4">
@@ -578,7 +587,7 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
                     </div>
                     <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-[#404741]">{comment.content}</p>
                   </div>
-                  <button
+                  {!commentsClosed ? <button
                     type="button"
                     onClick={() => setReplyTo({ id: comment.id, name: `${comment.author.firstName} ${comment.author.lastName}`, content: comment.content })}
                     aria-label={`Reageer op ${comment.author.firstName}`}
@@ -586,14 +595,14 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
                     className="absolute right-0 top-0 flex h-7 w-7 items-center justify-center rounded-lg text-[#737b75] opacity-0 transition hover:bg-[#edf2ed] hover:text-[#173622] focus:opacity-100 group-hover:opacity-100"
                   >
                     <ReplyIcon className="h-4 w-4" />
-                  </button>
+                  </button> : null}
                 </div>
               ))}
             </div>
           </div>
         ) : null}
 
-        <form onSubmit={handleReply} className="border-t border-black/10 pt-4">
+        {commentsClosed ? <CommentsClosedNotice /> : <form onSubmit={handleReply} className="border-t border-black/10 pt-4">
           {replyTo ? (
             <div className="mb-2 flex items-center gap-2 rounded-xl border border-[#173622]/20 bg-[#f5f8f4] px-3 py-2 text-[10px] text-[#667068]">
               <span>Reageer op</span>
@@ -627,7 +636,7 @@ export function PostCard({ post, currentUserId, currentUserRole, currentUser, sh
             {isReplying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </button>
           </div>
-        </form>
+        </form>}
       </CardContent>
     </Card>
   );

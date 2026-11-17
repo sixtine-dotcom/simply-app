@@ -1,4 +1,5 @@
 import { db } from "./db";
+import { CommentsClosedError, canManagePostComments } from "./community-comment-policy";
 import { getBlockingCourseFormsForUser } from "./forms";
 
 export interface SpaceWithMeta {
@@ -31,6 +32,7 @@ export interface PostWithDetails {
   pollQuestion: string | null;
   pollOptions: string[] | null;
   isPinned: boolean;
+  commentsClosed: boolean;
   createdAt: Date;
   updatedAt: Date;
   author: {
@@ -413,14 +415,20 @@ export async function createPost(
   title: string | null,
   content: string,
   attachments?: { url: string; type: string; duration?: number }[],
-  poll?: { question: string; options: string[] } | null
+  poll?: { question: string; options: string[] } | null,
+  commentsClosed = false
 ) {
+  if (commentsClosed) {
+    const author = await db.user.findUnique({ where: { id: userId }, select: { role: true } });
+    if (!canManagePostComments(author?.role)) throw new Error("Alleen beheerders kunnen reacties uitschakelen.");
+  }
   return db.post.create({
     data: {
       authorId: userId,
       spaceId,
       title,
       content,
+      commentsClosed,
       pollQuestion: poll?.question || null,
       pollOptions: poll?.options ? poll.options : undefined,
       attachments: attachments
@@ -552,34 +560,42 @@ export async function addComment(
   parentId?: string,
   attachments?: { url: string; type: string; duration?: number }[]
 ) {
-  return db.comment.create({
-    data: {
-      postId,
-      authorId: userId,
-      content,
-      parentId,
-      attachments: attachments
-        ? {
-            create: attachments.map((attachment) => ({
-              url: attachment.url,
-              type: attachment.type,
-              duration: attachment.duration,
-            })),
-          }
-        : undefined,
-    },
-    include: {
-      author: {
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          avatarUrl: true,
-          role: true,
-        },
+  return db.$transaction(async tx => {
+    // Closing a post and submitting a reply serialize on the same row. A stale
+    // browser can never insert a comment after closure has committed.
+    const [post] = await tx.$queryRaw<Array<{ commentsClosed: boolean }>>`
+      SELECT "commentsClosed" FROM "Post" WHERE "id" = ${postId} FOR UPDATE`;
+    if (!post) throw new Error("Post niet gevonden");
+    if (post.commentsClosed) throw new CommentsClosedError();
+    return tx.comment.create({
+      data: {
+        postId,
+        authorId: userId,
+        content,
+        parentId,
+        attachments: attachments
+          ? {
+              create: attachments.map((attachment) => ({
+                url: attachment.url,
+                type: attachment.type,
+                duration: attachment.duration,
+              })),
+            }
+          : undefined,
       },
-      attachments: true,
-    },
+      include: {
+        author: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+            role: true,
+          },
+        },
+        attachments: true,
+      },
+    });
   });
 }
 
@@ -651,7 +667,7 @@ export async function canUserPostInSpace(
       where: { id: userId },
       select: { role: true },
     });
-    return user?.role === "ADMIN";
+    return canManagePostComments(user?.role);
   }
 
   // Check if user has access to the space

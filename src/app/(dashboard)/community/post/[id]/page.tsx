@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { getPost } from "@/lib/community";
+import { PostCommentsControl } from "@/components/community/post-comments-control";
 import { PinToggleButton } from "./pin-toggle-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -83,6 +84,7 @@ export default async function PostPage({ params }: PostPageProps) {
             </div>
 
             <div className="flex items-center gap-1">
+              {canManagePin ? <PostCommentsControl postId={post.id} closed={post.commentsClosed} /> : null}
               {post.isPinned && (
                 <Pin className="h-4 w-4 text-primary" />
               )}
@@ -172,7 +174,7 @@ export default async function PostPage({ params }: PostPageProps) {
           postId={post.id}
           comments={post.comments}
           currentUser={user}
-          canComment
+          canComment={!post.commentsClosed}
         />
       </div>
     </div>

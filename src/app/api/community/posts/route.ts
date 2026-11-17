@@ -4,7 +4,10 @@ import { getCurrentUser, createAuditLog } from "@/lib/auth";
 import { createPost, canUserPostInSpace } from "@/lib/community";
 import { createMentionNotifications } from "@/lib/community-mentions";
 
+import { canManagePostComments } from "@/lib/community-comment-policy";
+
 const createPostSchema = z.object({
+  commentsClosed: z.boolean().optional(),
   title: z.string().max(160).optional().or(z.literal("")),
   content: z.string().min(1, "Bericht is verplicht").max(10000),
   spaceId: z.string().min(1, "Space is verplicht"),
@@ -37,6 +40,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const data = createPostSchema.parse(body);
 
+    if (data.commentsClosed !== undefined && !canManagePostComments(user.role)) return NextResponse.json({ error: "Alleen beheerders kunnen de reactie-instelling wijzigen." }, { status: 403 });
+
     // Check if user can post in this space
     const canPost = await canUserPostInSpace(user.id, data.spaceId);
     if (!canPost) {
@@ -52,7 +57,8 @@ export async function POST(request: NextRequest) {
       data.title?.trim() ? data.title.trim() : null,
       data.content,
       data.attachments,
-      data.poll
+      data.poll,
+      data.commentsClosed ?? false
     );
 
     await createAuditLog("post.created", user.id, {

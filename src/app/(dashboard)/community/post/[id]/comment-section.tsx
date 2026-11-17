@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useId, useState } from "react";
+import { ChangeEvent, useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/components/ui/use-toast";
 import { formatRelativeTime, getInitials } from "@/lib/utils";
 import { FileAudio2, FileText, Image as ImageIcon, Loader2, Mic, Paperclip, Send, Smile, Square, X } from "lucide-react";
+import { COMMENTS_CLOSED_MESSAGE } from "@/lib/community-comment-policy";
+import { CommentsClosedNotice } from "@/components/community/post-comments-control";
 import { useVoiceRecorder } from "@/components/community/use-voice-recorder";
 
 interface CommentAttachment {
@@ -60,6 +62,8 @@ export function CommentSection({
   currentUser,
   canComment,
 }: CommentSectionProps) {
+  const [commentsClosed, setCommentsClosed] = useState(!canComment);
+  useEffect(() => { setCommentsClosed(!canComment); }, [canComment]);
   const router = useRouter();
   const { toast } = useToast();
   const imageInputId = useId();
@@ -150,7 +154,7 @@ export function CommentSection({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!newComment.trim() && attachments.length === 0) || isSubmitting || isUploading) return;
+    if (commentsClosed || (!newComment.trim() && attachments.length === 0) || isSubmitting || isUploading) return;
 
     setIsSubmitting(true);
 
@@ -166,6 +170,7 @@ export function CommentSection({
 
       const payload = await response.json();
       if (!response.ok) {
+        if (payload.error === COMMENTS_CLOSED_MESSAGE) { setCommentsClosed(true); router.refresh(); }
         throw new Error(payload.error || "Could not publish your reply.");
       }
 
@@ -196,7 +201,8 @@ export function CommentSection({
         COMMENTS ({comments.length})
       </h2>
 
-      {canComment ? (
+      {commentsClosed ? <CommentsClosedNotice /> : null}
+      {!commentsClosed ? (
         <Card className="mb-6">
           <CardContent className="p-4">
             <input
@@ -366,7 +372,7 @@ export function CommentSection({
           comments.map((comment) => <CommentCard key={comment.id} comment={comment} />)
         ) : (
           <p className="py-8 text-center text-muted-foreground">
-            No comments yet. {canComment ? "Be the first to reply." : ""}
+            No comments yet. {!commentsClosed ? "Be the first to reply." : ""}
           </p>
         )}
       </div>

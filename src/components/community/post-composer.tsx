@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { useVoiceRecorder } from "@/components/community/use-voice-recorder";
 import { getInitials } from "@/lib/utils";
+import { canManagePostComments } from "@/lib/community-comment-policy";
 import { MentionField } from "@/components/community/mention-field";
 
 interface Space {
@@ -48,6 +49,8 @@ export function PostComposer({ spaces, defaultSpaceId, user, onSuccess }: PostCo
   const fileInputId = useId();
   const voiceInputId = useId();
   const titleInputId = useId();
+  const [commentsClosed, setCommentsClosed] = useState(false);
+  const canManageComments = canManagePostComments(user.role);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [spaceId, setSpaceId] = useState(defaultSpaceId);
@@ -98,6 +101,7 @@ export function PostComposer({ spaces, defaultSpaceId, user, onSuccess }: PostCo
     (!pollEnabled || (pollQuestion.trim().length > 0 && pollOptions.filter((option) => option.trim()).length >= 2));
 
   const resetComposer = () => {
+    setCommentsClosed(false);
     setTitle("");
     setContent("");
     setAttachments([]);
@@ -135,6 +139,7 @@ export function PostComposer({ spaces, defaultSpaceId, user, onSuccess }: PostCo
           content: content.trim() || "Spraakbericht",
           spaceId,
           mentions: mentionedUserIds,
+          ...(canManageComments ? { commentsClosed } : {}),
           attachments: attachments.map(({ url, type }) => ({ url, type })),
           poll: pollEnabled
             ? { question: pollQuestion.trim(), options: pollOptions.map((option) => option.trim()).filter(Boolean) }
@@ -230,6 +235,11 @@ export function PostComposer({ spaces, defaultSpaceId, user, onSuccess }: PostCo
                 {pollOptions.length < 6 ? <Button variant="outline" size="sm" type="button" onClick={() => setPollOptions((current) => [...current, ""])}>Optie toevoegen</Button> : null}
               </div>
             ) : null}
+
+            {canManageComments ? <label className="mt-4 flex min-h-11 cursor-pointer items-start gap-3 py-2 text-sm">
+              <input type="checkbox" checked={commentsClosed} onChange={event => setCommentsClosed(event.target.checked)} disabled={isSubmitting} className="mt-0.5 h-4 w-4 accent-[#173622]" />
+              <span><span className="block font-medium">Reacties uitschakelen</span><span className="mt-1 block text-xs leading-5 text-muted-foreground">Er kunnen geen reacties onder dit bericht worden geplaatst.</span></span>
+            </label> : null}
 
             <div className="mt-3 flex flex-col gap-3 border-t pt-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap items-center gap-1">
