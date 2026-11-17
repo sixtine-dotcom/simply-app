@@ -3,20 +3,18 @@ import type { Prisma } from "@prisma/client";
 const teamRoles = ["ADMIN", "SUPERADMIN", "COACH", "STAFF"] as const;
 export type CommunityViewer = { id: string; role: string };
 
-export function canSeeSilentCommunityMembers(role: string) {
+export function canBrowseCommunityParticipants(role: string) {
   return (teamRoles as readonly string[]).includes(role);
 }
 
-/** Customers discover peers through voluntary posts/replies, never by a join
- * event or by enumerating newly enrolled people through @ suggestions. */
+/** Reading an author's name in a community conversation never grants access
+ * to a participant directory, people search, or peer-mention suggestions. */
 export function visibleCommunityUsers(spaceId: string, tenantId: string | null, viewer: CommunityViewer): Prisma.UserWhereInput {
   const member: Prisma.UserWhereInput = { spaceMemberships: { some: { spaceId } } };
-  if (!canSeeSilentCommunityMembers(viewer.role)) {
+  if (!canBrowseCommunityParticipants(viewer.role)) {
     member.OR = [
       { id: viewer.id },
       { role: { in: [...teamRoles] } },
-      { posts: { some: { spaceId } } },
-      { comments: { some: { post: { spaceId } } } },
     ];
   }
   return {

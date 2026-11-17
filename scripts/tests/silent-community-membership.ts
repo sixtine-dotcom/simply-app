@@ -3,7 +3,8 @@ import { randomBytes, createHash } from "node:crypto";
 import { db } from "../../src/lib/db";
 import { addCommunityMemberSilently } from "../../src/lib/community-membership";
 import { ensureCourseCommunityMembership, syncCourseCommunityMembershipsForCourse } from "../../src/lib/course-community";
-import { canUserAccessSpace } from "../../src/lib/community";
+import { getMessagingContacts, getUserConversations } from "../../src/lib/messages";
+import { canUserAccessSpace, getPost } from "../../src/lib/community";
 import { createMentionNotifications } from "../../src/lib/community-mentions";
 
 const base = process.env.SIMPLY_TEST_BASE_URL || "http://localhost:3000";
@@ -11,7 +12,7 @@ if (!["localhost", "127.0.0.1"].includes(new URL(base).hostname)) throw new Erro
 async function main() {
   const nonce = randomBytes(7).toString("hex");
   const users: Array<{ id: string; email: string; firstName: string }> = [], tokens: string[] = [];
-  let spaceId: string | undefined, courseId: string | undefined;
+  let spaceId: string | undefined, courseId: string | undefined, peerConversationId: string | undefined;
   async function request(path: string, account: number | null, method = "GET", body?: unknown) {
     return fetch(base + path, { method, headers: { ...(account !== null ? { Cookie: `simply_session=${tokens[account]}` } : {}), ...(body !== undefined ? { "Content-Type": "application/json" } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
   }
@@ -57,17 +58,40 @@ async function main() {
     await createMentionNotifications({ mentionedUserIds: users.slice(2).map(user => user.id), spaceId, tenantId: null, actorId: users[1].id, actorName: "Fixture member", link: `/community/${space.slug}` });
     assert.equal(await db.notification.count({ where: { userId: { in: users.slice(2).map(user => user.id) } } }), 0, "Forged mention IDs cannot bypass quiet-member visibility");
     await db.comment.create({ data: { postId: post.id, authorId: users[3].id, content: "A voluntary first reply" } });
-    await db.post.create({ data: { spaceId, authorId: users[2].id, content: "A voluntary first post" } });
+    const peerPost = await db.post.create({ data: { spaceId, authorId: users[2].id, content: "A voluntary community question" } });
     for (const target of users.slice(2,4)) {
-      const candidates = await (await request(memberPath + `?q=${target.firstName}`, 1)).json(); const visible = candidates.find((row: any) => row.id === target.id); assert(visible, "Voluntarily active peers can be tagged"); assert(!("createdAt" in visible) && !("email" in visible), "No join date/email exposed");
+      const candidates = await (await request(memberPath + `?q=${target.firstName}`, 1)).json();
+      assert(!candidates.some((row: any) => row.id === target.id), "Active peers remain unsearchable after posts and comments");
+      const spoofedRole = await (await request(memberPath + `?q=${target.firstName}&role=ADMIN`, 1)).json();
+      assert(!spoofedRole.some((row: any) => row.id === target.id), "Query parameters cannot elevate directory permissions");
+      const staffView = await (await request(memberPath + `?q=${target.firstName}`, 0)).json();
+      assert(staffView.some((row: any) => row.id === target.id), "Admin retains participant management");
     }
-    assert.deepEqual(await (await request(memberPath + `?q=${users[4].firstName}`, 1)).json(), [], "Still-silent course member remains hidden");
+    const afterActivity = await (await request(memberPath, 1)).json();
+    assert(!afterActivity.some((row: any) => users.slice(2).some(target => target.id === row.id)), "Empty searches cannot list active peers either");
+    const question = await getPost(peerPost.id, users[1].id);
+    assert.equal(question?.author.firstName, users[2].firstName, "Question author stays visible in the community");
+    const discussion = await getPost(post.id, users[1].id);
+    assert(discussion?.comments.some(comment => comment.author.firstName === users[3].firstName), "Reply author stays visible in the discussion");
+    const contacts = await getMessagingContacts(users[1].id);
+    assert(!contacts.some(contact => users.slice(2).some(target => target.id === contact.id)), "Other participants cannot be found through messages");
+    assert(contacts.some(contact => contact.id === users[0].id), "Team support remains reachable");
+    const peerConversation = await db.conversation.create({ data: { participants: { create: [{ userId: users[1].id }, { userId: users[2].id }] }, messages: { create: { senderId: users[2].id, content: "Synthetic previous peer conversation" } } } });
+    peerConversationId = peerConversation.id;
+    assert.deepEqual(await getUserConversations(users[1].id), [], "Even older peer conversations stay hidden");
+    assert.deepEqual(await (await request("/api/messages/conversations", 1)).json(), [], "Conversation API exposes no peers");
+    assert.equal((await request(`/api/messages/conversations/${peerConversation.id}/messages`, 1)).status, 403, "Peer history is inaccessible");
+    assert.equal((await request("/api/messages/conversations", 1, "POST", { userId: users[2].id })).status, 403, "Known author ID does not allow private peer contact");
+    assert.deepEqual(await (await request(memberPath + `?q=${users[4].firstName}`, 1)).json(), [], "Silent member remains hidden");
     await createMentionNotifications({ mentionedUserIds: [users[3].id], spaceId, tenantId: null, actorId: users[1].id, actorName: "Fixture member", link: `/community/${space.slug}` });
-    assert.equal(await db.notification.count({ where: { userId: users[3].id, type: "community_mention" } }), 1, "Explicit mentions of visible people still work");
+    assert.equal(await db.notification.count({ where: { userId: users[3].id, type: "community_mention" } }), 0, "Forged mentions of active peers are blocked too");
+    await createMentionNotifications({ mentionedUserIds: [users[0].id], spaceId, tenantId: null, actorId: users[1].id, actorName: "Fixture member", link: `/community/${space.slug}` });
+    assert.equal(await db.notification.count({ where: { userId: users[0].id, type: "community_mention" } }), 1, "Customers can still tag the team");
     assert.equal(await db.notification.count({ where: { userId: users[1].id } }), 0, "Existing members got no join announcement");
-    console.log("PASS: bulk, individual and course joins are silent and idempotent; no posts/queued posts/notifications/public count changes; private roster; customer mention privacy and forged-ID protection; voluntary posts/replies restore normal mentions. Temporary private fixtures only; no emails sent.");
+    console.log("PASS: bulk, individual and course joins are silent and idempotent; no posts/queued posts/notifications/public count changes; private roster; customer mention privacy and forged-ID protection; active peers unsearchable, community authors visible, message contacts protected and team support preserved. Temporary private fixtures only; no emails sent.");
   } finally {
     await db.$disconnect();
+    if (peerConversationId) await db.conversation.deleteMany({ where: { id: peerConversationId } });
     if (courseId) await db.course.deleteMany({ where: { id: courseId } });
     if (spaceId) await db.space.deleteMany({ where: { id: spaceId } });
     await db.notification.deleteMany({ where: { userId: { in: users.map(user => user.id) } } });
