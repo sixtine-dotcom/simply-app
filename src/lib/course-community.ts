@@ -1,3 +1,4 @@
+import { addCommunityMemberSilently } from "./community-membership";
 import { db } from "@/lib/db";
 
 function slugify(value: string) {
@@ -58,26 +59,7 @@ export async function ensureCourseCommunityMembership(params: {
     return;
   }
 
-  const existingMembership = await db.spaceMember.findUnique({
-    where: {
-      userId_spaceId: {
-        userId: params.userId,
-        spaceId: course.communitySpaceId,
-      },
-    },
-    select: { id: true },
-  });
-
-  if (existingMembership) {
-    return;
-  }
-
-  await db.spaceMember.create({
-    data: {
-      userId: params.userId,
-      spaceId: course.communitySpaceId,
-    },
-  });
+  await addCommunityMemberSilently(params.userId, course.communitySpaceId);
 }
 
 export async function revokeCourseCommunityMembershipIfUnused(params: {

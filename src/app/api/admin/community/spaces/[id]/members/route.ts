@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { addCommunityMemberSilently } from "@/lib/community-membership";
 import { createAuditLog, getCurrentUser } from "@/lib/auth";
 
 const addMembersSchema = z.object({
@@ -87,28 +88,9 @@ export async function POST(
     let skipped = 0;
 
     for (const targetUser of users) {
-      const existing = await db.spaceMember.findUnique({
-        where: {
-          userId_spaceId: {
-            userId: targetUser.id,
-            spaceId: space.id,
-          },
-        },
-        select: { id: true },
-      });
-
-      if (existing) {
-        skipped += 1;
-        continue;
-      }
-
-      await db.spaceMember.create({
-        data: {
-          userId: targetUser.id,
-          spaceId: space.id,
-        },
-      });
-      added += 1;
+      const created = await addCommunityMemberSilently(targetUser.id, space.id);
+      if (created) added += 1;
+      else skipped += 1;
     }
 
     await createAuditLog(

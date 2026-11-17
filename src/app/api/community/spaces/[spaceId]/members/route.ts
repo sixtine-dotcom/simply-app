@@ -13,6 +13,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const query = request.nextUrl.searchParams.get("q") || "";
-  const members = await getMentionableUsers(spaceId, user.tenantId, query);
-  return NextResponse.json(members);
+  const members = await getMentionableUsers(spaceId, user.tenantId, query, { id: user.id, role: user.role });
+  return NextResponse.json(members, { headers: { "Cache-Control": "private, no-store" } });
 }

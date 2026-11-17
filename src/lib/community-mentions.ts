@@ -1,20 +1,12 @@
 import { db } from "@/lib/db";
+import { visibleCommunityUsers, type CommunityViewer } from "./community-member-visibility";
 
-export async function getMentionableUsers(spaceId: string, tenantId: string | null, query = "") {
+export async function getMentionableUsers(spaceId: string, tenantId: string | null, query: string, viewer: CommunityViewer) {
   const words = query.trim().split(/\s+/).filter(Boolean);
   return db.user.findMany({
     where: {
-      deletedAt: null,
+      ...visibleCommunityUsers(spaceId, tenantId, viewer),
       AND: [
-        {
-          OR: [
-            { spaceMemberships: { some: { spaceId } } },
-            {
-              role: { in: ["ADMIN", "SUPERADMIN", "COACH", "STAFF"] },
-              ...(tenantId ? { tenantId } : {}),
-            },
-          ],
-        },
         ...words.map((word) => ({
           OR: [
             { firstName: { contains: word, mode: "insensitive" as const } },
@@ -46,17 +38,12 @@ export async function createMentionNotifications({
 }) {
   if (!mentionedUserIds.length) return;
   const requestedIds = Array.from(new Set(mentionedUserIds)).filter((id) => id !== actorId);
+  const actor = await db.user.findUnique({ where: { id: actorId }, select: { role: true, deletedAt: true } });
+  if (!actor || actor.deletedAt) return;
   const allowedUsers = await db.user.findMany({
     where: {
+      ...visibleCommunityUsers(spaceId, tenantId, { id: actorId, role: actor.role }),
       id: { in: requestedIds },
-      deletedAt: null,
-      OR: [
-        { spaceMemberships: { some: { spaceId } } },
-        {
-          role: { in: ["ADMIN", "SUPERADMIN", "COACH", "STAFF"] },
-          ...(tenantId ? { tenantId } : {}),
-        },
-      ],
     },
     select: { id: true },
   });

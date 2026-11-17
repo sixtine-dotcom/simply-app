@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createAuditLog, getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { addCommunityMemberSilently } from "@/lib/community-membership";
 
 const assignUserSpaceSchema = z.object({
   spaceId: z.string().min(1, "Selecteer een community"),
@@ -50,25 +51,10 @@ export async function POST(
       return NextResponse.json({ error: "Community niet gevonden" }, { status: 404 });
     }
 
-    const existing = await db.spaceMember.findUnique({
-      where: {
-        userId_spaceId: {
-          userId: targetUser.id,
-          spaceId: space.id,
-        },
-      },
-      select: { id: true },
-    });
-
-    if (existing) {
-      return NextResponse.json({ success: true, matchedExistingMembership: true });
-    }
-
-    const membership = await db.spaceMember.create({
-      data: {
-        userId: targetUser.id,
-        spaceId: space.id,
-      },
+    const added = await addCommunityMemberSilently(targetUser.id, space.id);
+    if (!added) return NextResponse.json({ success: true, matchedExistingMembership: true });
+    const membership = await db.spaceMember.findUniqueOrThrow({
+      where: { userId_spaceId: { userId: targetUser.id, spaceId: space.id } },
       select: { id: true },
     });
 
