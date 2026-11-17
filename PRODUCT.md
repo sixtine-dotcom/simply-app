@@ -28,6 +28,7 @@ Het platform vertaalt Sixtines eigen Simply Lifestyle-methodiek en persoonlijke 
 - Beheerders werken hoofdzakelijk op desktop; klanten gebruiken zowel desktop als mobiel.
 - De applicatie wordt als webplatform gebouwd en kan via Capacitor in mobiele stores worden verpakt.
 - De primaire taal van de interface is Nederlands.
+- Communityleden worden stil toegevoegd: geen openbare toetredingsberichten, meldingen of nieuweledentellers. Stille deelnemers worden niet via klantgerichte tag-suggesties bekendgemaakt; na eigen berichten of reacties kunnen anderen hen normaal taggen. De volledige ledenadministratie blijft in het beheer.
 
 ## Capabilities and Constraints
 
